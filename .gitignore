@@ -1,0 +1,17 @@
+node_modules
+dist
+.next
+.turbo
+.pnpm-store
+/data/*
+!/data/.gitkeep
+.env
+.env.local
+*.log
+.DS_Store
+coverage
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.tsbuildinfo

@@ -1,0 +1,18 @@
+{
+  "name": "designweave",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@8.6.9",
+  "scripts": {
+    "predev": "pnpm --filter @designweave/schema build && pnpm --filter @designweave/prompts build",
+    "dev": "pnpm -r --parallel --filter @designweave/agent --filter @designweave/web dev",
+    "dev:agent": "pnpm --filter @designweave/agent dev",
+    "dev:web": "pnpm --filter @designweave/web dev",
+    "build": "pnpm --filter @designweave/schema build && pnpm --filter @designweave/prompts build && pnpm --filter @designweave/agent build && pnpm --filter @designweave/web build",
+    "start": "pnpm -r --parallel --filter @designweave/agent --filter @designweave/web start",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

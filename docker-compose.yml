@@ -1,0 +1,29 @@
+services:
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: agent
+    ports:
+      - "8787:8787"
+    env_file:
+      - .env
+    environment:
+      DATA_DIR: /data
+      AGENT_PORT: 8787
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: web
+    ports:
+      - "3100:3100"
+    environment:
+      NEXT_PUBLIC_AGENT_URL: http://localhost:8787
+    depends_on:
+      - agent
+    restart: unless-stopped
