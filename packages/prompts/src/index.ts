@@ -1,3 +1,5 @@
+export * from "./requirement.js";
+
 import type { AgentMode, AgentRole } from "@designweave/schema";
 import { AGENT_MODE_LABELS, PRD_SECTION_LABELS } from "@designweave/schema";
 

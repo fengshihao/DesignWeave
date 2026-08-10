@@ -42,6 +42,7 @@ import {
   writePrdMarkdown,
   importMarkdownToRequirement,
 } from "./requirements.js";
+import { runRequirementChat } from "./requirementChat.js";
 
 fs.mkdirSync(workspacesRoot(), { recursive: true });
 getDb();
@@ -142,6 +143,32 @@ app.post("/v1/requirements/:id/import", (req, res) => {
     const markdown = String(req.body?.markdown || "");
     const mode = req.body?.mode === "append" ? "append" : "replace";
     const result = importMarkdownToRequirement(req.params.id, markdown, mode);
+    res.json({
+      ...result,
+      bundle: getRequirementBundle(req.params.id),
+    });
+  } catch (err) {
+    res.status(400).json({
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+app.post("/v1/requirements/:id/chat", async (req, res) => {
+  try {
+    const message = String(req.body?.message || "").trim();
+    if (!message) {
+      res.status(400).json({ error: "消息不能为空" });
+      return;
+    }
+    const modeRaw = String(req.body?.mode || "guide");
+    const mode =
+      modeRaw === "gaps" || modeRaw === "normalize" ? modeRaw : "guide";
+    const result = await runRequirementChat({
+      requirementId: req.params.id,
+      mode,
+      message,
+    });
     res.json({
       ...result,
       bundle: getRequirementBundle(req.params.id),
