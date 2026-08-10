@@ -31,6 +31,7 @@ import {
   readPrd,
   readIssues,
 } from "./workspace.js";
+import { scanClaudeKnownProjects } from "./claudeProjects.js";
 
 fs.mkdirSync(workspacesRoot(), { recursive: true });
 getDb();
@@ -55,6 +56,10 @@ app.get("/health", (_req, res) => {
     hasApiKey: Boolean(config.anthropicApiKey),
     mockMode: !config.anthropicApiKey,
   });
+});
+
+app.get("/v1/claude/projects", (_req, res) => {
+  res.json(scanClaudeKnownProjects());
 });
 
 app.get("/v1/projects", (_req, res) => {
