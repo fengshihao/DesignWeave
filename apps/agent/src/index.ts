@@ -40,6 +40,7 @@ import {
   readPrdMarkdown,
   setRequirementPhase,
   writePrdMarkdown,
+  importMarkdownToRequirement,
 } from "./requirements.js";
 
 fs.mkdirSync(workspacesRoot(), { recursive: true });
@@ -131,6 +132,22 @@ app.put("/v1/requirements/:id/prd", (req, res) => {
     res.json({ prd: readPrdMarkdown(req.params.id) });
   } catch (err) {
     res.status(404).json({
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+app.post("/v1/requirements/:id/import", (req, res) => {
+  try {
+    const markdown = String(req.body?.markdown || "");
+    const mode = req.body?.mode === "append" ? "append" : "replace";
+    const result = importMarkdownToRequirement(req.params.id, markdown, mode);
+    res.json({
+      ...result,
+      bundle: getRequirementBundle(req.params.id),
+    });
+  } catch (err) {
+    res.status(400).json({
       error: err instanceof Error ? err.message : String(err),
     });
   }

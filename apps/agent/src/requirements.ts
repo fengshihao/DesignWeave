@@ -352,6 +352,42 @@ function touchRequirement(id: string): void {
   }
 }
 
+export function importMarkdownToRequirement(
+  id: string,
+  markdown: string,
+  mode: "replace" | "append" = "replace"
+): { prd: string; originalImport: string } {
+  const meta = getRequirement(id);
+  if (!meta) throw new Error("需求不存在");
+  const text = markdown.trim();
+  if (!text) throw new Error("导入内容为空");
+
+  const importDir = path.join(meta.vaultPath, "import");
+  fs.mkdirSync(importDir, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  fs.writeFileSync(path.join(importDir, `original-${stamp}.md`), text + "\n", "utf8");
+  fs.writeFileSync(path.join(importDir, "original.md"), text + "\n", "utf8");
+
+  const prdPath = path.join(meta.vaultPath, "PRD.md");
+  if (mode === "append" && fs.existsSync(prdPath)) {
+    const prev = fs.readFileSync(prdPath, "utf8");
+    fs.writeFileSync(
+      prdPath,
+      `${prev.trim()}\n\n---\n\n## 导入补充（${new Date().toISOString()}）\n\n${text}\n`,
+      "utf8"
+    );
+  } else {
+    fs.writeFileSync(prdPath, text + "\n", "utf8");
+  }
+
+  setRequirementPhase(id, "gaps");
+  touchRequirement(id);
+  return {
+    prd: readPrdMarkdown(id),
+    originalImport: text,
+  };
+}
+
 export function getRequirementBundle(id: string) {
   const meta = getRequirement(id);
   if (!meta) return null;
