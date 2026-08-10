@@ -22,8 +22,6 @@ AI 层通过 **Claude Agent SDK**（`@anthropic-ai/claude-agent-sdk`）运行。
 
 ```bash
 cp .env.example .env
-# 编辑 .env，填入 ANTHROPIC_API_KEY（可选）与 APP_PASSWORD（可选）
-
 pnpm install
 pnpm --filter @designweave/schema build
 pnpm --filter @designweave/prompts build
@@ -32,6 +30,9 @@ pnpm dev
 
 - Web：http://localhost:3100  
 - Agent：http://localhost:8787/health  
+
+当前主路径：首页选 Claude 已知工程 → 新建需求（可粘贴导入 Markdown）→ 引导共创 / 文档 / 追问完善。文档落在主仓 `.designweave/requirements/` 或 `data/inbox/`。
+
 
 ## Docker（内网机器）
 
