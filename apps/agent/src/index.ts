@@ -32,9 +32,19 @@ import {
   readIssues,
 } from "./workspace.js";
 import { scanClaudeKnownProjects } from "./claudeProjects.js";
+import {
+  createRequirement,
+  ensureRequirementsTable,
+  getRequirementBundle,
+  listRequirements,
+  readPrdMarkdown,
+  setRequirementPhase,
+  writePrdMarkdown,
+} from "./requirements.js";
 
 fs.mkdirSync(workspacesRoot(), { recursive: true });
 getDb();
+ensureRequirementsTable();
 
 const app = express();
 app.use(cors());
@@ -60,6 +70,89 @@ app.get("/health", (_req, res) => {
 
 app.get("/v1/claude/projects", (_req, res) => {
   res.json(scanClaudeKnownProjects());
+});
+
+app.get("/v1/requirements", (_req, res) => {
+  res.json({ requirements: listRequirements() });
+});
+
+app.post("/v1/requirements", (req, res) => {
+  try {
+    const title = String(req.body?.title || "").trim();
+    const summary = String(req.body?.summary || req.body?.idea || "").trim();
+    const primaryRepo =
+      typeof req.body?.primaryRepo === "string"
+        ? req.body.primaryRepo.trim()
+        : undefined;
+    const relatedRepos = Array.isArray(req.body?.relatedRepos)
+      ? req.body.relatedRepos.map((x: unknown) => String(x))
+      : [];
+    const importMarkdown =
+      typeof req.body?.importMarkdown === "string"
+        ? req.body.importMarkdown
+        : undefined;
+
+    if (!title && !summary && !importMarkdown) {
+      res.status(400).json({ error: "请提供标题、一句话目标或导入的 Markdown" });
+      return;
+    }
+
+    const requirement = createRequirement({
+      title: title || summary.slice(0, 40) || "导入的需求",
+      summary,
+      primaryRepo,
+      relatedRepos,
+      importMarkdown,
+    });
+    res.status(201).json({
+      requirement,
+      bundle: getRequirementBundle(requirement.id),
+    });
+  } catch (err) {
+    res.status(400).json({
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+app.get("/v1/requirements/:id", (req, res) => {
+  const bundle = getRequirementBundle(req.params.id);
+  if (!bundle) {
+    res.status(404).json({ error: "需求不存在" });
+    return;
+  }
+  res.json(bundle);
+});
+
+app.put("/v1/requirements/:id/prd", (req, res) => {
+  try {
+    const content = String(req.body?.content ?? "");
+    writePrdMarkdown(req.params.id, content);
+    res.json({ prd: readPrdMarkdown(req.params.id) });
+  } catch (err) {
+    res.status(404).json({
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+app.patch("/v1/requirements/:id/phase", (req, res) => {
+  try {
+    const phase = String(req.body?.phase || "");
+    if (!["guide", "document", "gaps"].includes(phase)) {
+      res.status(400).json({ error: "phase 必须是 guide | document | gaps" });
+      return;
+    }
+    const requirement = setRequirementPhase(
+      req.params.id,
+      phase as "guide" | "document" | "gaps"
+    );
+    res.json({ requirement });
+  } catch (err) {
+    res.status(404).json({
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 });
 
 app.get("/v1/projects", (_req, res) => {
