@@ -921,7 +921,7 @@
 
       <div class="toolbar">
         <button class="btn btn-primary" id="pickBtn" type="button">选择文件夹</button>
-        <label class="btn btn-ghost" id="pickFallbackLabel" title="通过系统文件对话框，在本机打开目录（不会发到服务器）">
+        <label class="btn btn-ghost" id="pickFallbackLabel" title="兼容用；此方式无法一键恢复最近目录，建议优先用上方按钮">
           浏览本地目录…
           <input class="dir-picker" id="dirInput" type="file" webkitdirectory directory multiple />
         </label>
@@ -1060,26 +1060,6 @@
         });
       }
 
-      async function idbPutFolder(record) {
-        const db = await openDb();
-        return new Promise((resolve, reject) => {
-          const tx = db.transaction(DB_STORE, "readwrite");
-          tx.objectStore(DB_STORE).put(record);
-          tx.oncomplete = () => resolve();
-          tx.onerror = () => reject(tx.error);
-        });
-      }
-
-      async function idbDeleteFolder(id) {
-        const db = await openDb();
-        return new Promise((resolve, reject) => {
-          const tx = db.transaction(DB_STORE, "readwrite");
-          tx.objectStore(DB_STORE).delete(id);
-          tx.oncomplete = () => resolve();
-          tx.onerror = () => reject(tx.error);
-        });
-      }
-
       function formatRelativeTime(ts) {
         const diff = Date.now() - ts;
         if (diff < 60_000) return "刚刚";
@@ -1089,27 +1069,109 @@
         return new Date(ts).toLocaleDateString("zh-CN");
       }
 
+      async function idbGetFolder(id) {
+        const db = await openDb();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction(DB_STORE, "readonly");
+          const req = tx.objectStore(DB_STORE).get(id);
+          req.onsuccess = () => resolve(req.result || null);
+          req.onerror = () => reject(req.error);
+        });
+      }
+
+      async function idbPutFolder(record) {
+        const db = await openDb();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction(DB_STORE, "readwrite");
+          const req = tx.objectStore(DB_STORE).put(record);
+          req.onerror = () => reject(req.error);
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
+      }
+
+      async function idbDeleteFolder(id) {
+        const db = await openDb();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction(DB_STORE, "readwrite");
+          const req = tx.objectStore(DB_STORE).delete(id);
+          req.onerror = () => reject(req.error);
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
+      }
+
+      /** 当前会话内句柄缓存，避免仅依赖 IDB 反序列化 */
+      const sessionHandles = new Map();
+
+      function isDirectoryHandle(value) {
+        return !!(value && typeof value === "object" && value.kind === "directory" && typeof value.getDirectoryHandle === "function");
+      }
+
+      async function ensureHandlePermission(handle) {
+        if (!isDirectoryHandle(handle)) return false;
+        const opts = { mode: "read" };
+        try {
+          if (typeof handle.queryPermission === "function") {
+            const q = await handle.queryPermission(opts);
+            if (q === "granted") return true;
+          }
+          if (typeof handle.requestPermission === "function") {
+            const r = await handle.requestPermission(opts);
+            return r === "granted";
+          }
+          // 旧环境：直接尝试读取
+          return true;
+        } catch (err) {
+          console.warn(err);
+          return false;
+        }
+      }
+
       async function refreshRecentFolders() {
         try {
           const all = await idbAllFolders();
-          recentFolders = all.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+          recentFolders = all
+            .map((r) => {
+              const cached = sessionHandles.get(r.id);
+              if (cached && !isDirectoryHandle(r.handle)) r.handle = cached;
+              if (isDirectoryHandle(r.handle)) sessionHandles.set(r.id, r.handle);
+              return r;
+            })
+            .sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
         } catch (err) {
           console.warn(err);
           recentFolders = [];
         }
       }
 
+      async function deleteLegacyDuplicates(name) {
+        const all = await idbAllFolders();
+        await Promise.all(
+          all
+            .filter((r) => r.source === "legacy" && r.name === name)
+            .map((r) => idbDeleteFolder(r.id))
+        );
+      }
+
       async function rememberDirectoryHandle(handle) {
+        if (!isDirectoryHandle(handle)) {
+          throw new Error("invalid directory handle");
+        }
         const all = await idbAllFolders();
         let record = null;
         for (const rec of all) {
-          if (rec.handle && typeof rec.handle.isSameEntry === "function") {
+          const h = rec.handle || sessionHandles.get(rec.id);
+          if (isDirectoryHandle(h) && typeof h.isSameEntry === "function") {
             try {
-              if (await rec.handle.isSameEntry(handle)) {
+              if (await h.isSameEntry(handle)) {
                 record = rec;
                 break;
               }
             } catch (_) { /* ignore */ }
+          }
+          if (rec.name === handle.name && rec.source === "fs-access") {
+            record = rec;
           }
         }
         if (!record) {
@@ -1117,27 +1179,48 @@
             id: crypto.randomUUID(),
             name: handle.name,
             source: "fs-access",
-            handle,
             lastUsed: Date.now(),
             fileCount: files.length || 0,
           };
-        } else {
-          record.name = handle.name;
-          record.handle = handle;
-          record.source = "fs-access";
-          record.lastUsed = Date.now();
-          record.fileCount = files.length || record.fileCount || 0;
         }
+        record.name = handle.name;
+        record.source = "fs-access";
+        record.handle = handle;
+        record.lastUsed = Date.now();
+        record.fileCount = files.length || record.fileCount || 0;
+
         await idbPutFolder(record);
+        sessionHandles.set(record.id, handle);
         currentFolderId = record.id;
+
+        // 校验句柄是否真正写入；失败则至少保留会话缓存
+        const saved = await idbGetFolder(record.id);
+        if (!isDirectoryHandle(saved?.handle)) {
+          console.warn("Directory handle was not persisted to IndexedDB; session reopen still works.");
+        }
+
+        await deleteLegacyDuplicates(handle.name);
         await pruneRecentFolders();
         await refreshRecentFolders();
         return record;
       }
 
       async function rememberLegacyFolder(name, fileCount) {
-        const id = "legacy:" + name;
+        // 若已有可直接打开的同名记录，只更新时间，不覆盖句柄
         const all = await idbAllFolders();
+        const withHandle = all.find((r) => r.name === name && (isDirectoryHandle(r.handle) || sessionHandles.has(r.id)));
+        if (withHandle) {
+          withHandle.lastUsed = Date.now();
+          withHandle.fileCount = fileCount;
+          if (sessionHandles.has(withHandle.id) && !isDirectoryHandle(withHandle.handle)) {
+            withHandle.handle = sessionHandles.get(withHandle.id);
+          }
+          await idbPutFolder(withHandle);
+          currentFolderId = withHandle.id;
+          await refreshRecentFolders();
+          return;
+        }
+        const id = "legacy:" + name;
         const existing = all.find((r) => r.id === id) || {
           id,
           name,
@@ -1147,6 +1230,8 @@
         existing.lastUsed = Date.now();
         existing.fileCount = fileCount;
         existing.name = name;
+        existing.source = "legacy";
+        existing.handle = null;
         await idbPutFolder(existing);
         currentFolderId = existing.id;
         await pruneRecentFolders();
@@ -1163,11 +1248,12 @@
       async function touchCurrentFolder(fileCount) {
         if (!currentFolderId) return;
         try {
-          const all = await idbAllFolders();
-          const rec = all.find((r) => r.id === currentFolderId);
+          const rec = (await idbGetFolder(currentFolderId)) || recentFolders.find((r) => r.id === currentFolderId);
           if (!rec) return;
           rec.lastUsed = Date.now();
           if (typeof fileCount === "number") rec.fileCount = fileCount;
+          const cached = sessionHandles.get(rec.id);
+          if (cached) rec.handle = cached;
           await idbPutFolder(rec);
           await refreshRecentFolders();
         } catch (err) {
@@ -1176,35 +1262,37 @@
       }
 
       async function reopenRecentFolder(id) {
-        const rec = recentFolders.find((r) => r.id === id) || (await idbAllFolders()).find((r) => r.id === id);
+        const rec =
+          recentFolders.find((r) => r.id === id) ||
+          (await idbGetFolder(id));
         if (!rec) {
           toast("记录不存在");
           return;
         }
-        if (rec.handle) {
-          try {
-            let state = "prompt";
-            if (typeof rec.handle.queryPermission === "function") {
-              state = await rec.handle.queryPermission({ mode: "read" });
-            }
-            if (state !== "granted" && typeof rec.handle.requestPermission === "function") {
-              state = await rec.handle.requestPermission({ mode: "read" });
-            }
-            if (state !== "granted") {
-              toast("需要授权才能重新打开该目录");
-              return;
-            }
-            statusLeft.textContent = `正在打开 ${rec.name}…`;
-            await loadFromDirectoryHandle(rec.handle);
-            return;
-          } catch (err) {
-            console.warn(err);
-            toast("无法直接打开，请重新选择该文件夹");
-            return;
-          }
+
+        const handle = (isDirectoryHandle(rec.handle) && rec.handle) || sessionHandles.get(rec.id) || null;
+        if (!handle) {
+          toast("该记录无法直接打开：请点「选择文件夹」授权一次，之后即可一键打开");
+          statusLeft.textContent = "需要「选择文件夹」授权后才能一键重开";
+          return;
         }
-        toast(`「${rec.name}」需再次选择（兼容模式无法直接恢复）`);
-        openLegacyFolderDialog();
+
+        statusLeft.textContent = `正在打开 ${rec.name || handle.name}…`;
+        const ok = await ensureHandlePermission(handle);
+        if (!ok) {
+          toast("未获得目录读取授权");
+          statusLeft.textContent = "未获得目录授权";
+          return;
+        }
+
+        try {
+          sessionHandles.set(rec.id, handle);
+          await loadFromDirectoryHandle(handle);
+        } catch (err) {
+          console.warn(err);
+          toast("打开目录失败，请用「选择文件夹」重新授权");
+          statusLeft.textContent = "打开目录失败";
+        }
       }
 
       async function removeRecentFolder(id, e) {
@@ -1425,8 +1513,9 @@
         if (!matched.length) return "";
         let html = `<div class="file-group-title">最近目录</div>`;
         for (const r of matched) {
+          const canOpen = isDirectoryHandle(r.handle) || sessionHandles.has(r.id);
           const count = typeof r.fileCount === "number" ? `${r.fileCount} 篇 · ` : "";
-          const mode = r.handle ? "可直接打开" : "需再次选择";
+          const mode = canOpen ? "点击直接打开" : "需先用「选择文件夹」授权";
           html += `<div class="recent-row">
             <button class="recent-item" type="button" data-recent-id="${escapeHtml(r.id)}">
               <span class="file-icon">夹</span>
