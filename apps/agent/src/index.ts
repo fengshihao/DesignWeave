@@ -33,6 +33,10 @@ import {
 } from "./workspace.js";
 import { scanClaudeKnownProjects } from "./claudeProjects.js";
 import {
+  scanClaudeConfigInventory,
+  summarizeClaudeReuse,
+} from "./claudeRuntime.js";
+import {
   createRequirement,
   ensureRequirementsTable,
   getRequirementBundle,
@@ -62,12 +66,31 @@ app.use((req, res, next) => {
 });
 
 app.get("/health", (_req, res) => {
+  const claude = scanClaudeConfigInventory();
   res.json({
     ok: true,
     name: "DesignWeave Agent",
     hasApiKey: Boolean(config.anthropicApiKey),
     mockMode: !config.anthropicApiKey,
+    credentialSource: config.anthropicCredentialSource,
+    hasBaseUrl: Boolean(config.anthropicBaseUrl),
+    claudeSettingsFound: config.claudeSettingsFound,
+    claudeReuse: {
+      language: claude.language,
+      settingSources: claude.settingSources,
+      skillCount: claude.skills.length,
+      skillNames: claude.skills.map((s) => s.name),
+      pluginCount: claude.plugins.filter((p) => p.skillCount > 0 || p.enabled).length,
+      enabledPlugins: claude.enabledPluginNames,
+      mcpServers: claude.mcpServerNames,
+      hasUserClaudeMd: claude.hasUserClaudeMd,
+      hasUserRules: claude.hasUserRules,
+    },
   });
+});
+
+app.get("/v1/claude/config", (_req, res) => {
+  res.json(scanClaudeConfigInventory());
 });
 
 app.get("/v1/claude/projects", (_req, res) => {
@@ -433,9 +456,20 @@ app.post("/v1/projects/:id/apply-result", (req, res) => {
 
 app.listen(config.port, () => {
   console.log(`DesignWeave Agent 已启动：http://localhost:${config.port}`);
-  console.log(
-    config.anthropicApiKey
-      ? "已检测到 ANTHROPIC_API_KEY，将调用 Claude Agent SDK。"
-      : "未检测到 ANTHROPIC_API_KEY，当前为演示模式（mock）。"
-  );
+  const reuse = summarizeClaudeReuse();
+  if (config.anthropicCredentialSource === "claude-settings") {
+    const base = config.anthropicBaseUrl
+      ? `，BASE_URL=${config.anthropicBaseUrl}`
+      : "";
+    console.log(
+      `已从 Claude Code settings 复用凭证（${config.claudeSettingsPath}${base}），将调用 Claude Agent SDK。`
+    );
+  } else if (config.anthropicCredentialSource === "env") {
+    console.log("已检测到 ANTHROPIC_API_KEY / AUTH_TOKEN，将调用 Claude Agent SDK。");
+  } else {
+    console.log(
+      "未检测到 API Key（.env 或 ~/.claude/settings.json），当前为演示模式（mock）。"
+    );
+  }
+  console.log(`Claude Code 配置复用：${reuse}`);
 });

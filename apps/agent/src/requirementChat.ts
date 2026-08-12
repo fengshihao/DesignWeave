@@ -6,6 +6,7 @@ import {
   type RequirementChatMode,
 } from "@designweave/prompts";
 import { config } from "./config.js";
+import { buildClaudeQueryOptions } from "./claudeRuntime.js";
 import {
   getRequirement,
   readGapsMarkdown,
@@ -68,7 +69,7 @@ function mockGuide(meta: RequirementMeta, prd: string, message: string): Require
     "需要哪些敏感权限？是否涉及运营商或合规审核？",
   ];
 
-  const reply = `（演示模式）已记录你的输入。作为 OEM 内置 App 需求，建议下一轮先确认：\n\n1. ${questions[0]}\n2. ${questions[1]}\n3. ${questions[2]}\n\n配置 ANTHROPIC_API_KEY 或复用 Claude Code 后可自动写章节。`;
+  const reply = `（演示模式）已记录你的输入。作为 OEM 内置 App 需求，建议下一轮先确认：\n\n1. ${questions[0]}\n2. ${questions[1]}\n3. ${questions[2]}\n\n配置 .env 的 ANTHROPIC_API_KEY，或复用 ~/.claude/settings.json 后可自动写章节。`;
 
   void lower;
   writePrdMarkdown(meta.id, nextPrd);
@@ -133,20 +134,18 @@ export async function runRequirementChat(input: {
   let textOut = "";
 
   const q = query({
-    prompt: `${systemPrompt}\n\n---\n\n${userPrompt}`,
-    options: {
+    prompt: userPrompt,
+    options: buildClaudeQueryOptions({
       cwd,
       allowedTools: ["Read", "Glob", "Grep"],
       permissionMode: "default",
-      env: {
-        ...process.env,
-        ANTHROPIC_API_KEY: config.anthropicApiKey,
-      },
+      additionalDirectories: meta.relatedRepos.filter(Boolean),
+      appendSystemPrompt: systemPrompt,
       outputFormat: {
         type: "json_schema" as const,
         schema: requirementChatOutputSchema as unknown as Record<string, unknown>,
       },
-    },
+    }),
   });
 
   for await (const message of q) {

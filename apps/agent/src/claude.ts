@@ -6,6 +6,7 @@ import {
 } from "@designweave/schema";
 import { buildUserTurn, getSystemPrompt } from "@designweave/prompts";
 import { config } from "./config.js";
+import { buildClaudeQueryOptions } from "./claudeRuntime.js";
 import { projectDir } from "./workspace.js";
 
 export type StreamEvent =
@@ -37,7 +38,7 @@ export async function* runAgentStream(params: {
     yield {
       type: "error",
       message:
-        "未配置 ANTHROPIC_API_KEY。请在项目根目录 .env 中设置后重启服务。",
+        "未配置 API Key。请在项目根目录 .env 设置 ANTHROPIC_API_KEY，或在 ~/.claude/settings.json 配置 Claude Code（含 ANTHROPIC_AUTH_TOKEN / BASE_URL）后重启服务。",
     };
     yield { type: "done" };
     return;
@@ -63,17 +64,14 @@ export async function* runAgentStream(params: {
 
   try {
     const q = query({
-      prompt: `${systemPrompt}\n\n---\n\n${userPrompt}`,
-      options: {
+      prompt: userPrompt,
+      options: buildClaudeQueryOptions({
         cwd,
         allowedTools: toolsForMode(params.mode),
         permissionMode:
           params.mode === "feasibility" ? "default" : "acceptEdits",
         allowDangerouslySkipPermissions: false,
-        env: {
-          ...process.env,
-          ANTHROPIC_API_KEY: config.anthropicApiKey,
-        },
+        appendSystemPrompt: systemPrompt,
         ...(useStructured
           ? {
               outputFormat: {
@@ -85,7 +83,7 @@ export async function* runAgentStream(params: {
               },
             }
           : {}),
-      },
+      }),
     });
 
     for await (const message of q) {

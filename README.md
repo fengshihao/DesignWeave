@@ -10,7 +10,7 @@
 | 架构 | 技术方案、代码仓可行性、拆分 SR | 骨架已预留 |
 | 测试 | 测试方案与用例建议 | 骨架已预留 |
 
-AI 层通过 **Claude Agent SDK**（`@anthropic-ai/claude-agent-sdk`）运行。未配置 `ANTHROPIC_API_KEY` 时自动进入**演示模式**，可先跑通界面与文档流。
+AI 层通过 **Claude Agent SDK**（`@anthropic-ai/claude-agent-sdk`）运行。未配置凭证时自动进入**演示模式**，可先跑通界面与文档流。启动时会复用本机 Claude Code：`.env` 优先，否则读 `~/.claude/settings.json`（含 GLM / 兼容网关），并加载 `settingSources`（user/project/local）下的 skills、plugins、hooks、MCP、CLAUDE.md。
 
 ## 环境要求
 
@@ -25,11 +25,15 @@ cp .env.example .env
 pnpm install
 pnpm --filter @designweave/schema build
 pnpm --filter @designweave/prompts build
-pnpm dev
+pnpm dev          # 先停旧进程（:3100 / :8787），再启动
 ```
+
+Windows 请在 **Git Bash** 里跑（仅 `scripts/dev.sh` 一个 bash 脚本，三端统一）。
 
 - Web：http://localhost:3100  
 - Agent：http://localhost:8787/health  
+
+仅停止：`pnpm stop`（等价于 `bash scripts/dev.sh stop`）
 
 当前主路径：首页选 Claude 已知工程 → 新建需求（可粘贴导入 Markdown）→ 引导共创 / 文档 / 追问完善。文档落在主仓 `.designweave/requirements/` 或 `data/inbox/`。
 
@@ -38,7 +42,7 @@ pnpm dev
 
 ```bash
 cp .env.example .env
-# 配置 ANTHROPIC_API_KEY
+# 可选：配置 ANTHROPIC_API_KEY；或依赖本机 ~/.claude/settings.json
 docker compose up --build
 ```
 
@@ -61,14 +65,15 @@ data/workspaces/<projectId>/
 
 ## 常见问题
 
-1. **演示模式**：`/health` 返回 `mockMode: true` 表示未读到 API Key。  
+1. **演示模式**：`/health` 返回 `mockMode: true` 表示未读到 API Key（`.env` 与 `~/.claude/settings.json` 都没有）。成功复用时看 `credentialSource` 与 `claudeReuse`（skills / plugins / MCP 摘要）。详细清单：`GET /v1/claude/config`。  
 2. **口令**：若设置了 `APP_PASSWORD`，在首页填写并保存，或设置 `NEXT_PUBLIC_APP_PASSWORD`。  
 3. **可行性分析**：在「架构」页配置代码仓本地路径；该模式只读，不改业务代码。
 
 ## 开发脚本
 
 ```bash
-pnpm dev          # 同时启动 web + agent
+pnpm dev          # 停旧进程后启动 web + agent（Windows 请用 Git Bash）
+pnpm stop         # 仅停止（同一脚本：scripts/dev.sh stop）
 pnpm build        # 构建全部包
 pnpm typecheck    # 类型检查
 ```

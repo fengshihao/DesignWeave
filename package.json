@@ -5,9 +5,10 @@
   "packageManager": "pnpm@8.6.9",
   "scripts": {
     "predev": "pnpm --filter @designweave/schema build && pnpm --filter @designweave/prompts build",
-    "dev": "pnpm -r --parallel --filter @designweave/agent --filter @designweave/web dev",
+    "dev": "bash scripts/dev.sh",
     "dev:agent": "pnpm --filter @designweave/agent dev",
     "dev:web": "pnpm --filter @designweave/web dev",
+    "stop": "bash scripts/dev.sh stop",
     "build": "pnpm --filter @designweave/schema build && pnpm --filter @designweave/prompts build && pnpm --filter @designweave/agent build && pnpm --filter @designweave/web build",
     "start": "pnpm -r --parallel --filter @designweave/agent --filter @designweave/web start",
     "typecheck": "pnpm -r typecheck"
