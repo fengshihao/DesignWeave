@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>墨览 · Markdown Viewer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/base16/atelier-cave-dark.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/marked@15.0.7/lib/marked.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11.6.0/dist/mermaid.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/contrib/auto-render.min.js"></script>
+  <style>
+    :root {
+      --ink: #1c1914;
+      --ink-soft: #4a453c;
+      --ink-muted: #8a8276;
+      --paper: #f4efe6;
+      --paper-deep: #ebe4d6;
+      --paper-lift: #faf7f1;
+      --sidebar: #1e2a24;
+      --sidebar-lift: #26352d;
+      --sidebar-edge: #2f4137;
+      --accent: #d4773b;
+      --accent-soft: #e8a06a;
+      --accent-glow: rgba(212, 119, 59, 0.22);
+      --moss: #6b8f71;
+      --danger: #c45c4a;
+      --shadow: 0 24px 60px rgba(28, 25, 20, 0.12);
+      --radius: 14px;
+      --font-display: "Instrument Serif", Georgia, serif;
+      --font-ui: "DM Sans", system-ui, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, monospace;
+      --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      color: var(--ink);
+      font-family: var(--font-ui);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(212, 119, 59, 0.12), transparent 55%),
+        radial-gradient(900px 500px at 100% 0%, rgba(107, 143, 113, 0.1), transparent 50%),
+        linear-gradient(165deg, #efe8db 0%, var(--paper) 45%, #e7dfd0 100%);
+      overflow: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.35;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
+      mix-blend-mode: multiply;
+      z-index: 0;
+    }
+
+    .app {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      height: 100%;
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 18px;
+      gap: 18px;
+    }
+
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      background: linear-gradient(180deg, var(--sidebar-lift) 0%, var(--sidebar) 100%);
+      color: #e8e2d6;
+      border-radius: 22px;
+      border: 1px solid var(--sidebar-edge);
+      box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,0.06);
+      overflow: hidden;
+      animation: rise 0.7s var(--ease) both;
+    }
+
+    .brand {
+      padding: 28px 24px 18px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .brand-mark {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .brand h1 {
+      font-family: var(--font-display);
+      font-size: 2rem;
+      font-weight: 400;
+      letter-spacing: 0.02em;
+      line-height: 1;
+    }
+
+    .brand h1 span {
+      color: var(--accent-soft);
+      font-style: italic;
+    }
+
+    .brand p {
+      color: rgba(232, 226, 214, 0.58);
+      font-size: 0.82rem;
+      line-height: 1.45;
+    }
+
+    .toolbar {
+      padding: 16px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .btn {
+      appearance: none;
+      border: none;
+      cursor: pointer;
+      font-family: var(--font-ui);
+      font-weight: 600;
+      font-size: 0.9rem;
+      border-radius: 12px;
+      padding: 12px 14px;
+      transition: transform 0.2s var(--ease), background 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent) 0%, #b85f28 100%);
+      color: #fff8f1;
+      box-shadow: 0 8px 24px var(--accent-glow);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 28px rgba(212, 119, 59, 0.35);
+    }
+
+    .btn-primary:active { transform: translateY(0); }
+
+    .btn-ghost {
+      background: rgba(255,255,255,0.05);
+      color: #e8e2d6;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .btn-ghost:hover { background: rgba(255,255,255,0.09); }
+
+    .search-wrap {
+      position: relative;
+    }
+
+    .search-wrap svg {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      opacity: 0.45;
+      pointer-events: none;
+    }
+
+    .search {
+      width: 100%;
+      background: rgba(0,0,0,0.22);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: #f4efe6;
+      border-radius: 12px;
+      padding: 11px 12px 11px 38px;
+      font-family: var(--font-ui);
+      font-size: 0.88rem;
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .search::placeholder { color: rgba(232, 226, 214, 0.4); }
+    .search:focus {
+      border-color: rgba(232, 160, 106, 0.45);
+      box-shadow: 0 0 0 3px rgba(212, 119, 59, 0.15);
+    }
+
+    .folder-meta {
+      display: none;
+      padding: 0 18px 12px;
+      font-size: 0.75rem;
+      color: rgba(232, 226, 214, 0.5);
+      letter-spacing: 0.02em;
+    }
+
+    .folder-meta.visible { display: block; }
+    .folder-meta strong { color: var(--accent-soft); font-weight: 600; }
+
+    .file-list {
+      flex: 1;
+      overflow: auto;
+      padding: 8px 10px 18px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.15) transparent;
+    }
+
+    .file-group-title {
+      margin: 14px 10px 6px;
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: rgba(232, 226, 214, 0.38);
+      font-weight: 600;
+    }
+
+    .file-item {
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      border: 1px solid transparent;
+      color: #e8e2d6;
+      border-radius: 12px;
+      padding: 11px 12px;
+      cursor: pointer;
+      display: grid;
+      grid-template-columns: 28px 1fr;
+      gap: 10px;
+      align-items: start;
+      transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s var(--ease);
+      font-family: var(--font-ui);
+      animation: fade-in 0.45s var(--ease) both;
+    }
+
+    .file-item:hover {
+      background: rgba(255,255,255,0.05);
+      border-color: rgba(255,255,255,0.06);
+    }
+
+    .file-item.active {
+      background: rgba(212, 119, 59, 0.16);
+      border-color: rgba(232, 160, 106, 0.28);
+    }
+
+    .file-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      background: rgba(255,255,255,0.06);
+      color: var(--accent-soft);
+      font-family: var(--font-display);
+      font-size: 0.95rem;
+      line-height: 1;
+      margin-top: 1px;
+    }
+
+    .file-name {
+      font-size: 0.9rem;
+      font-weight: 550;
+      line-height: 1.3;
+      word-break: break-word;
+    }
+
+    .file-path {
+      margin-top: 3px;
+      font-size: 0.72rem;
+      color: rgba(232, 226, 214, 0.42);
+      word-break: break-all;
+    }
+
+    .empty-side {
+      padding: 36px 22px;
+      text-align: center;
+      color: rgba(232, 226, 214, 0.48);
+    }
+
+    .empty-side .glyph {
+      font-family: var(--font-display);
+      font-size: 2.6rem;
+      color: var(--accent-soft);
+      margin-bottom: 10px;
+      display: block;
+      opacity: 0.85;
+    }
+
+    .empty-side p { font-size: 0.88rem; line-height: 1.55; }
+
+    .main {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      background: var(--paper-lift);
+      border-radius: 22px;
+      border: 1px solid rgba(28, 25, 20, 0.08);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      animation: rise 0.7s var(--ease) 0.08s both;
+      position: relative;
+    }
+
+    .main::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(90deg, transparent 0, transparent calc(48px - 1px), rgba(28,25,20,0.035) calc(48px - 1px), rgba(28,25,20,0.035) 48px, transparent 48px);
+      opacity: 0.7;
+      z-index: 0;
+    }
+
+    .reader-header {
+      position: relative;
+      z-index: 1;
+      padding: 22px 36px 16px;
+      border-bottom: 1px solid rgba(28, 25, 20, 0.07);
+      background: linear-gradient(180deg, rgba(250,247,241,0.95), rgba(244,239,230,0.7));
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 84px;
+    }
+
+    .reader-title {
+      min-width: 0;
+    }
+
+    .reader-title .eyebrow {
+      font-size: 0.72rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .reader-title h2 {
+      font-family: var(--font-display);
+      font-size: clamp(1.5rem, 2.4vw, 2.1rem);
+      font-weight: 400;
+      color: var(--ink);
+      line-height: 1.15;
+      word-break: break-word;
+    }
+
+    .reader-actions {
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .chip {
+      border: 1px solid rgba(28, 25, 20, 0.1);
+      background: rgba(255,255,255,0.45);
+      color: var(--ink-soft);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: var(--font-ui);
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+
+    .chip:hover {
+      background: #fff;
+      border-color: rgba(212, 119, 59, 0.35);
+      color: var(--accent);
+    }
+
+    .reader-body {
+      position: relative;
+      z-index: 1;
+      flex: 1;
+      overflow: auto;
+      padding: 8px 0 48px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(28,25,20,0.2) transparent;
+    }
+
+    .welcome, .article {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 28px 40px 20px;
+    }
+
+    .welcome {
+      padding-top: 64px;
+      animation: fade-in 0.6s var(--ease) both;
+    }
+
+    .welcome .hero-glyph {
+      width: 72px;
+      height: 72px;
+      border-radius: 20px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(145deg, #fff 0%, var(--paper-deep) 100%);
+      border: 1px solid rgba(28,25,20,0.08);
+      box-shadow: 0 16px 40px rgba(28,25,20,0.08);
+      font-family: var(--font-display);
+      font-size: 2rem;
+      color: var(--accent);
+      margin-bottom: 28px;
+    }
+
+    .welcome h2 {
+      font-family: var(--font-display);
+      font-size: clamp(2.2rem, 4vw, 3.2rem);
+      font-weight: 400;
+      line-height: 1.05;
+      margin-bottom: 16px;
+      letter-spacing: -0.01em;
+    }
+
+    .welcome h2 em {
+      font-style: italic;
+      color: var(--accent);
+    }
+
+    .welcome > p {
+      color: var(--ink-soft);
+      font-size: 1.05rem;
+      line-height: 1.7;
+      max-width: 36em;
+      margin-bottom: 28px;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    .feature {
+      padding: 16px 16px 18px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.45);
+      border: 1px solid rgba(28,25,20,0.06);
+      transition: transform 0.25s var(--ease), background 0.25s ease;
+    }
+
+    .feature:hover {
+      transform: translateY(-2px);
+      background: rgba(255,255,255,0.75);
+    }
+
+    .feature strong {
+      display: block;
+      font-size: 0.92rem;
+      margin-bottom: 4px;
+      color: var(--ink);
+    }
+
+    .feature span {
+      font-size: 0.82rem;
+      color: var(--ink-muted);
+      line-height: 1.45;
+    }
+
+    .article {
+      animation: fade-in 0.35s var(--ease) both;
+    }
+
+    /* —— Markdown prose —— */
+    .prose {
+      font-size: 1.05rem;
+      line-height: 1.8;
+      color: var(--ink);
+    }
+
+    .prose > *:first-child { margin-top: 0; }
+
+    .prose h1, .prose h2, .prose h3, .prose h4 {
+      font-family: var(--font-display);
+      font-weight: 400;
+      line-height: 1.25;
+      color: var(--ink);
+      margin: 1.6em 0 0.55em;
+      scroll-margin-top: 24px;
+    }
+
+    .prose h1 {
+      font-size: 2.35rem;
+      padding-bottom: 0.35em;
+      border-bottom: 1px solid rgba(28,25,20,0.1);
+    }
+
+    .prose h2 { font-size: 1.75rem; }
+    .prose h3 { font-size: 1.35rem; }
+    .prose h4 { font-size: 1.15rem; font-family: var(--font-ui); font-weight: 650; }
+
+    .prose p { margin: 0.9em 0; }
+
+    .prose a {
+      color: #a85a24;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+      transition: color 0.15s ease;
+    }
+    .prose a:hover { color: var(--accent); }
+
+    .prose strong { font-weight: 700; color: #15120e; }
+
+    .prose em { font-style: italic; color: var(--ink-soft); }
+
+    .prose blockquote {
+      margin: 1.3em 0;
+      padding: 0.2em 0 0.2em 1.1em;
+      border-left: 3px solid var(--accent);
+      color: var(--ink-soft);
+      background: linear-gradient(90deg, rgba(212,119,59,0.07), transparent 70%);
+      border-radius: 0 10px 10px 0;
+    }
+
+    .prose ul, .prose ol {
+      margin: 0.9em 0;
+      padding-left: 1.4em;
+    }
+
+    .prose li { margin: 0.35em 0; }
+    .prose li::marker { color: var(--accent); }
+
+    .prose hr {
+      border: none;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(28,25,20,0.18), transparent);
+      margin: 2em 0;
+    }
+
+    .prose img {
+      max-width: 100%;
+      border-radius: 12px;
+      border: 1px solid rgba(28,25,20,0.08);
+      box-shadow: 0 10px 30px rgba(28,25,20,0.08);
+      margin: 1em 0;
+    }
+
+    .prose table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      margin: 1.4em 0;
+      font-size: 0.92rem;
+      overflow: hidden;
+      border-radius: 12px;
+      border: 1px solid rgba(28,25,20,0.1);
+      background: #fff;
+    }
+
+    .prose th, .prose td {
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 1px solid rgba(28,25,20,0.08);
+    }
+
+    .prose th {
+      background: var(--paper-deep);
+      font-weight: 650;
+      color: var(--ink);
+      font-size: 0.82rem;
+      letter-spacing: 0.02em;
+    }
+
+    .prose tr:last-child td { border-bottom: none; }
+    .prose tr:hover td { background: rgba(212,119,59,0.04); }
+
+    .prose code {
+      font-family: var(--font-mono);
+      font-size: 0.86em;
+      background: rgba(28,25,20,0.06);
+      padding: 0.15em 0.4em;
+      border-radius: 6px;
+      color: #7a3d1e;
+    }
+
+    .prose pre {
+      margin: 1.3em 0;
+      padding: 16px 18px;
+      border-radius: 14px;
+      background: #2a211c !important;
+      border: 1px solid rgba(28,25,20,0.2);
+      overflow-x: auto;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+
+    .prose pre code {
+      background: transparent;
+      color: #f0e6d8;
+      padding: 0;
+      font-size: 0.84rem;
+      line-height: 1.65;
+      border-radius: 0;
+    }
+
+    .prose .code-block {
+      position: relative;
+      margin: 1.3em 0;
+    }
+
+    .prose .code-block pre { margin: 0; }
+
+    .prose .code-lang {
+      position: absolute;
+      top: 10px;
+      right: 12px;
+      font-size: 0.68rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(240,230,216,0.45);
+      font-family: var(--font-ui);
+      font-weight: 600;
+      pointer-events: none;
+    }
+
+    .prose .mermaid {
+      margin: 1.4em 0;
+      padding: 20px;
+      background: #fff;
+      border: 1px solid rgba(28,25,20,0.08);
+      border-radius: 14px;
+      overflow-x: auto;
+      text-align: center;
+    }
+
+    .prose .mermaid svg { max-width: 100%; height: auto; }
+
+    .prose .katex-display {
+      margin: 1.2em 0;
+      padding: 12px 8px;
+      overflow-x: auto;
+    }
+
+    .prose input[type="checkbox"] {
+      margin-right: 0.45em;
+      accent-color: var(--accent);
+    }
+
+    .status-bar {
+      position: relative;
+      z-index: 1;
+      border-top: 1px solid rgba(28,25,20,0.07);
+      padding: 10px 28px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 0.75rem;
+      color: var(--ink-muted);
+      background: rgba(244,239,230,0.85);
+    }
+
+    .hidden-input { display: none; }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 28px;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--ink);
+      color: var(--paper);
+      padding: 12px 18px;
+      border-radius: 999px;
+      font-size: 0.88rem;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease, transform 0.25s var(--ease);
+      z-index: 50;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.25);
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(14px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fade-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 900px) {
+      body { overflow: auto; }
+      .app {
+        grid-template-columns: 1fr;
+        height: auto;
+        min-height: 100%;
+        padding: 12px;
+      }
+      .sidebar { min-height: 42vh; max-height: 48vh; }
+      .main { min-height: 70vh; }
+      .welcome, .article { padding-left: 22px; padding-right: 22px; }
+      .feature-grid { grid-template-columns: 1fr; }
+      .reader-header { padding: 18px 22px 14px; flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">
+          <h1>墨<span>览</span></h1>
+        </div>
+        <p>本地 Markdown 阅读室 · 代码 / 流程图 / 公式 / 表格</p>
+      </div>
+
+      <div class="toolbar">
+        <button class="btn btn-primary" id="pickBtn" type="button">选择文件夹</button>
+        <button class="btn btn-ghost" id="pickFallbackBtn" type="button" title="兼容模式">备用选择（兼容模式）</button>
+        <div class="search-wrap">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
+            <path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <input class="search" id="searchInput" type="search" placeholder="筛选文档…" disabled />
+        </div>
+      </div>
+
+      <div class="folder-meta" id="folderMeta"></div>
+      <div class="file-list" id="fileList">
+        <div class="empty-side">
+          <span class="glyph">卷</span>
+          <p>选择一个本地文件夹后，这里会列出其中全部 Markdown 文档。</p>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="reader-header">
+        <div class="reader-title">
+          <div class="eyebrow" id="readerEyebrow">准备就绪</div>
+          <h2 id="readerTitle">打开文件夹，开始阅读</h2>
+        </div>
+        <div class="reader-actions">
+          <button class="chip" id="copyBtn" type="button" hidden>复制原文</button>
+          <button class="chip" id="topBtn" type="button" hidden>回到顶部</button>
+        </div>
+      </header>
+
+      <div class="reader-body" id="readerBody">
+        <section class="welcome" id="welcome">
+          <div class="hero-glyph">墨</div>
+          <h2>把本地文档<br />摊开在<em>同一张纸</em>上</h2>
+          <p>选择任意文件夹，自动扫描其中的 Markdown。支持 GFM 表格、围栏代码高亮、Mermaid 流程图，以及 KaTeX 数学公式——全部在浏览器本地完成，文件不会上传。</p>
+          <div class="feature-grid">
+            <div class="feature"><strong>代码高亮</strong><span>常见语言语法着色，深色代码块便于阅读</span></div>
+            <div class="feature"><strong>流程图</strong><span>识别 ```mermaid 代码块并即时渲染</span></div>
+            <div class="feature"><strong>数学公式</strong><span>支持 $行内$ 与 $$块级$$ KaTeX 公式</span></div>
+            <div class="feature"><strong>表格与任务列表</strong><span>完整 GFM，含勾选任务项</span></div>
+          </div>
+        </section>
+        <article class="article prose" id="article" hidden></article>
+      </div>
+
+      <footer class="status-bar">
+        <span id="statusLeft">等待选择文件夹</span>
+        <span id="statusRight">本地 · 不上云</span>
+      </footer>
+    </main>
+  </div>
+
+  <input class="hidden-input" id="dirInput" type="file" webkitdirectory multiple />
+  <div class="toast" id="toast" role="status"></div>
+
+  <script>
+    (() => {
+      const pickBtn = document.getElementById("pickBtn");
+      const pickFallbackBtn = document.getElementById("pickFallbackBtn");
+      const dirInput = document.getElementById("dirInput");
+      const searchInput = document.getElementById("searchInput");
+      const fileList = document.getElementById("fileList");
+      const folderMeta = document.getElementById("folderMeta");
+      const welcome = document.getElementById("welcome");
+      const article = document.getElementById("article");
+      const readerTitle = document.getElementById("readerTitle");
+      const readerEyebrow = document.getElementById("readerEyebrow");
+      const readerBody = document.getElementById("readerBody");
+      const statusLeft = document.getElementById("statusLeft");
+      const statusRight = document.getElementById("statusRight");
+      const copyBtn = document.getElementById("copyBtn");
+      const topBtn = document.getElementById("topBtn");
+      const toastEl = document.getElementById("toast");
+
+      /** @type {{ path: string, name: string, dir: string, text: string, size: number }[]} */
+      let files = [];
+      let activePath = null;
+      let folderName = "";
+
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: "base",
+        securityLevel: "loose",
+        themeVariables: {
+          primaryColor: "#f4efe6",
+          primaryTextColor: "#1c1914",
+          primaryBorderColor: "#d4773b",
+          lineColor: "#6b5e4e",
+          secondaryColor: "#ebe4d6",
+          tertiaryColor: "#fff",
+          fontFamily: "DM Sans, sans-serif",
+        },
+      });
+
+      function escapeHtml(s) {
+        return String(s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      const { Marked } = globalThis.marked;
+
+      const md = new Marked({
+        gfm: true,
+        breaks: false,
+        renderer: {
+          code({ text, lang }) {
+            const language = (lang || "").trim().split(/\s+/)[0];
+            if (language === "mermaid") {
+              return `<div class="mermaid">${escapeHtml(text)}</div>`;
+            }
+            const languageClass = language
+              ? `hljs language-${escapeHtml(language)}`
+              : "hljs";
+            const highlighted =
+              language && hljs.getLanguage(language)
+                ? hljs.highlight(text, { language }).value
+                : hljs.highlight(text, { language: "plaintext" }).value;
+            const label = language
+              ? `<span class="code-lang">${escapeHtml(language)}</span>`
+              : "";
+            return `<div class="code-block">${label}<pre><code class="${languageClass}">${highlighted}</code></pre></div>\n`;
+          },
+        },
+      });
+
+      function toast(msg) {
+        toastEl.textContent = msg;
+        toastEl.classList.add("show");
+        clearTimeout(toast._t);
+        toast._t = setTimeout(() => toastEl.classList.remove("show"), 2200);
+      }
+
+      function isMarkdown(name) {
+        return /\.(md|markdown|mdx|mdown)$/i.test(name);
+      }
+
+      async function collectFromDirectoryHandle(rootHandle, base = "") {
+        const out = [];
+        for await (const [name, handle] of rootHandle.entries()) {
+          const path = base ? `${base}/${name}` : name;
+          if (handle.kind === "directory") {
+            if (name === "node_modules" || name === ".git" || name === ".pnpm-store") continue;
+            out.push(...(await collectFromDirectoryHandle(handle, path)));
+          } else if (handle.kind === "file" && isMarkdown(name)) {
+            const file = await handle.getFile();
+            const text = await file.text();
+            out.push({
+              path,
+              name,
+              dir: base || ".",
+              text,
+              size: file.size,
+            });
+          }
+        }
+        return out;
+      }
+
+      async function loadFromDirectoryHandle(handle) {
+        folderName = handle.name;
+        statusLeft.textContent = "正在扫描…";
+        const collected = await collectFromDirectoryHandle(handle);
+        setFiles(collected);
+      }
+
+      function loadFromFileList(fileListObj) {
+        const mdFiles = [...fileListObj].filter((f) => isMarkdown(f.name));
+        if (!mdFiles.length) {
+          toast("未找到 Markdown 文件");
+          return;
+        }
+        const top = mdFiles[0].webkitRelativePath.split("/")[0] || "文件夹";
+        folderName = top;
+        statusLeft.textContent = "正在读取…";
+        Promise.all(
+          mdFiles.map(async (file) => {
+            const rel = file.webkitRelativePath || file.name;
+            const parts = rel.split("/");
+            const name = parts[parts.length - 1];
+            const dir = parts.slice(0, -1).join("/") || ".";
+            const text = await file.text();
+            return { path: rel, name, dir, text, size: file.size };
+          })
+        ).then(setFiles);
+      }
+
+      function setFiles(list) {
+        files = list.sort((a, b) => a.path.localeCompare(b.path, "zh-CN"));
+        searchInput.disabled = files.length === 0;
+        searchInput.value = "";
+        folderMeta.classList.toggle("visible", !!files.length);
+        folderMeta.innerHTML = files.length
+          ? `文件夹 <strong>${escapeHtml(folderName)}</strong> · ${files.length} 篇文档`
+          : "";
+        statusLeft.textContent = files.length
+          ? `已加载 ${files.length} 篇 Markdown`
+          : "未找到 Markdown 文件";
+        statusRight.textContent = folderName ? folderName : "本地 · 不上云";
+        renderFileList();
+        if (files.length) {
+          openFile(files[0].path);
+        } else {
+          showWelcome();
+          toast("该文件夹中没有 Markdown 文档");
+        }
+      }
+
+      function renderFileList() {
+        const q = searchInput.value.trim().toLowerCase();
+        const filtered = files.filter(
+          (f) => !q || f.path.toLowerCase().includes(q) || f.name.toLowerCase().includes(q)
+        );
+
+        if (!files.length) {
+          fileList.innerHTML = `
+            <div class="empty-side">
+              <span class="glyph">卷</span>
+              <p>选择一个本地文件夹后，这里会列出其中全部 Markdown 文档。</p>
+            </div>`;
+          return;
+        }
+
+        if (!filtered.length) {
+          fileList.innerHTML = `
+            <div class="empty-side">
+              <span class="glyph">空</span>
+              <p>没有匹配「${escapeHtml(searchInput.value)}」的文档。</p>
+            </div>`;
+          return;
+        }
+
+        const groups = new Map();
+        for (const f of filtered) {
+          const key = f.dir === "." || f.dir === folderName ? "根目录" : f.dir.replace(new RegExp("^" + escapeRegExp(folderName) + "/?"), "") || "根目录";
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key).push(f);
+        }
+
+        let html = "";
+        let delay = 0;
+        for (const [group, items] of groups) {
+          html += `<div class="file-group-title">${escapeHtml(group)}</div>`;
+          for (const f of items) {
+            const active = f.path === activePath ? " active" : "";
+            html += `
+              <button class="file-item${active}" type="button" data-path="${escapeHtml(f.path)}" style="animation-delay:${delay}ms">
+                <span class="file-icon">文</span>
+                <span>
+                  <div class="file-name">${escapeHtml(f.name)}</div>
+                  <div class="file-path">${escapeHtml(f.path)}</div>
+                </span>
+              </button>`;
+            delay += 18;
+          }
+        }
+        fileList.innerHTML = html;
+      }
+
+      function escapeRegExp(s) {
+        return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      }
+
+      function showWelcome() {
+        welcome.hidden = false;
+        article.hidden = true;
+        copyBtn.hidden = true;
+        topBtn.hidden = true;
+        readerEyebrow.textContent = "准备就绪";
+        readerTitle.textContent = "打开文件夹，开始阅读";
+        activePath = null;
+      }
+
+      async function openFile(path) {
+        const file = files.find((f) => f.path === path);
+        if (!file) return;
+        activePath = path;
+        renderFileList();
+
+        readerEyebrow.textContent = file.dir === "." ? folderName || "文档" : file.dir;
+        readerTitle.textContent = file.name.replace(/\.(md|markdown|mdx|mdown)$/i, "");
+        welcome.hidden = true;
+        article.hidden = false;
+        copyBtn.hidden = false;
+        topBtn.hidden = false;
+
+        article.innerHTML = md.parse(file.text);
+
+        renderMathInElement(article, {
+          delimiters: [
+            { left: "$$", right: "$$", display: true },
+            { left: "\\[", right: "\\]", display: true },
+            { left: "$", right: "$", display: false },
+            { left: "\\(", right: "\\)", display: false },
+          ],
+          throwOnError: false,
+        });
+
+        try {
+          await mermaid.run({ nodes: article.querySelectorAll(".mermaid") });
+        } catch (err) {
+          console.warn("Mermaid render error", err);
+        }
+
+        readerBody.scrollTop = 0;
+        const kb = (file.size / 1024).toFixed(1);
+        statusLeft.textContent = `${file.name} · ${kb} KB`;
+        statusRight.textContent = `${countWords(file.text)} 字`;
+      }
+
+      function countWords(text) {
+        const cn = (text.match(/[\u4e00-\u9fff]/g) || []).length;
+        const en = (text.replace(/[\u4e00-\u9fff]/g, " ").match(/[A-Za-z0-9]+/g) || []).length;
+        return cn + en;
+      }
+
+      pickBtn.addEventListener("click", async () => {
+        if (window.showDirectoryPicker) {
+          try {
+            const handle = await showDirectoryPicker({ mode: "read" });
+            await loadFromDirectoryHandle(handle);
+          } catch (err) {
+            if (err && err.name === "AbortError") return;
+            console.warn(err);
+            toast("无法使用目录选择器，请试兼容模式");
+            dirInput.click();
+          }
+        } else {
+          dirInput.click();
+        }
+      });
+
+      pickFallbackBtn.addEventListener("click", () => dirInput.click());
+      dirInput.addEventListener("change", () => {
+        if (dirInput.files && dirInput.files.length) loadFromFileList(dirInput.files);
+      });
+
+      searchInput.addEventListener("input", () => renderFileList());
+
+      fileList.addEventListener("click", (e) => {
+        const btn = e.target.closest(".file-item");
+        if (!btn) return;
+        openFile(btn.dataset.path);
+      });
+
+      copyBtn.addEventListener("click", async () => {
+        const file = files.find((f) => f.path === activePath);
+        if (!file) return;
+        try {
+          await navigator.clipboard.writeText(file.text);
+          toast("已复制 Markdown 原文");
+        } catch {
+          toast("复制失败");
+        }
+      });
+
+      topBtn.addEventListener("click", () => {
+        readerBody.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    })();
+  </script>
+</body>
+</html>
