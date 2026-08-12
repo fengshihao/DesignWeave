@@ -927,10 +927,10 @@
       z-index: 3;
       display: flex;
       gap: 6px;
-      opacity: 0;
-      transform: translateY(-2px);
-      transition: opacity 0.18s ease, transform 0.18s var(--ease);
-      pointer-events: none;
+      opacity: 0.72;
+      transform: translateY(0);
+      transition: opacity 0.18s ease;
+      pointer-events: auto;
     }
 
     .vditor-ir__preview:has(.language-mermaid):hover .molan-diagram-toolbar,
@@ -938,8 +938,6 @@
     .language-mermaid:hover .molan-diagram-toolbar,
     .molan-diagram-toolbar:focus-within {
       opacity: 1;
-      transform: translateY(0);
-      pointer-events: auto;
     }
 
     .molan-diagram-toolbar button {
@@ -1696,13 +1694,19 @@
         const root = document.getElementById("vditor");
         if (!root) return;
         enhanceMermaidPreviews(root);
-        if (diagramObserver) return;
+        if (diagramObserver) {
+          enhanceMermaidPreviews(root);
+          return;
+        }
         diagramObserver = new MutationObserver(() => {
           clearTimeout(watchMermaidPreviews._t);
           watchMermaidPreviews._t = setTimeout(() => enhanceMermaidPreviews(root), 80);
         });
         diagramObserver.observe(root, { childList: true, subtree: true });
       }
+
+      // 尽早监听，避免仅直接 new Vditor / 异步 mermaid 渲染时漏挂工具条
+      watchMermaidPreviews();
 
       lightboxClose.addEventListener("click", closeLightbox);
       lightbox.addEventListener("click", (e) => {
