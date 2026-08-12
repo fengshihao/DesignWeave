@@ -658,7 +658,17 @@
       background: rgba(244,239,230,0.85);
     }
 
-    .hidden-input { display: none; }
+    /* 不能用 display:none，否则部分浏览器会拦截程序化 click，兼容模式失效 */
+    .hidden-input {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
 
     .toast {
       position: fixed;
@@ -720,7 +730,7 @@
 
       <div class="toolbar">
         <button class="btn btn-primary" id="pickBtn" type="button">选择文件夹</button>
-        <button class="btn btn-ghost" id="pickFallbackBtn" type="button" title="兼容模式">备用选择（兼容模式）</button>
+        <button class="btn btn-ghost" id="pickFallbackBtn" type="button" title="同样只在本地读取，不上传">兼容模式选文件夹</button>
         <div class="search-wrap">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
@@ -756,10 +766,11 @@
           <div class="hero-glyph">墨</div>
           <h2>把本地文档<br />摊开在<em>同一张纸</em>上</h2>
           <p>选择任意文件夹，自动扫描其中的 Markdown。支持 GFM 表格、围栏代码高亮、Mermaid 流程图，以及 KaTeX 数学公式——全部在浏览器本地完成，文件不会上传。</p>
+          <p style="color:var(--ink-muted);font-size:0.92rem;margin-top:-12px;margin-bottom:28px;line-height:1.6;">「选择文件夹」与「兼容模式」都只在本机读取；区别仅是浏览器 API 不同（目录句柄 vs 传统文件选择），都不会传到服务器。</p>
           <div class="feature-grid">
             <div class="feature"><strong>代码高亮</strong><span>常见语言语法着色，深色代码块便于阅读</span></div>
-            <div class="feature"><strong>流程图</strong><span>识别 ```mermaid 代码块并即时渲染</span></div>
-            <div class="feature"><strong>数学公式</strong><span>支持 $行内$ 与 $$块级$$ KaTeX 公式</span></div>
+            <div class="feature"><strong>流程图</strong><span>识别 mermaid 代码块并即时渲染</span></div>
+            <div class="feature"><strong>数学公式</strong><span>支持行内与块级 KaTeX 公式</span></div>
             <div class="feature"><strong>表格与任务列表</strong><span>完整 GFM，含勾选任务项</span></div>
           </div>
         </section>
@@ -773,7 +784,7 @@
     </main>
   </div>
 
-  <input class="hidden-input" id="dirInput" type="file" webkitdirectory multiple />
+  <input class="hidden-input" id="dirInput" type="file" webkitdirectory directory multiple tabindex="-1" aria-hidden="true" />
   <div class="toast" id="toast" role="status"></div>
 
   <script>
@@ -890,14 +901,20 @@
       }
 
       function loadFromFileList(fileListObj) {
-        const mdFiles = [...fileListObj].filter((f) => isMarkdown(f.name));
+        const all = Array.from(fileListObj || []);
+        const mdFiles = all.filter((f) => {
+          const rel = f.webkitRelativePath || f.name || "";
+          const base = rel.split("/").pop() || f.name;
+          return isMarkdown(base);
+        });
         if (!mdFiles.length) {
-          toast("未找到 Markdown 文件");
+          toast(all.length ? "未找到 Markdown 文件" : "未选择任何文件");
+          statusLeft.textContent = "兼容模式未读到 Markdown";
           return;
         }
-        const top = mdFiles[0].webkitRelativePath.split("/")[0] || "文件夹";
-        folderName = top;
-        statusLeft.textContent = "正在读取…";
+        const firstRel = mdFiles[0].webkitRelativePath || mdFiles[0].name;
+        folderName = firstRel.split("/")[0] || "文件夹";
+        statusLeft.textContent = `兼容模式读取中（${mdFiles.length}）…`;
         Promise.all(
           mdFiles.map(async (file) => {
             const rel = file.webkitRelativePath || file.name;
@@ -907,7 +924,19 @@
             const text = await file.text();
             return { path: rel, name, dir, text, size: file.size };
           })
-        ).then(setFiles);
+        )
+          .then(setFiles)
+          .catch((err) => {
+            console.warn(err);
+            toast("读取文件夹失败");
+            statusLeft.textContent = "兼容模式读取失败";
+          });
+      }
+
+      function openCompatPicker() {
+        // 允许重复选择同一文件夹也能触发 change
+        dirInput.value = "";
+        dirInput.click();
       }
 
       function setFiles(list) {
@@ -1040,24 +1069,30 @@
       }
 
       pickBtn.addEventListener("click", async () => {
-        if (window.showDirectoryPicker) {
+        if (typeof window.showDirectoryPicker === "function") {
           try {
             const handle = await showDirectoryPicker({ mode: "read" });
             await loadFromDirectoryHandle(handle);
           } catch (err) {
             if (err && err.name === "AbortError") return;
             console.warn(err);
-            toast("无法使用目录选择器，请试兼容模式");
-            dirInput.click();
+            toast("目录选择器不可用，已切换兼容模式");
+            openCompatPicker();
           }
         } else {
-          dirInput.click();
+          toast("当前浏览器不支持目录 API，使用兼容模式");
+          openCompatPicker();
         }
       });
 
-      pickFallbackBtn.addEventListener("click", () => dirInput.click());
+      pickFallbackBtn.addEventListener("click", () => {
+        openCompatPicker();
+      });
+
       dirInput.addEventListener("change", () => {
-        if (dirInput.files && dirInput.files.length) loadFromFileList(dirInput.files);
+        if (dirInput.files && dirInput.files.length) {
+          loadFromFileList(dirInput.files);
+        }
       });
 
       searchInput.addEventListener("input", () => renderFileList());
