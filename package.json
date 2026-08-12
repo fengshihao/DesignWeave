@@ -11,7 +11,8 @@
     "stop": "bash scripts/dev.sh stop",
     "build": "pnpm --filter @designweave/schema build && pnpm --filter @designweave/prompts build && pnpm --filter @designweave/agent build && pnpm --filter @designweave/web build",
     "start": "pnpm -r --parallel --filter @designweave/agent --filter @designweave/web start",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "vscode:molan": "pnpm --filter molan-markdown compile"
   },
   "engines": {
     "node": ">=20"
