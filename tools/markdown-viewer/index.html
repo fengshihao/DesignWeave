@@ -816,6 +816,30 @@
       color: var(--ink) !important;
       text-align: center;
       padding: 18px 16px !important;
+      position: relative;
+    }
+
+    /*
+     * IR 点击流程图/公式预览会进入 expand 编辑源码。
+     * Vditor 默认不隐藏预览，导致「源码 + 渲染图」叠在一起；展开时只保留源码。
+     */
+    .vditor-ir__node--expand[data-type="code-block"] > .vditor-ir__preview:has(.language-mermaid),
+    .vditor-ir__node--expand[data-type="code-block"] > .vditor-ir__preview:has(.language-math),
+    .vditor-ir__node--expand[data-type="code-block"] > .vditor-ir__preview:has(.katex),
+    .vditor-ir__node--expand[data-type="code-block"] > .vditor-ir__preview:has(.katex-display),
+    .vditor-ir__node--expand[data-type="math-block"] > .vditor-ir__preview {
+      display: none !important;
+    }
+
+    /* 折叠态：源码 marker 的 pre 不要被全局代码块 margin/padding 撑开占位 */
+    .vditor-ir__node:not(.vditor-ir__node--expand) > .vditor-ir__marker--pre {
+      margin: 0 !important;
+      padding: 0 !important;
+      border: none !important;
+      background: transparent !important;
+      box-shadow: none !important;
+      min-height: 0 !important;
+      overflow: hidden !important;
     }
 
     .vditor-reset .language-mermaid,
@@ -834,21 +858,30 @@
       font-family: var(--font-ui) !important;
     }
 
-    /* Mermaid 源码标记（未展开的 fence）仍用暗底；预览用浅色 */
-    .vditor-reset pre.vditor-ir__marker--pre:has(code.language-mermaid),
-    .vditor-reset pre.vditor-ir__marker--pre:has(code.language-math),
-    .vditor-reset pre.vditor-ir__marker--pre:has(code[data-type="math-block"]) {
-      background: rgba(28, 25, 20, 0.04) !important;
-      border: 1px dashed rgba(28, 25, 20, 0.14) !important;
+    /* 展开编辑 mermaid/math 源码：可读的浅色代码区（不是暗底代码块） */
+    .vditor-ir__node--expand > .vditor-ir__marker--pre:has(code.language-mermaid),
+    .vditor-ir__node--expand > .vditor-ir__marker--pre:has(code.language-math),
+    .vditor-ir__node--expand > .vditor-ir__marker--pre:has(code[data-type="math-block"]),
+    .vditor-ir__node--expand[data-type="math-block"] > .vditor-ir__marker--pre {
+      background: rgba(28, 25, 20, 0.03) !important;
+      border: 1px dashed rgba(28, 25, 20, 0.16) !important;
       box-shadow: none !important;
-      color: var(--ink-soft) !important;
+      color: var(--ink) !important;
+      margin: 0.85em 0 !important;
+      padding: 14px 16px !important;
+      border-radius: 12px !important;
+      text-align: left !important;
     }
 
-    .vditor-reset pre.vditor-ir__marker--pre:has(code.language-mermaid) code,
-    .vditor-reset pre.vditor-ir__marker--pre:has(code.language-math) code,
-    .vditor-reset pre.vditor-ir__marker--pre:has(code[data-type="math-block"]) code {
-      color: var(--ink-soft) !important;
-      font-size: 0.78rem !important;
+    .vditor-ir__node--expand > .vditor-ir__marker--pre:has(code.language-mermaid) code,
+    .vditor-ir__node--expand > .vditor-ir__marker--pre:has(code.language-math) code,
+    .vditor-ir__node--expand > .vditor-ir__marker--pre:has(code[data-type="math-block"]) code,
+    .vditor-ir__node--expand[data-type="math-block"] > .vditor-ir__marker--pre code {
+      color: var(--ink) !important;
+      font-size: 0.84rem !important;
+      line-height: 1.55 !important;
+      white-space: pre-wrap !important;
+      text-align: left !important;
     }
 
     .vditor-reset .katex-display {
@@ -873,14 +906,127 @@
       vertical-align: -0.12em;
     }
 
-    /* IR 语法标记淡化，避免压过正文气质 */
-    .vditor-ir__marker,
-    .vditor-ir__preview {
+    /* IR 语法标记淡化；不要染到 mermaid/math 预览正文 */
+    .vditor-ir__marker {
+      color: var(--ink-muted) !important;
+    }
+
+    .vditor-ir__preview:not(:has(.language-mermaid)):not(:has(.language-math)):not(:has(.katex)):not(:has(.katex-display)) {
       color: var(--ink-muted) !important;
     }
 
     .vditor-ir__node--hidden .vditor-ir__marker {
       opacity: 0.45;
+    }
+
+    /* 流程图预览悬浮操作条 */
+    .molan-diagram-toolbar {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      z-index: 3;
+      display: flex;
+      gap: 6px;
+      opacity: 0;
+      transform: translateY(-2px);
+      transition: opacity 0.18s ease, transform 0.18s var(--ease);
+      pointer-events: none;
+    }
+
+    .vditor-ir__preview:has(.language-mermaid):hover .molan-diagram-toolbar,
+    .vditor-ir__preview:has(.language-mermaid):focus-within .molan-diagram-toolbar,
+    .language-mermaid:hover .molan-diagram-toolbar,
+    .molan-diagram-toolbar:focus-within {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+
+    .molan-diagram-toolbar button {
+      appearance: none;
+      border: 1px solid rgba(28, 25, 20, 0.1);
+      background: rgba(250, 247, 241, 0.92);
+      color: var(--ink-soft);
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      font-family: var(--font-ui);
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(28, 25, 20, 0.08);
+    }
+
+    .molan-diagram-toolbar button:hover {
+      border-color: rgba(212, 119, 59, 0.35);
+      color: var(--accent);
+      background: #fff;
+    }
+
+    .lightbox {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(20, 18, 14, 0.72);
+      backdrop-filter: blur(6px);
+    }
+
+    .lightbox.open { display: flex; }
+
+    .lightbox-panel {
+      position: relative;
+      width: min(96vw, 1400px);
+      height: min(90vh, 900px);
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .lightbox-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(28, 25, 20, 0.08);
+      background: var(--paper-lift);
+    }
+
+    .lightbox-bar strong {
+      font-size: 0.88rem;
+      font-weight: 650;
+      color: var(--ink);
+    }
+
+    .lightbox-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .lightbox-stage {
+      flex: 1;
+      overflow: auto;
+      padding: 24px;
+      text-align: center;
+      background:
+        linear-gradient(90deg, rgba(28, 25, 20, 0.03) 1px, transparent 1px) 0 0 / 24px 24px,
+        linear-gradient(rgba(28, 25, 20, 0.03) 1px, transparent 1px) 0 0 / 24px 24px,
+        #faf7f1;
+    }
+
+    .lightbox-stage svg {
+      max-width: none !important;
+      width: auto;
+      height: auto;
+      margin: 0 auto;
+      transform-origin: center top;
     }
 
     .vditor-counter {
@@ -1068,6 +1214,21 @@
   </div>
 
   <div class="toast" id="toast" role="status"></div>
+
+  <div class="lightbox" id="lightbox" aria-hidden="true">
+    <div class="lightbox-panel" role="dialog" aria-modal="true" aria-label="流程图放大">
+      <div class="lightbox-bar">
+        <strong>流程图预览</strong>
+        <div class="lightbox-actions">
+          <button class="chip" type="button" id="lightboxZoomOut">缩小</button>
+          <button class="chip" type="button" id="lightboxZoomIn">放大</button>
+          <button class="chip" type="button" id="lightboxCopyImage">复制图片</button>
+          <button class="chip" type="button" id="lightboxClose">关闭</button>
+        </div>
+      </div>
+      <div class="lightbox-stage" id="lightboxStage"></div>
+    </div>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/vditor@3.10.9/dist/index.min.js"></script>
   <script>
@@ -1417,6 +1578,184 @@
         return cn + en;
       }
 
+      const lightbox = document.getElementById("lightbox");
+      const lightboxStage = document.getElementById("lightboxStage");
+      const lightboxClose = document.getElementById("lightboxClose");
+      const lightboxZoomIn = document.getElementById("lightboxZoomIn");
+      const lightboxZoomOut = document.getElementById("lightboxZoomOut");
+      const lightboxCopyImage = document.getElementById("lightboxCopyImage");
+      let lightboxScale = 1;
+      let diagramObserver = null;
+
+      function closeLightbox() {
+        lightbox.classList.remove("open");
+        lightbox.setAttribute("aria-hidden", "true");
+        lightboxStage.innerHTML = "";
+        lightboxScale = 1;
+      }
+
+      function applyLightboxScale() {
+        const svg = lightboxStage.querySelector("svg");
+        if (svg) svg.style.transform = `scale(${lightboxScale})`;
+      }
+
+      function openLightboxFromSvg(svg) {
+        if (!svg) {
+          toast("流程图尚未渲染完成");
+          return;
+        }
+        lightboxScale = 1.25;
+        lightboxStage.innerHTML = "";
+        const clone = svg.cloneNode(true);
+        clone.removeAttribute("style");
+        clone.style.maxWidth = "none";
+        clone.style.width = clone.getAttribute("width") || "auto";
+        clone.style.height = "auto";
+        clone.style.transform = `scale(${lightboxScale})`;
+        lightboxStage.appendChild(clone);
+        lightbox.classList.add("open");
+        lightbox.setAttribute("aria-hidden", "false");
+      }
+
+      async function copySvgAsPng(svg) {
+        if (!svg) {
+          toast("流程图尚未渲染完成");
+          return;
+        }
+        const xml = new XMLSerializer().serializeToString(svg);
+        const svgBlob = new Blob([xml], { type: "image/svg+xml;charset=utf-8" });
+        const url = URL.createObjectURL(svgBlob);
+        try {
+          const img = await new Promise((resolve, reject) => {
+            const el = new Image();
+            el.onload = () => resolve(el);
+            el.onerror = reject;
+            el.src = url;
+          });
+          const scale = 2;
+          const canvas = document.createElement("canvas");
+          const w = img.naturalWidth || svg.viewBox?.baseVal?.width || svg.clientWidth || 800;
+          const h = img.naturalHeight || svg.viewBox?.baseVal?.height || svg.clientHeight || 600;
+          canvas.width = Math.max(1, Math.floor(w * scale));
+          canvas.height = Math.max(1, Math.floor(h * scale));
+          const ctx = canvas.getContext("2d");
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+          if (!blob) throw new Error("toBlob failed");
+          if (navigator.clipboard && window.ClipboardItem) {
+            await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+            toast("已复制流程图图片");
+          } else {
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = "diagram.png";
+            a.click();
+            toast("当前浏览器不支持复制图片，已改为下载");
+          }
+        } catch (err) {
+          console.warn(err);
+          toast("复制图片失败");
+        } finally {
+          URL.revokeObjectURL(url);
+        }
+      }
+
+      function getMermaidSourceNear(previewEl) {
+        const node = previewEl?.closest?.(".vditor-ir__node");
+        const marker = node?.querySelector?.(".vditor-ir__marker--pre code.language-mermaid");
+        if (marker) return marker.textContent || "";
+        const code = previewEl?.querySelector?.("code.language-mermaid");
+        return code?.getAttribute?.("data-processed") ? "" : (code?.textContent || "");
+      }
+
+      function enhanceMermaidPreviews(root = document) {
+        const hosts = root.querySelectorAll(
+          ".vditor-ir__preview:has(.language-mermaid), .vditor-preview .language-mermaid, .vditor-wysiwyg .language-mermaid"
+        );
+        hosts.forEach((host) => {
+          const shell = host.classList.contains("vditor-ir__preview")
+            ? host
+            : host.closest("pre") || host;
+          if (!shell || shell.querySelector(":scope > .molan-diagram-toolbar")) return;
+          if (!shell.querySelector("svg") && !shell.querySelector(".language-mermaid svg")) return;
+          if (getComputedStyle(shell).position === "static") shell.style.position = "relative";
+          const bar = document.createElement("div");
+          bar.className = "molan-diagram-toolbar";
+          bar.innerHTML = `
+            <button type="button" data-molan-action="zoom">放大</button>
+            <button type="button" data-molan-action="copy-code">复制代码</button>
+            <button type="button" data-molan-action="copy-image">复制图片</button>
+          `;
+          shell.appendChild(bar);
+        });
+      }
+
+      function watchMermaidPreviews() {
+        const root = document.getElementById("vditor");
+        if (!root) return;
+        enhanceMermaidPreviews(root);
+        if (diagramObserver) return;
+        diagramObserver = new MutationObserver(() => {
+          clearTimeout(watchMermaidPreviews._t);
+          watchMermaidPreviews._t = setTimeout(() => enhanceMermaidPreviews(root), 80);
+        });
+        diagramObserver.observe(root, { childList: true, subtree: true });
+      }
+
+      lightboxClose.addEventListener("click", closeLightbox);
+      lightbox.addEventListener("click", (e) => {
+        if (e.target === lightbox) closeLightbox();
+      });
+      lightboxZoomIn.addEventListener("click", () => {
+        lightboxScale = Math.min(lightboxScale + 0.25, 4);
+        applyLightboxScale();
+      });
+      lightboxZoomOut.addEventListener("click", () => {
+        lightboxScale = Math.max(lightboxScale - 0.25, 0.5);
+        applyLightboxScale();
+      });
+      lightboxCopyImage.addEventListener("click", () => {
+        copySvgAsPng(lightboxStage.querySelector("svg"));
+      });
+
+      document.getElementById("vditor").addEventListener("click", async (e) => {
+        const btn = e.target.closest("[data-molan-action]");
+        if (!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const action = btn.getAttribute("data-molan-action");
+        const shell = btn.closest(".vditor-ir__preview, pre, .language-mermaid");
+        const svg = shell?.querySelector("svg");
+        if (action === "zoom") {
+          openLightboxFromSvg(svg);
+          return;
+        }
+        if (action === "copy-image") {
+          await copySvgAsPng(svg);
+          return;
+        }
+        if (action === "copy-code") {
+          let text = getMermaidSourceNear(shell);
+          if (!text && vditor) {
+            // 兜底：从当前文档里取最近的 mermaid fence
+            const m = vditor.getValue().match(/```mermaid\s*([\s\S]*?)```/i);
+            text = m ? m[1].trim() : "";
+          }
+          if (!text) {
+            toast("未找到流程图源码");
+            return;
+          }
+          try {
+            await navigator.clipboard.writeText(text);
+            toast("已复制流程图代码");
+          } catch {
+            toast("复制失败");
+          }
+        }
+      }, true);
+
       function canWriteActive() {
         const file = files.find((f) => f.path === activePath);
         return !!(file && file.handle);
@@ -1704,6 +2043,7 @@
                 },
                 after: () => {
                   applyMermaidTheme();
+                  watchMermaidPreviews();
                   if (pendingOpenPath) {
                     const path = pendingOpenPath;
                     pendingOpenPath = null;
@@ -1748,7 +2088,11 @@
           updateStatusRight();
           renderSidebarList();
           applyMermaidTheme();
-          setTimeout(applyMermaidTheme, 400);
+          watchMermaidPreviews();
+          setTimeout(() => {
+            applyMermaidTheme();
+            enhanceMermaidPreviews(document.getElementById("vditor"));
+          }, 400);
           try { vditor.focus(); } catch (_) { /* ignore */ }
         } catch (err) {
           console.warn(err);
@@ -1890,6 +2234,11 @@
       });
 
       document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && lightbox.classList.contains("open")) {
+          e.preventDefault();
+          closeLightbox();
+          return;
+        }
         const key = e.key.toLowerCase();
         if ((e.metaKey || e.ctrlKey) && key === "s") {
           e.preventDefault();
