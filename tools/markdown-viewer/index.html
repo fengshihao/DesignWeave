@@ -815,8 +815,7 @@
     }
 
     /*
-     * IR 点击流程图/公式预览会进入 expand 编辑源码。
-     * Vditor 默认不隐藏预览，导致「源码 + 渲染图」叠在一起；展开时只保留源码。
+     * IR 展开编辑时隐藏图表/公式预览，避免源码与渲染图叠在一起。
      */
     .vditor-ir__node--expand[data-type="code-block"] > .vditor-ir__preview:has(.language-mermaid),
     .vditor-ir__node--expand[data-type="code-block"] > .vditor-ir__preview:has(.language-math),
@@ -853,30 +852,74 @@
       font-family: var(--font-ui) !important;
     }
 
-    /* 展开编辑 mermaid/math 源码：可读的浅色代码区（不是暗底代码块） */
+    /* 预览态：点击图进入观看，不要出现 text caret */
+    .vditor-ir__preview:has(.language-mermaid),
+    .vditor-ir__preview:has(.language-mermaid) .language-mermaid {
+      cursor: grab;
+    }
+
+    .vditor-ir__preview:has(.language-mermaid):active {
+      cursor: grabbing;
+    }
+
+    /*
+     * 展开编辑 mermaid/math：Vditor 会把 .vditor-ir__marker 设成 display:inline，
+     * 若再套圆角/虚线边框会碎成头尾「怪形状」。强制 block + 实线干净代码区。
+     */
     .vditor-ir__node--expand > .vditor-ir__marker--pre:has(code.language-mermaid),
     .vditor-ir__node--expand > .vditor-ir__marker--pre:has(code.language-math),
     .vditor-ir__node--expand > .vditor-ir__marker--pre:has(code[data-type="math-block"]),
     .vditor-ir__node--expand[data-type="math-block"] > .vditor-ir__marker--pre {
+      display: block !important;
+      width: 100% !important;
+      box-sizing: border-box !important;
       background: rgba(28, 25, 20, 0.03) !important;
-      border: 1px dashed rgba(28, 25, 20, 0.16) !important;
+      border: 1px solid rgba(28, 25, 20, 0.12) !important;
       box-shadow: none !important;
       color: var(--ink) !important;
-      margin: 0.85em 0 !important;
+      margin: 0.5em 0 0.85em !important;
       padding: 14px 16px !important;
       border-radius: 12px !important;
       text-align: left !important;
+      overflow: auto !important;
+      white-space: pre-wrap !important;
     }
 
     .vditor-ir__node--expand > .vditor-ir__marker--pre:has(code.language-mermaid) code,
     .vditor-ir__node--expand > .vditor-ir__marker--pre:has(code.language-math) code,
     .vditor-ir__node--expand > .vditor-ir__marker--pre:has(code[data-type="math-block"]) code,
     .vditor-ir__node--expand[data-type="math-block"] > .vditor-ir__marker--pre code {
+      display: block !important;
       color: var(--ink) !important;
       font-size: 0.84rem !important;
       line-height: 1.55 !important;
       white-space: pre-wrap !important;
       text-align: left !important;
+    }
+
+    /* 展开时隐藏 Vditor 伪元素围栏 ```，改由代码区自身呈现，避免头尾碎块 */
+    .vditor-ir__node--expand:has(> .vditor-ir__marker--pre code.language-mermaid)::before,
+    .vditor-ir__node--expand:has(> .vditor-ir__marker--pre code.language-mermaid)::after,
+    .vditor-ir__node--expand:has(> .vditor-ir__marker--pre code.language-math)::before,
+    .vditor-ir__node--expand:has(> .vditor-ir__marker--pre code.language-math)::after,
+    .vditor-ir__node--expand[data-type="math-block"]::before,
+    .vditor-ir__node--expand[data-type="math-block"]::after {
+      content: none !important;
+      display: none !important;
+    }
+
+    .vditor-ir__node--expand:has(> .vditor-ir__marker--pre code.language-mermaid) .vditor-ir__marker--info,
+    .vditor-ir__node--expand:has(> .vditor-ir__marker--pre code.language-math) .vditor-ir__marker--info {
+      display: inline-block !important;
+      margin: 0 0 0.35em !important;
+      padding: 2px 8px !important;
+      border-radius: 999px !important;
+      background: rgba(28, 25, 20, 0.06) !important;
+      font-family: var(--font-mono) !important;
+      font-size: 0.72rem !important;
+      color: var(--ink-muted) !important;
+      width: auto !important;
+      height: auto !important;
     }
 
     .vditor-reset .katex-display {
@@ -955,6 +998,12 @@
       background: #fff;
     }
 
+    .molan-diagram-toolbar button[data-molan-action="edit"] {
+      border-color: rgba(212, 119, 59, 0.35);
+      color: #a85a24;
+      background: rgba(255, 248, 240, 0.96);
+    }
+
     .lightbox {
       position: fixed;
       inset: 0;
@@ -997,29 +1046,53 @@
       color: var(--ink);
     }
 
+    .lightbox-bar .hint {
+      display: block;
+      margin-top: 2px;
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: var(--ink-muted);
+    }
+
     .lightbox-actions {
       display: flex;
       gap: 8px;
       align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
     }
 
     .lightbox-stage {
       flex: 1;
-      overflow: auto;
-      padding: 24px;
-      text-align: center;
+      overflow: hidden;
+      position: relative;
+      cursor: grab;
+      touch-action: none;
       background:
         linear-gradient(90deg, rgba(28, 25, 20, 0.03) 1px, transparent 1px) 0 0 / 24px 24px,
         linear-gradient(rgba(28, 25, 20, 0.03) 1px, transparent 1px) 0 0 / 24px 24px,
         #faf7f1;
     }
 
-    .lightbox-stage svg {
+    .lightbox-stage.is-dragging { cursor: grabbing; }
+
+    .lightbox-canvas {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transform-origin: center center;
+      will-change: transform;
+    }
+
+    .lightbox-canvas svg {
       max-width: none !important;
       width: auto;
       height: auto;
-      margin: 0 auto;
-      transform-origin: center top;
+      margin: 0;
+      user-select: none;
+      pointer-events: none;
     }
 
     .vditor-counter {
@@ -1207,17 +1280,23 @@
   <input class="hidden-input" id="dirInput" type="file" webkitdirectory directory multiple tabindex="-1" aria-hidden="true" />
 
   <div class="lightbox" id="lightbox" aria-hidden="true">
-    <div class="lightbox-panel" role="dialog" aria-modal="true" aria-label="流程图放大">
+    <div class="lightbox-panel" role="dialog" aria-modal="true" aria-label="流程图观看">
       <div class="lightbox-bar">
-        <strong>流程图预览</strong>
+        <div>
+          <strong>流程图观看</strong>
+          <span class="hint">拖动平移 · 滚轮缩放 · Esc 关闭</span>
+        </div>
         <div class="lightbox-actions">
           <button class="chip" type="button" id="lightboxZoomOut">缩小</button>
           <button class="chip" type="button" id="lightboxZoomIn">放大</button>
+          <button class="chip" type="button" id="lightboxReset">复位</button>
           <button class="chip" type="button" id="lightboxCopyImage">复制图片</button>
           <button class="chip" type="button" id="lightboxClose">关闭</button>
         </div>
       </div>
-      <div class="lightbox-stage" id="lightboxStage"></div>
+      <div class="lightbox-stage" id="lightboxStage">
+        <div class="lightbox-canvas" id="lightboxCanvas"></div>
+      </div>
     </div>
   </div>
 
@@ -1571,23 +1650,42 @@
 
       const lightbox = document.getElementById("lightbox");
       const lightboxStage = document.getElementById("lightboxStage");
+      const lightboxCanvas = document.getElementById("lightboxCanvas");
       const lightboxClose = document.getElementById("lightboxClose");
       const lightboxZoomIn = document.getElementById("lightboxZoomIn");
       const lightboxZoomOut = document.getElementById("lightboxZoomOut");
+      const lightboxReset = document.getElementById("lightboxReset");
       const lightboxCopyImage = document.getElementById("lightboxCopyImage");
       let lightboxScale = 1;
+      let lightboxPanX = 0;
+      let lightboxPanY = 0;
+      let lightboxDragging = false;
+      let lightboxDragOrigin = null;
       let diagramObserver = null;
 
       function closeLightbox() {
         lightbox.classList.remove("open");
         lightbox.setAttribute("aria-hidden", "true");
-        lightboxStage.innerHTML = "";
+        lightboxCanvas.innerHTML = "";
         lightboxScale = 1;
+        lightboxPanX = 0;
+        lightboxPanY = 0;
+        lightboxDragging = false;
+        lightboxDragOrigin = null;
+        lightboxStage.classList.remove("is-dragging");
+        applyLightboxTransform();
       }
 
-      function applyLightboxScale() {
-        const svg = lightboxStage.querySelector("svg");
-        if (svg) svg.style.transform = `scale(${lightboxScale})`;
+      function applyLightboxTransform() {
+        lightboxCanvas.style.transform =
+          `translate(${lightboxPanX}px, ${lightboxPanY}px) scale(${lightboxScale})`;
+      }
+
+      function resetLightboxView() {
+        lightboxScale = 1.15;
+        lightboxPanX = 0;
+        lightboxPanY = 0;
+        applyLightboxTransform();
       }
 
       function openLightboxFromSvg(svg) {
@@ -1595,15 +1693,14 @@
           toast("流程图尚未渲染完成");
           return;
         }
-        lightboxScale = 1.25;
-        lightboxStage.innerHTML = "";
+        lightboxCanvas.innerHTML = "";
         const clone = svg.cloneNode(true);
         clone.removeAttribute("style");
         clone.style.maxWidth = "none";
         clone.style.width = clone.getAttribute("width") || "auto";
         clone.style.height = "auto";
-        clone.style.transform = `scale(${lightboxScale})`;
-        lightboxStage.appendChild(clone);
+        lightboxCanvas.appendChild(clone);
+        resetLightboxView();
         lightbox.classList.add("open");
         lightbox.setAttribute("aria-hidden", "false");
       }
@@ -1656,9 +1753,52 @@
       function getMermaidSourceNear(previewEl) {
         const node = previewEl?.closest?.(".vditor-ir__node");
         const marker = node?.querySelector?.(".vditor-ir__marker--pre code.language-mermaid");
-        if (marker) return marker.textContent || "";
-        const code = previewEl?.querySelector?.("code.language-mermaid");
-        return code?.getAttribute?.("data-processed") ? "" : (code?.textContent || "");
+        if (marker?.textContent?.trim()) return marker.textContent.trim();
+        const code = previewEl?.querySelector?.("code.language-mermaid, .language-mermaid");
+        if (!code) return "";
+        if (code.getAttribute?.("data-processed")) return marker?.textContent?.trim() || "";
+        return (code.textContent || "").trim();
+      }
+
+      function findMermaidPreviewShell(fromEl) {
+        if (!fromEl || !fromEl.closest) return null;
+        const preview = fromEl.closest(".vditor-ir__preview");
+        if (preview && preview.querySelector(".language-mermaid")) return preview;
+        const lang = fromEl.closest(".language-mermaid");
+        if (lang) return lang.closest("pre") || lang;
+        return null;
+      }
+
+      function enterMermaidEdit(shell) {
+        const node = shell?.closest?.(".vditor-ir__node");
+        const code = node?.querySelector?.(".vditor-ir__marker--pre code.language-mermaid");
+        const editable = document.querySelector(".vditor-ir pre.vditor-reset");
+        if (!code || !editable) {
+          toast("无法进入编辑");
+          return;
+        }
+        try {
+          editable.focus();
+          const range = document.createRange();
+          const textNode = code.firstChild || code;
+          if (textNode.nodeType === Node.TEXT_NODE) {
+            range.setStart(textNode, 0);
+            range.collapse(true);
+          } else {
+            range.selectNodeContents(code);
+            range.collapse(true);
+          }
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+          // 再强制标一次 expand，避免个别时机 caret 未触发
+          node.classList.add("vditor-ir__node--expand");
+          node.classList.remove("vditor-ir__node--hidden");
+          toast("已进入源码编辑，点空白处退出");
+        } catch (err) {
+          console.warn(err);
+          toast("无法进入编辑");
+        }
       }
 
       function enhanceMermaidPreviews(root = document) {
@@ -1672,10 +1812,12 @@
           if (!shell || shell.querySelector(":scope > .molan-diagram-toolbar")) return;
           if (!shell.querySelector("svg") && !shell.querySelector(".language-mermaid svg")) return;
           if (getComputedStyle(shell).position === "static") shell.style.position = "relative";
+          shell.classList.add("molan-mermaid-shell");
           const bar = document.createElement("div");
           bar.className = "molan-diagram-toolbar";
           bar.innerHTML = `
-            <button type="button" data-molan-action="zoom">放大</button>
+            <button type="button" data-molan-action="edit">编辑</button>
+            <button type="button" data-molan-action="zoom">观看</button>
             <button type="button" data-molan-action="copy-code">复制代码</button>
             <button type="button" data-molan-action="copy-image">复制图片</button>
           `;
@@ -1706,18 +1848,81 @@
         if (e.target === lightbox) closeLightbox();
       });
       lightboxZoomIn.addEventListener("click", () => {
-        lightboxScale = Math.min(lightboxScale + 0.25, 4);
-        applyLightboxScale();
+        lightboxScale = Math.min(lightboxScale + 0.25, 5);
+        applyLightboxTransform();
       });
       lightboxZoomOut.addEventListener("click", () => {
-        lightboxScale = Math.max(lightboxScale - 0.25, 0.5);
-        applyLightboxScale();
+        lightboxScale = Math.max(lightboxScale - 0.25, 0.35);
+        applyLightboxTransform();
       });
+      lightboxReset.addEventListener("click", resetLightboxView);
       lightboxCopyImage.addEventListener("click", () => {
-        copySvgAsPng(lightboxStage.querySelector("svg"));
+        copySvgAsPng(lightboxCanvas.querySelector("svg"));
       });
 
-      document.getElementById("vditor").addEventListener("click", async (e) => {
+      lightboxStage.addEventListener("pointerdown", (e) => {
+        if (e.button !== 0) return;
+        lightboxDragging = true;
+        lightboxDragOrigin = {
+          x: e.clientX,
+          y: e.clientY,
+          panX: lightboxPanX,
+          panY: lightboxPanY,
+        };
+        lightboxStage.classList.add("is-dragging");
+        lightboxStage.setPointerCapture?.(e.pointerId);
+      });
+      lightboxStage.addEventListener("pointermove", (e) => {
+        if (!lightboxDragging || !lightboxDragOrigin) return;
+        lightboxPanX = lightboxDragOrigin.panX + (e.clientX - lightboxDragOrigin.x);
+        lightboxPanY = lightboxDragOrigin.panY + (e.clientY - lightboxDragOrigin.y);
+        applyLightboxTransform();
+      });
+      const endLightboxDrag = (e) => {
+        if (!lightboxDragging) return;
+        lightboxDragging = false;
+        lightboxDragOrigin = null;
+        lightboxStage.classList.remove("is-dragging");
+        try { lightboxStage.releasePointerCapture?.(e.pointerId); } catch (_) { /* ignore */ }
+      };
+      lightboxStage.addEventListener("pointerup", endLightboxDrag);
+      lightboxStage.addEventListener("pointercancel", endLightboxDrag);
+      lightboxStage.addEventListener("wheel", (e) => {
+        if (!lightbox.classList.contains("open")) return;
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.12 : 0.12;
+        const next = Math.min(5, Math.max(0.35, lightboxScale + delta));
+        // 以指针为中心缩放
+        const rect = lightboxStage.getBoundingClientRect();
+        const cx = e.clientX - rect.left - rect.width / 2;
+        const cy = e.clientY - rect.top - rect.height / 2;
+        const ratio = next / lightboxScale;
+        lightboxPanX = cx - (cx - lightboxPanX) * ratio;
+        lightboxPanY = cy - (cy - lightboxPanY) * ratio;
+        lightboxScale = next;
+        applyLightboxTransform();
+      }, { passive: false });
+
+      const vditorRoot = document.getElementById("vditor");
+
+      // 拦截流程图预览点击：默认进入观看（拖动/缩放），不进源码编辑
+      const blockMermaidPreviewExpand = (e) => {
+        if (e.target.closest("[data-molan-action]")) return;
+        const shell = findMermaidPreviewShell(e.target);
+        if (!shell) return;
+        // 已在编辑态时，允许正常交互
+        if (shell.closest(".vditor-ir__node--expand")) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.type === "click" || e.type === "pointerup") {
+          openLightboxFromSvg(shell.querySelector("svg"));
+        }
+      };
+      vditorRoot.addEventListener("mousedown", blockMermaidPreviewExpand, true);
+      vditorRoot.addEventListener("pointerdown", blockMermaidPreviewExpand, true);
+      vditorRoot.addEventListener("click", blockMermaidPreviewExpand, true);
+
+      vditorRoot.addEventListener("click", async (e) => {
         const btn = e.target.closest("[data-molan-action]");
         if (!btn) return;
         e.preventDefault();
@@ -1725,6 +1930,10 @@
         const action = btn.getAttribute("data-molan-action");
         const shell = btn.closest(".vditor-ir__preview, pre, .language-mermaid");
         const svg = shell?.querySelector("svg");
+        if (action === "edit") {
+          enterMermaidEdit(shell);
+          return;
+        }
         if (action === "zoom") {
           openLightboxFromSvg(svg);
           return;
@@ -1736,7 +1945,6 @@
         if (action === "copy-code") {
           let text = getMermaidSourceNear(shell);
           if (!text && vditor) {
-            // 兜底：从当前文档里取最近的 mermaid fence
             const m = vditor.getValue().match(/```mermaid\s*([\s\S]*?)```/i);
             text = m ? m[1].trim() : "";
           }
