@@ -48,6 +48,33 @@
 
 可并存策略：Web 默认所见即所得；高级用户可源码模式；也可用 Obsidian 直接改同一 vault 文件。
 
+## 6. 单文件 POC（墨览）性能结论
+
+`tools/markdown-viewer/index.html` 是可独立打开的 Vditor 壳。对 PRD 体量（数千到数万字、少量 Mermaid/公式），**解析本身已经够用**；真正拖慢输入的是按键路径上的 DOM 工作，不是缺一次「更极端」的编译。
+
+### 6.1 已经够用的部分
+
+- Vditor 的 Markdown 引擎是 [Lute](https://github.com/88250/lute)（Go，零正则），浏览器里用的是已编译的 `lute.min.js`（约数 MB 未压缩 / ~500KB gzip）。它本来就是为所见即所得编辑器做的结构化解析，日常文档的 `Md2VditorDOM` 不是主瓶颈。
+- 官方 `index.min.js` 已经压缩。再对壳脚本做混淆（uglify/obfuscator）通常只会让标识更长、调试更难，**几乎不加快运行**；gzip 之后体积差也只有几十 KB。
+- 把壳代码（选文件夹、IndexedDB、工具条）编成 WebAssembly **没有收益**：热路径全是 `contenteditable`、Selection、CSS、`innerHTML`，WASM 还要付 JS↔WASM 边界成本。
+
+### 6.2 不要优先做的「极端优化」
+
+| 方向 | 为什么现在不划算 |
+|------|------------------|
+| 编译混淆壳 JS | 壳只有约一千行 DOM 胶水；parse/compile 时间可忽略。混淆还会妨碍内网排查。 |
+| 自研 lute.wasm 替换 | Lute 已有 JS 导出；IR 模式每次按键的成本在局部重绘 DOM、高亮、Mermaid/KaTeX，不在再抠一遍解析器。WASM 还要改 Vditor 加载链，和单文件分发拧着。 |
+| 把 Mermaid 编成 WASM | 没有官方 WASM 运行时；流程图卡顿来自 SVG 布局与重复初始化，应避免输入时全量重渲染。 |
+| 整页虚拟滚动编辑器 | 等于换引擎（CodeMirror 6 / Lexical），放弃 Vditor IR。只有稳定出现 10 万字级文档卡顿时才值得评估。 |
+
+内网若首屏慢，优先 **自建/镜像 Vditor 静态资源**（尤其 `lute.min.js`），不要继续走 jsDelivr。这比 WASM 更能改善「打开就转圈」。
+
+### 6.3 真正有效的优化（已做）
+
+按键时不再每次 `getValue()`（会遍历整棵 IR DOM 还原 Markdown）+ 整表重建侧栏；字数/脏标记改为 180ms 空闲合并。目录扫描不再对每个 `.md` 调 `getFile()`。Mermaid 改为空闲预热，不挡编辑器初始化。纸纹滤镜降到 1 octave 并放到独立合成层。
+
+下一步若仍卡：用 Performance 面板看 IR 输入时的 Recalculate Style / Mermaid `render`。大流程图应保持「预览静态、点进再编辑」，而不是边打字边重排 SVG。
+
 ## 4. POC 验收清单（Vditor vs Milkdown）
 
 用同一篇样例 PRD（含：多级标题、列表、任务列表、表格、代码块、链接、引用）验证：
