@@ -217,9 +217,10 @@
 
     .recent-row {
       display: grid;
-      grid-template-columns: 1fr auto;
+      grid-template-columns: 1fr auto auto;
       gap: 2px;
       align-items: stretch;
+      margin-bottom: 2px;
     }
 
     .recent-item {
@@ -234,7 +235,7 @@
       display: grid;
       grid-template-columns: 20px 1fr;
       gap: 7px;
-      align-items: center;
+      align-items: start;
       font-family: var(--font-ui);
       transition: background 0.15s ease, border-color 0.15s ease;
     }
@@ -246,6 +247,7 @@
 
     .recent-item .file-icon {
       background: rgba(232, 160, 106, 0.14);
+      margin-top: 1px;
     }
 
     .recent-name {
@@ -255,24 +257,41 @@
       word-break: break-word;
     }
 
+    .recent-path {
+      margin-top: 2px;
+      font-size: 0.64rem;
+      color: var(--accent-soft);
+      line-height: 1.3;
+      word-break: break-all;
+      opacity: 0.92;
+    }
+
+    .recent-path.missing {
+      color: rgba(232, 226, 214, 0.38);
+      font-style: italic;
+    }
+
     .recent-meta {
-      margin-top: 1px;
+      margin-top: 2px;
       font-size: 0.62rem;
       color: rgba(232, 226, 214, 0.4);
     }
 
+    .recent-label,
     .recent-remove {
       appearance: none;
       border: none;
       background: transparent;
       color: rgba(232, 226, 214, 0.35);
       cursor: pointer;
-      font-size: 0.85rem;
+      font-size: 0.72rem;
       line-height: 1;
       padding: 4px 6px;
       border-radius: 6px;
+      align-self: center;
     }
 
+    .recent-label:hover,
     .recent-remove:hover {
       color: #e8a06a;
       background: rgba(255,255,255,0.06);
@@ -1160,6 +1179,7 @@
         }
         const all = await idbAllFolders();
         let record = null;
+        // 只按句柄同一性匹配，避免不同工程下同名 doc 被合并成一条
         for (const rec of all) {
           const h = rec.handle || sessionHandles.get(rec.id);
           if (isDirectoryHandle(h) && typeof h.isSameEntry === "function") {
@@ -1170,30 +1190,51 @@
               }
             } catch (_) { /* ignore */ }
           }
-          if (rec.name === handle.name && rec.source === "fs-access") {
-            record = rec;
-          }
         }
+
+        const isNew = !record;
+        const sameNameOthers = all.filter((r) => {
+          if (r.name !== handle.name) return false;
+          if (record && r.id === record.id) return false;
+          return true;
+        });
+
         if (!record) {
           record = {
             id: crypto.randomUUID(),
             name: handle.name,
             source: "fs-access",
+            pathLabel: "",
             lastUsed: Date.now(),
             fileCount: files.length || 0,
           };
         }
+
         record.name = handle.name;
         record.source = "fs-access";
         record.handle = handle;
         record.lastUsed = Date.now();
         record.fileCount = files.length || record.fileCount || 0;
+        if (typeof record.pathLabel !== "string") record.pathLabel = record.pathLabel || "";
+
+        const shouldAsk =
+          !record.pathLabel ||
+          (isNew && sameNameOthers.length > 0) ||
+          (!record.pathLabel && sameNameOthers.length > 0);
+
+        if (shouldAsk && !record.pathLabel) {
+          const tip =
+            sameNameOthers.length > 0
+              ? `已有 ${sameNameOthers.length} 个也叫「${handle.name}」的目录。请标注本目录绝对路径或工程名（例如 /Users/me/DesignWeave/doc）：`
+              : `请标注「${handle.name}」的绝对路径或工程名（浏览器无法自动读取完整路径，便于区分同名目录；可留空）：`;
+          const entered = window.prompt(tip, "");
+          if (entered && entered.trim()) record.pathLabel = entered.trim();
+        }
 
         await idbPutFolder(record);
         sessionHandles.set(record.id, handle);
         currentFolderId = record.id;
 
-        // 校验句柄是否真正写入；失败则至少保留会话缓存
         const saved = await idbGetFolder(record.id);
         if (!isDirectoryHandle(saved?.handle)) {
           console.warn("Directory handle was not persisted to IndexedDB; session reopen still works.");
@@ -1206,36 +1247,51 @@
       }
 
       async function rememberLegacyFolder(name, fileCount) {
-        // 若已有可直接打开的同名记录，只更新时间，不覆盖句柄
         const all = await idbAllFolders();
-        const withHandle = all.find((r) => r.name === name && (isDirectoryHandle(r.handle) || sessionHandles.has(r.id)));
-        if (withHandle) {
-          withHandle.lastUsed = Date.now();
-          withHandle.fileCount = fileCount;
-          if (sessionHandles.has(withHandle.id) && !isDirectoryHandle(withHandle.handle)) {
-            withHandle.handle = sessionHandles.get(withHandle.id);
-          }
-          await idbPutFolder(withHandle);
-          currentFolderId = withHandle.id;
-          await refreshRecentFolders();
-          return;
-        }
-        const id = "legacy:" + name;
-        const existing = all.find((r) => r.id === id) || {
-          id,
+        const entered = window.prompt(
+          `请标注本次打开的「${name}」绝对路径或工程名（兼容模式无法自动读取完整路径）：`,
+          ""
+        );
+        const pathLabel = entered && entered.trim() ? entered.trim() : "";
+        const existingByLabel = pathLabel
+          ? all.find((r) => r.source === "legacy" && r.name === name && r.pathLabel === pathLabel)
+          : null;
+        const existing = existingByLabel || {
+          id: "legacy:" + name + ":" + (pathLabel || String(Date.now())),
           name,
           source: "legacy",
           handle: null,
+          pathLabel,
         };
         existing.lastUsed = Date.now();
         existing.fileCount = fileCount;
         existing.name = name;
         existing.source = "legacy";
         existing.handle = null;
+        if (pathLabel) existing.pathLabel = pathLabel;
+        else if (!existing.pathLabel) existing.pathLabel = "";
         await idbPutFolder(existing);
         currentFolderId = existing.id;
         await pruneRecentFolders();
         await refreshRecentFolders();
+      }
+
+      async function editFolderPathLabel(id, e) {
+        e?.stopPropagation?.();
+        const rec = (await idbGetFolder(id)) || recentFolders.find((r) => r.id === id);
+        if (!rec) return;
+        const entered = window.prompt(
+          `标注「${rec.name}」的绝对路径或工程名（用于区分同名目录）：`,
+          rec.pathLabel || ""
+        );
+        if (entered === null) return;
+        rec.pathLabel = entered.trim();
+        const cached = sessionHandles.get(rec.id);
+        if (cached) rec.handle = cached;
+        await idbPutFolder(rec);
+        await refreshRecentFolders();
+        renderSidebarList();
+        toast(rec.pathLabel ? "已更新路径标注" : "已清空路径标注");
       }
 
       async function pruneRecentFolders() {
@@ -1277,7 +1333,7 @@
           return;
         }
 
-        statusLeft.textContent = `正在打开 ${rec.name || handle.name}…`;
+        statusLeft.textContent = `正在打开 ${rec.pathLabel || rec.name || handle.name}…`;
         const ok = await ensureHandlePermission(handle);
         if (!ok) {
           toast("未获得目录读取授权");
@@ -1496,7 +1552,7 @@
         searchInput.value = "";
         folderMeta.classList.toggle("visible", !!files.length);
         folderMeta.innerHTML = files.length
-          ? `文件夹 <strong>${escapeHtml(folderName)}</strong> · ${files.length} 篇文档`
+          ? `文件夹 <strong>${escapeHtml(folderName)}</strong>${currentFolderId && recentFolders.find((r) => r.id === currentFolderId)?.pathLabel ? ` · <span title="路径标注">${escapeHtml(recentFolders.find((r) => r.id === currentFolderId).pathLabel)}</span>` : ""} · ${files.length} 篇文档`
           : "";
         statusLeft.textContent = files.length ? `已索引 ${files.length} 篇 Markdown` : "未找到 Markdown 文件";
         statusRight.textContent = folderName || "本地 · 不上云";
@@ -1509,21 +1565,32 @@
       }
 
       function renderRecentSection(q) {
-        const matched = recentFolders.filter((r) => !q || (r.name || "").toLowerCase().includes(q));
+        const matched = recentFolders.filter((r) => {
+          if (!q) return true;
+          const name = (r.name || "").toLowerCase();
+          const pathLabel = (r.pathLabel || "").toLowerCase();
+          return name.includes(q) || pathLabel.includes(q);
+        });
         if (!matched.length) return "";
         let html = `<div class="file-group-title">最近目录</div>`;
         for (const r of matched) {
           const canOpen = isDirectoryHandle(r.handle) || sessionHandles.has(r.id);
           const count = typeof r.fileCount === "number" ? `${r.fileCount} 篇 · ` : "";
           const mode = canOpen ? "点击直接打开" : "需先用「选择文件夹」授权";
+          const pathText = r.pathLabel
+            ? escapeHtml(r.pathLabel)
+            : "未标注绝对路径（点「径」补充）";
+          const pathClass = r.pathLabel ? "recent-path" : "recent-path missing";
           html += `<div class="recent-row">
             <button class="recent-item" type="button" data-recent-id="${escapeHtml(r.id)}">
               <span class="file-icon">夹</span>
               <span>
                 <div class="recent-name">${escapeHtml(r.name || "未命名")}</div>
+                <div class="${pathClass}">${pathText}</div>
                 <div class="recent-meta">${count}${formatRelativeTime(r.lastUsed || 0)} · ${mode}</div>
               </span>
             </button>
+            <button class="recent-label" type="button" data-label-recent="${escapeHtml(r.id)}" title="标注绝对路径">径</button>
             <button class="recent-remove" type="button" data-remove-recent="${escapeHtml(r.id)}" title="移除记录">×</button>
           </div>`;
         }
@@ -1946,6 +2013,11 @@
         const removeBtn = e.target.closest("[data-remove-recent]");
         if (removeBtn) {
           removeRecentFolder(removeBtn.getAttribute("data-remove-recent"), e);
+          return;
+        }
+        const labelBtn = e.target.closest("[data-label-recent]");
+        if (labelBtn) {
+          editFolderPathLabel(labelBtn.getAttribute("data-label-recent"), e);
           return;
         }
         const recentBtn = e.target.closest("[data-recent-id]");
