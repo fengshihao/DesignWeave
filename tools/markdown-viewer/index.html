@@ -165,21 +165,16 @@
 
     .btn-ghost:hover { background: rgba(255,255,255,0.09); }
 
-    label.btn {
-      display: block;
-      text-align: center;
-      position: relative;
-      overflow: hidden;
-    }
-
-    label.btn .dir-picker {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
+    /* 不能用 display:none，否则程序化 click 会被拦截，兼容模式失效 */
+    .hidden-input {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 1px;
+      height: 1px;
       opacity: 0;
-      cursor: pointer;
-      font-size: 0;
+      overflow: hidden;
+      pointer-events: none;
     }
 
     .search-wrap { position: relative; }
@@ -1151,10 +1146,7 @@
 
       <div class="toolbar">
         <button class="btn btn-primary" id="pickBtn" type="button">选择文件夹</button>
-        <label class="btn btn-ghost" id="pickFallbackLabel" title="兼容模式：可打开阅读；保存将下载文件（无法直接写回）">
-          浏览本地目录…
-          <input class="dir-picker" id="dirInput" type="file" webkitdirectory directory multiple />
-        </label>
+        <button class="btn btn-ghost" id="pickFallbackBtn" type="button" title="传统文件选择 API；Cursor 内置浏览器可用">兼容模式选文件夹</button>
         <div class="search-wrap">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
@@ -1168,7 +1160,7 @@
       <div class="file-list" id="fileList">
         <div class="empty-side">
           <span class="glyph">卷</span>
-          <p>选择一个本地文件夹后，这里会列出其中全部 Markdown 文档。</p>
+          <p>Cursor 请用「兼容模式选文件夹」；Chrome 可用上方「选择文件夹」写回。</p>
         </div>
       </div>
     </aside>
@@ -1190,8 +1182,8 @@
           <div class="hero-glyph">墨</div>
           <h2>本地文档<br />在<em>同一张纸</em>上改写</h2>
           <p>选择任意文件夹，自动扫描 Markdown。用 Vditor 即时渲染（类 Typora）编辑；Chrome / Edge 可直接写回原文件。文件不会离开本机。</p>
-          <p style="color:var(--ink-muted);font-size:0.92rem;margin-top:-12px;margin-bottom:12px;line-height:1.6;">「选择文件夹」申请读写权限以便保存；「浏览本地目录…」为兼容导入，保存时将下载文件。</p>
-          <p style="color:var(--ink-muted);font-size:0.88rem;margin-bottom:28px;line-height:1.55;padding:12px 14px;border-radius:12px;background:rgba(212,119,59,0.08);border:1px solid rgba(212,119,59,0.18);">快捷键 <strong>Cmd/Ctrl+S</strong> 保存。打开过的目录会记在「最近目录」中，可一键重新打开（需再次授权读写）。</p>
+          <p style="color:var(--ink-muted);font-size:0.92rem;margin-top:-12px;margin-bottom:12px;line-height:1.6;">「选择文件夹」用目录授权 API（可写回）；「兼容模式选文件夹」用传统文件选择（Cursor 内置浏览器可用，保存将下载）。</p>
+          <p style="color:var(--ink-muted);font-size:0.88rem;margin-bottom:28px;line-height:1.55;padding:12px 14px;border-radius:12px;background:rgba(212,119,59,0.08);border:1px solid rgba(212,119,59,0.18);">快捷键 <strong>Cmd/Ctrl+S</strong> 保存。在 Cursor 里请用<strong>兼容模式选文件夹</strong>。</p>
           <div class="feature-grid">
             <div class="feature"><strong>所见即所得</strong><span>IR / WYSIWYG / 分屏，工具栏可切换</span></div>
             <div class="feature"><strong>写回本地</strong><span>File System Access 直接改原文件</span></div>
@@ -1212,6 +1204,7 @@
   </div>
 
   <div class="toast" id="toast" role="status"></div>
+  <input class="hidden-input" id="dirInput" type="file" webkitdirectory directory multiple tabindex="-1" aria-hidden="true" />
 
   <div class="lightbox" id="lightbox" aria-hidden="true">
     <div class="lightbox-panel" role="dialog" aria-modal="true" aria-label="流程图放大">
@@ -1334,7 +1327,7 @@
       patchMermaidLoader();
 
       const pickBtn = document.getElementById("pickBtn");
-      const pickFallbackLabel = document.getElementById("pickFallbackLabel");
+      const pickFallbackBtn = document.getElementById("pickFallbackBtn");
       const dirInput = document.getElementById("dirInput");
       const searchInput = document.getElementById("searchInput");
       const fileList = document.getElementById("fileList");
@@ -1539,7 +1532,7 @@
           }
         }
         toast(`「${rec.name}」需再次选择（兼容模式无法直接恢复）`);
-        openLegacyFolderDialog();
+        openCompatPicker();
       }
 
       async function removeRecentFolder(id, e) {
@@ -1878,9 +1871,11 @@
         toast("兼容模式：可编辑，保存将下载文件");
       }
 
-      function openLegacyFolderDialog() {
+      function openCompatPicker() {
+        // 允许重复选择同一文件夹也能触发 change；用传统 webkitdirectory，Cursor 内置浏览器可用
         dirInput.value = "";
-        pickFallbackLabel.click();
+        statusLeft.textContent = "请在系统对话框中选择本地文件夹…";
+        dirInput.click();
       }
 
       function setFiles(list) {
@@ -1941,7 +1936,7 @@
             fileList.innerHTML = recentHtml;
             return;
           }
-          fileList.innerHTML = `<div class="empty-side"><span class="glyph">卷</span><p>选择一个本地文件夹后，这里会列出文档；打开过的目录会记在「最近目录」里。</p></div>`;
+          fileList.innerHTML = `<div class="empty-side"><span class="glyph">卷</span><p>Cursor 请用「兼容模式选文件夹」；Chrome 可用「选择文件夹」写回。</p></div>`;
           return;
         }
 
@@ -2177,13 +2172,20 @@
               return;
             }
             console.warn(err);
-            statusLeft.textContent = "请改用「浏览本地目录…」";
-            toast("目录 API 不可用，请改用下方「浏览本地目录…」");
+            statusLeft.textContent = "请改用兼容模式选文件夹";
+            toast("目录 API 不可用，已切换兼容模式");
+            openCompatPicker();
           }
         } else {
-          toast("当前浏览器请使用「浏览本地目录…」（保存将下载）");
-          openLegacyFolderDialog();
+          toast("当前浏览器使用兼容模式选文件夹");
+          openCompatPicker();
         }
+      });
+
+      pickFallbackBtn.addEventListener("click", () => {
+        if (!confirmDiscardIfDirty()) return;
+        toast("兼容模式：传统文件选择（可编辑，保存将下载）");
+        openCompatPicker();
       });
 
       dirInput.addEventListener("change", () => {
@@ -2192,13 +2194,6 @@
           return;
         }
         if (dirInput.files && dirInput.files.length) loadFromFileList(dirInput.files);
-      });
-
-      dirInput.addEventListener("click", (e) => {
-        e.stopPropagation();
-        dirInput.value = "";
-        statusLeft.textContent = "请在系统对话框中选择本地文件夹…";
-        toast("请选择本地文件夹（仅本机读取）");
       });
 
       let searchTimer = 0;
