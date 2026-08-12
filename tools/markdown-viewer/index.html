@@ -638,16 +638,123 @@
     }
 
     .prose .mermaid {
-      margin: 1.4em 0;
-      padding: 20px;
-      background: #fff;
-      border: 1px solid rgba(28,25,20,0.08);
-      border-radius: 14px;
+      margin: 0;
+      padding: 16px;
+      background: transparent;
+      border: none;
+      border-radius: 0;
       overflow-x: auto;
       text-align: center;
     }
 
     .prose .mermaid svg { max-width: 100%; height: auto; }
+
+    .diagram-wrap {
+      position: relative;
+      margin: 1.2em 0;
+      background: #fff;
+      border: 1px solid rgba(28,25,20,0.08);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    .diagram-toolbar {
+      display: flex;
+      justify-content: flex-end;
+      gap: 6px;
+      padding: 8px 10px;
+      border-bottom: 1px solid rgba(28,25,20,0.06);
+      background: rgba(244,239,230,0.65);
+    }
+
+    .diagram-toolbar button {
+      appearance: none;
+      border: 1px solid rgba(28,25,20,0.1);
+      background: rgba(255,255,255,0.7);
+      color: var(--ink-soft);
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      font-family: var(--font-ui);
+      cursor: pointer;
+    }
+
+    .diagram-toolbar button:hover {
+      border-color: rgba(212,119,59,0.35);
+      color: var(--accent);
+      background: #fff;
+    }
+
+    .lightbox {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(20, 18, 14, 0.72);
+      backdrop-filter: blur(6px);
+    }
+
+    .lightbox.open { display: flex; }
+
+    .lightbox-panel {
+      position: relative;
+      width: min(96vw, 1400px);
+      height: min(90vh, 900px);
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.35);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .lightbox-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(28,25,20,0.08);
+      background: var(--paper-lift);
+    }
+
+    .lightbox-bar strong {
+      font-size: 0.88rem;
+      font-weight: 650;
+    }
+
+    .lightbox-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .lightbox-stage {
+      flex: 1;
+      overflow: auto;
+      padding: 24px;
+      text-align: center;
+      background:
+        linear-gradient(90deg, rgba(28,25,20,0.03) 1px, transparent 1px) 0 0 / 24px 24px,
+        linear-gradient(rgba(28,25,20,0.03) 1px, transparent 1px) 0 0 / 24px 24px,
+        #faf7f1;
+    }
+
+    .lightbox-stage .mermaid,
+    .lightbox-stage svg {
+      max-width: none !important;
+      width: auto;
+      height: auto;
+      margin: 0 auto;
+    }
+
+    .lightbox-stage svg {
+      transform-origin: center top;
+    }
 
     .prose .katex-display {
       margin: 1.2em 0;
@@ -793,6 +900,20 @@
 
   <div class="toast" id="toast" role="status"></div>
 
+  <div class="lightbox" id="lightbox" aria-hidden="true">
+    <div class="lightbox-panel" role="dialog" aria-modal="true" aria-label="流程图放大">
+      <div class="lightbox-bar">
+        <strong>流程图</strong>
+        <div class="lightbox-actions">
+          <button class="chip" type="button" id="lightboxZoomOut">缩小</button>
+          <button class="chip" type="button" id="lightboxZoomIn">放大</button>
+          <button class="chip" type="button" id="lightboxClose">关闭</button>
+        </div>
+      </div>
+      <div class="lightbox-stage" id="lightboxStage"></div>
+    </div>
+  </div>
+
   <script>
     (() => {
       const pickBtn = document.getElementById("pickBtn");
@@ -849,7 +970,13 @@
           code({ text, lang }) {
             const language = (lang || "").trim().split(/\s+/)[0];
             if (language === "mermaid") {
-              return `<div class="mermaid">${escapeHtml(text)}</div>`;
+              return `<div class="diagram-wrap">
+                <div class="diagram-toolbar">
+                  <button type="button" data-action="zoom">放大观看</button>
+                </div>
+                <pre class="mermaid-source" hidden>${escapeHtml(text)}</pre>
+                <div class="mermaid">${escapeHtml(text)}</div>
+              </div>`;
             }
             const languageClass = language
               ? `hljs language-${escapeHtml(language)}`
@@ -1077,6 +1204,67 @@
         const en = (text.replace(/[\u4e00-\u9fff]/g, " ").match(/[A-Za-z0-9]+/g) || []).length;
         return cn + en;
       }
+
+      const lightbox = document.getElementById("lightbox");
+      const lightboxStage = document.getElementById("lightboxStage");
+      const lightboxClose = document.getElementById("lightboxClose");
+      const lightboxZoomIn = document.getElementById("lightboxZoomIn");
+      const lightboxZoomOut = document.getElementById("lightboxZoomOut");
+      let lightboxScale = 1;
+
+      function closeLightbox() {
+        lightbox.classList.remove("open");
+        lightbox.setAttribute("aria-hidden", "true");
+        lightboxStage.innerHTML = "";
+        lightboxScale = 1;
+      }
+
+      function applyLightboxScale() {
+        const svg = lightboxStage.querySelector("svg");
+        if (svg) svg.style.transform = `scale(${lightboxScale})`;
+      }
+
+      function openLightboxFromWrap(wrap) {
+        const svg = wrap.querySelector(".mermaid svg");
+        if (!svg) {
+          toast("流程图尚未渲染完成");
+          return;
+        }
+        lightboxScale = 1.25;
+        lightboxStage.innerHTML = "";
+        const clone = svg.cloneNode(true);
+        clone.removeAttribute("style");
+        clone.style.maxWidth = "none";
+        clone.style.width = clone.getAttribute("width") || "auto";
+        clone.style.height = "auto";
+        clone.style.transform = `scale(${lightboxScale})`;
+        lightboxStage.appendChild(clone);
+        lightbox.classList.add("open");
+        lightbox.setAttribute("aria-hidden", "false");
+      }
+
+      lightboxClose.addEventListener("click", closeLightbox);
+      lightbox.addEventListener("click", (e) => {
+        if (e.target === lightbox) closeLightbox();
+      });
+      lightboxZoomIn.addEventListener("click", () => {
+        lightboxScale = Math.min(lightboxScale + 0.25, 4);
+        applyLightboxScale();
+      });
+      lightboxZoomOut.addEventListener("click", () => {
+        lightboxScale = Math.max(lightboxScale - 0.25, 0.5);
+        applyLightboxScale();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && lightbox.classList.contains("open")) closeLightbox();
+      });
+
+      article.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-action='zoom']");
+        if (!btn) return;
+        const wrap = btn.closest(".diagram-wrap");
+        if (wrap) openLightboxFromWrap(wrap);
+      });
 
       pickBtn.addEventListener("click", async () => {
         statusLeft.textContent = "正在打开文件夹选择…";
