@@ -158,6 +158,24 @@
 
     .btn-ghost:hover { background: rgba(255,255,255,0.09); }
 
+    /* 用 label 触发文件对话框，避免 JS click 被浏览器拦截 */
+    label.btn {
+      display: block;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    label.btn .dir-picker {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+      font-size: 0;
+    }
+
     .search-wrap {
       position: relative;
     }
@@ -204,16 +222,16 @@
     .file-list {
       flex: 1;
       overflow: auto;
-      padding: 8px 10px 18px;
+      padding: 4px 8px 14px;
       scrollbar-width: thin;
       scrollbar-color: rgba(255,255,255,0.15) transparent;
     }
 
     .file-group-title {
-      margin: 14px 10px 6px;
-      font-size: 0.68rem;
+      margin: 10px 8px 4px;
+      font-size: 0.62rem;
       text-transform: uppercase;
-      letter-spacing: 0.14em;
+      letter-spacing: 0.12em;
       color: rgba(232, 226, 214, 0.38);
       font-weight: 600;
     }
@@ -224,16 +242,15 @@
       background: transparent;
       border: 1px solid transparent;
       color: #e8e2d6;
-      border-radius: 12px;
-      padding: 11px 12px;
+      border-radius: 8px;
+      padding: 6px 8px;
       cursor: pointer;
       display: grid;
-      grid-template-columns: 28px 1fr;
-      gap: 10px;
-      align-items: start;
-      transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s var(--ease);
+      grid-template-columns: 20px 1fr;
+      gap: 7px;
+      align-items: center;
+      transition: background 0.15s ease, border-color 0.15s ease;
       font-family: var(--font-ui);
-      animation: fade-in 0.45s var(--ease) both;
     }
 
     .file-item:hover {
@@ -247,31 +264,33 @@
     }
 
     .file-icon {
-      width: 28px;
-      height: 28px;
-      border-radius: 8px;
+      width: 20px;
+      height: 20px;
+      border-radius: 5px;
       display: grid;
       place-items: center;
       background: rgba(255,255,255,0.06);
       color: var(--accent-soft);
       font-family: var(--font-display);
-      font-size: 0.95rem;
+      font-size: 0.72rem;
       line-height: 1;
-      margin-top: 1px;
     }
 
     .file-name {
-      font-size: 0.9rem;
+      font-size: 0.78rem;
       font-weight: 550;
-      line-height: 1.3;
+      line-height: 1.25;
       word-break: break-word;
     }
 
     .file-path {
-      margin-top: 3px;
-      font-size: 0.72rem;
-      color: rgba(232, 226, 214, 0.42);
+      margin-top: 1px;
+      font-size: 0.64rem;
+      color: rgba(232, 226, 214, 0.4);
       word-break: break-all;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .empty-side {
@@ -467,13 +486,9 @@
       line-height: 1.45;
     }
 
-    .article {
-      animation: fade-in 0.35s var(--ease) both;
-    }
-
     /* —— Markdown prose —— */
     .prose {
-      font-size: 1.05rem;
+      font-size: 0.98rem;
       line-height: 1.8;
       color: var(--ink);
     }
@@ -658,18 +673,6 @@
       background: rgba(244,239,230,0.85);
     }
 
-    /* 不能用 display:none，否则部分浏览器会拦截程序化 click，兼容模式失效 */
-    .hidden-input {
-      position: fixed;
-      left: 0;
-      top: 0;
-      width: 1px;
-      height: 1px;
-      opacity: 0;
-      overflow: hidden;
-      pointer-events: none;
-    }
-
     .toast {
       position: fixed;
       left: 50%;
@@ -730,7 +733,10 @@
 
       <div class="toolbar">
         <button class="btn btn-primary" id="pickBtn" type="button">选择文件夹</button>
-        <button class="btn btn-ghost" id="pickFallbackBtn" type="button" title="同样只在本地读取，不上传">兼容模式选文件夹</button>
+        <label class="btn btn-ghost" id="pickFallbackLabel" title="通过系统文件对话框，在本机打开目录（不会发到服务器）">
+          浏览本地目录…
+          <input class="dir-picker" id="dirInput" type="file" webkitdirectory directory multiple />
+        </label>
         <div class="search-wrap">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
@@ -765,8 +771,9 @@
         <section class="welcome" id="welcome">
           <div class="hero-glyph">墨</div>
           <h2>把本地文档<br />摊开在<em>同一张纸</em>上</h2>
-          <p>选择任意文件夹，自动扫描其中的 Markdown。支持 GFM 表格、围栏代码高亮、Mermaid 流程图，以及 KaTeX 数学公式——全部在浏览器本地完成，文件不会上传。</p>
-          <p style="color:var(--ink-muted);font-size:0.92rem;margin-top:-12px;margin-bottom:28px;line-height:1.6;">「选择文件夹」与「兼容模式」都只在本机读取；区别仅是浏览器 API 不同（目录句柄 vs 传统文件选择），都不会传到服务器。</p>
+          <p>选择任意文件夹，自动扫描其中的 Markdown。支持 GFM 表格、围栏代码高亮、Mermaid 流程图，以及 KaTeX 数学公式——全部在浏览器本地完成，文件不会离开本机。</p>
+          <p style="color:var(--ink-muted);font-size:0.92rem;margin-top:-12px;margin-bottom:12px;line-height:1.6;">「选择文件夹」用较新的目录 API（Chrome 会先弹出授权）；「浏览本地目录…」用系统文件对话框。两者都只在本机读取，不会发到任何服务器。</p>
+          <p style="color:var(--ink-muted);font-size:0.88rem;margin-bottom:28px;line-height:1.55;padding:12px 14px;border-radius:12px;background:rgba(212,119,59,0.08);border:1px solid rgba(212,119,59,0.18);">若在 Cursor 内置浏览器里点击无反应，属正常限制（无法弹出系统授权/文件夹对话框）。请用 Chrome / Edge / Safari 打开本页后再选文件夹。</p>
           <div class="feature-grid">
             <div class="feature"><strong>代码高亮</strong><span>常见语言语法着色，深色代码块便于阅读</span></div>
             <div class="feature"><strong>流程图</strong><span>识别 mermaid 代码块并即时渲染</span></div>
@@ -784,13 +791,12 @@
     </main>
   </div>
 
-  <input class="hidden-input" id="dirInput" type="file" webkitdirectory directory multiple tabindex="-1" aria-hidden="true" />
   <div class="toast" id="toast" role="status"></div>
 
   <script>
     (() => {
       const pickBtn = document.getElementById("pickBtn");
-      const pickFallbackBtn = document.getElementById("pickFallbackBtn");
+      const pickFallbackLabel = document.getElementById("pickFallbackLabel");
       const dirInput = document.getElementById("dirInput");
       const searchInput = document.getElementById("searchInput");
       const fileList = document.getElementById("fileList");
@@ -909,12 +915,12 @@
         });
         if (!mdFiles.length) {
           toast(all.length ? "未找到 Markdown 文件" : "未选择任何文件");
-          statusLeft.textContent = "兼容模式未读到 Markdown";
+          statusLeft.textContent = "未读到 Markdown";
           return;
         }
         const firstRel = mdFiles[0].webkitRelativePath || mdFiles[0].name;
         folderName = firstRel.split("/")[0] || "文件夹";
-        statusLeft.textContent = `兼容模式读取中（${mdFiles.length}）…`;
+        statusLeft.textContent = `正在读取本地目录（${mdFiles.length}）…`;
         Promise.all(
           mdFiles.map(async (file) => {
             const rel = file.webkitRelativePath || file.name;
@@ -929,14 +935,14 @@
           .catch((err) => {
             console.warn(err);
             toast("读取文件夹失败");
-            statusLeft.textContent = "兼容模式读取失败";
+            statusLeft.textContent = "读取本地目录失败";
           });
       }
 
-      function openCompatPicker() {
-        // 允许重复选择同一文件夹也能触发 change
+      function openLegacyFolderDialog() {
+        // 允许重复选同一目录；通过点击 label 打开，比 input.click() 更稳
         dirInput.value = "";
-        dirInput.click();
+        pickFallbackLabel.click();
       }
 
       function setFiles(list) {
@@ -992,23 +998,27 @@
         }
 
         let html = "";
-        let delay = 0;
         for (const [group, items] of groups) {
           html += `<div class="file-group-title">${escapeHtml(group)}</div>`;
           for (const f of items) {
             const active = f.path === activePath ? " active" : "";
             html += `
-              <button class="file-item${active}" type="button" data-path="${escapeHtml(f.path)}" style="animation-delay:${delay}ms">
+              <button class="file-item${active}" type="button" data-path="${escapeHtml(f.path)}">
                 <span class="file-icon">文</span>
                 <span>
                   <div class="file-name">${escapeHtml(f.name)}</div>
                   <div class="file-path">${escapeHtml(f.path)}</div>
                 </span>
               </button>`;
-            delay += 18;
           }
         }
         fileList.innerHTML = html;
+      }
+
+      function setActiveFileItem(path) {
+        fileList.querySelectorAll(".file-item.active").forEach((el) => el.classList.remove("active"));
+        const next = fileList.querySelector(`.file-item[data-path="${CSS.escape(path)}"]`);
+        if (next) next.classList.add("active");
       }
 
       function escapeRegExp(s) {
@@ -1029,7 +1039,7 @@
         const file = files.find((f) => f.path === path);
         if (!file) return;
         activePath = path;
-        renderFileList();
+        setActiveFileItem(path);
 
         readerEyebrow.textContent = file.dir === "." ? folderName || "文档" : file.dir;
         readerTitle.textContent = file.name.replace(/\.(md|markdown|mdx|mdown)$/i, "");
@@ -1069,30 +1079,38 @@
       }
 
       pickBtn.addEventListener("click", async () => {
+        statusLeft.textContent = "正在打开文件夹选择…";
         if (typeof window.showDirectoryPicker === "function") {
           try {
             const handle = await showDirectoryPicker({ mode: "read" });
             await loadFromDirectoryHandle(handle);
           } catch (err) {
-            if (err && err.name === "AbortError") return;
+            if (err && err.name === "AbortError") {
+              statusLeft.textContent = "已取消选择";
+              return;
+            }
             console.warn(err);
-            toast("目录选择器不可用，已切换兼容模式");
-            openCompatPicker();
+            statusLeft.textContent = "请改用「浏览本地目录…」";
+            toast("目录 API 不可用，请改用下方「浏览本地目录…」");
           }
         } else {
-          toast("当前浏览器不支持目录 API，使用兼容模式");
-          openCompatPicker();
+          toast("当前浏览器请使用「浏览本地目录…」");
+          openLegacyFolderDialog();
         }
       });
 
-      pickFallbackBtn.addEventListener("click", () => {
-        openCompatPicker();
-      });
-
+      // 直接点 label 内的透明 input 即可；change 负责加载
       dirInput.addEventListener("change", () => {
         if (dirInput.files && dirInput.files.length) {
           loadFromFileList(dirInput.files);
         }
+      });
+
+      dirInput.addEventListener("click", (e) => {
+        e.stopPropagation();
+        dirInput.value = "";
+        statusLeft.textContent = "请在系统对话框中选择本地文件夹…";
+        toast("请选择本地文件夹（仅本机读取）");
       });
 
       searchInput.addEventListener("input", () => renderFileList());
