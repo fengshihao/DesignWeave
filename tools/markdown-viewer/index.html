@@ -27,10 +27,13 @@
       --danger: #c45c4a;
       --shadow: 0 24px 60px rgba(28, 25, 20, 0.12);
       --radius: 14px;
-      --font-display: "Instrument Serif", Georgia, serif;
-      --font-ui: "DM Sans", system-ui, sans-serif;
-      --font-mono: "JetBrains Mono", ui-monospace, monospace;
+      --font-display: "Instrument Serif", Georgia, "Times New Roman", "Songti SC", SimSun, serif;
+      /* Windows: Segoe UI + 微软雅黑；macOS: PingFang；避免只靠 Google Fonts */
+      --font-ui: "DM Sans", "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+      --font-mono: "JetBrains Mono", "Cascadia Code", "Cascadia Mono", Consolas, "Courier New", ui-monospace, monospace;
       --ease: cubic-bezier(0.22, 1, 0.36, 1);
+      --code-bg: #2a211c;
+      --code-fg: #f0e6d8;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -39,11 +42,23 @@
       height: 100%;
       color: var(--ink);
       font-family: var(--font-ui);
+      /* Windows ClearType 下不要强行 antialiased，否则中文发虚 */
+      text-rendering: optimizeLegibility;
       background:
         radial-gradient(1200px 600px at 10% -10%, rgba(212, 119, 59, 0.12), transparent 55%),
         radial-gradient(900px 500px at 100% 0%, rgba(107, 143, 113, 0.1), transparent 50%),
         linear-gradient(165deg, #efe8db 0%, var(--paper) 45%, #e7dfd0 100%);
       overflow: hidden;
+    }
+
+    /* 衬线标题在 Windows 上避免伪粗体 */
+    .brand h1,
+    .reader-title h2,
+    .welcome h2,
+    .vditor-reset h1,
+    .vditor-reset h2,
+    .vditor-reset h3 {
+      font-synthesis: none;
     }
 
     body::before {
@@ -552,7 +567,7 @@
       min-height: 0;
       display: none;
       padding: 0;
-      background: #fff;
+      background: var(--paper-lift);
     }
 
     .editor-wrap.visible { display: flex; flex-direction: column; }
@@ -567,6 +582,7 @@
     .vditor {
       border: none !important;
       border-radius: 0 !important;
+      background: transparent !important;
     }
 
     .vditor-toolbar {
@@ -576,18 +592,338 @@
       padding-right: 12px !important;
     }
 
-    .vditor-content {
-      font-family: var(--font-ui);
+    .vditor-toolbar__item .vditor-tooltipped {
+      color: var(--ink-soft) !important;
     }
 
+    .vditor-content,
+    .vditor-ir,
+    .vditor-wysiwyg,
+    .vditor-sv,
+    .vditor-preview {
+      background: transparent !important;
+    }
+
+    /* 对齐旧版 .prose：衬线标题 + 暖色正文，压过 Vditor 默认系统字体 */
     .vditor-ir pre.vditor-reset,
     .vditor-wysiwyg pre.vditor-reset,
-    .vditor-sv .vditor-reset {
-      font-family: var(--font-ui);
-      font-size: 0.98rem;
-      line-height: 1.65;
-      color: var(--ink);
+    .vditor-wysiwyg > .vditor-reset,
+    .vditor-sv .vditor-reset,
+    .vditor-preview .vditor-reset {
+      max-width: 1100px;
+      margin: 0 auto !important;
+      padding: 22px 36px 48px !important;
+      font-family: var(--font-ui) !important;
+      font-size: 0.98rem !important;
+      line-height: 1.58 !important;
+      color: var(--ink) !important;
+      background: transparent !important;
+    }
+
+    .vditor-reset h1,
+    .vditor-reset h2,
+    .vditor-reset h3,
+    .vditor-reset h4 {
+      font-family: var(--font-display) !important;
+      font-weight: 400 !important;
+      line-height: 1.22 !important;
+      color: var(--ink) !important;
+      margin: 1.25em 0 0.4em !important;
+      border-bottom: none !important;
+      padding-bottom: 0 !important;
+    }
+
+    .vditor-reset h1 {
+      font-size: 2.1rem !important;
+      padding-bottom: 0.3em !important;
+      border-bottom: 1px solid rgba(28, 25, 20, 0.1) !important;
+    }
+
+    .vditor-reset h2 { font-size: 1.55rem !important; }
+    .vditor-reset h3 { font-size: 1.22rem !important; }
+    .vditor-reset h4 {
+      font-size: 1.05rem !important;
+      font-family: var(--font-ui) !important;
+      font-weight: 650 !important;
+    }
+
+    .vditor-reset h5,
+    .vditor-reset h6 {
+      font-family: var(--font-ui) !important;
+      font-weight: 650 !important;
+      color: var(--ink-soft) !important;
+      margin: 1.1em 0 0.35em !important;
+    }
+
+    .vditor-reset p { margin: 0.65em 0 !important; }
+
+    .vditor-reset a {
+      color: #a85a24 !important;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+    }
+
+    .vditor-reset a:hover { color: var(--accent) !important; }
+
+    /* IR 模式链接是 span，不是 <a> */
+    .vditor-ir__link {
+      color: #a85a24 !important;
+      text-decoration: underline;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+    }
+
+    .vditor-reset strong,
+    .vditor-ir__node[data-type="strong"] {
+      font-weight: 700 !important;
+      color: #15120e !important;
+    }
+
+    .vditor-reset em,
+    .vditor-ir__node[data-type="em"] {
+      font-style: italic !important;
+      color: var(--ink-soft) !important;
+    }
+
+    .vditor-reset blockquote {
+      margin: 1em 0 !important;
+      padding: 0.15em 0 0.15em 1em !important;
+      border-left: 3px solid var(--accent) !important;
+      color: var(--ink-soft) !important;
+      background: linear-gradient(90deg, rgba(212, 119, 59, 0.07), transparent 70%) !important;
+      border-radius: 0 10px 10px 0;
+    }
+
+    .vditor-reset ul,
+    .vditor-reset ol {
+      margin: 0.65em 0 !important;
+      padding-left: 1.35em !important;
+    }
+
+    .vditor-reset li { margin: 0.22em 0 !important; }
+    .vditor-reset li::marker { color: var(--accent); }
+
+    .vditor-reset hr {
+      border: none !important;
+      height: 1px !important;
+      background: linear-gradient(90deg, transparent, rgba(28, 25, 20, 0.18), transparent) !important;
+      margin: 1.5em 0 !important;
+    }
+
+    .vditor-reset img {
+      max-width: 100%;
+      border-radius: 12px;
+      border: 1px solid rgba(28, 25, 20, 0.08);
+      box-shadow: 0 10px 30px rgba(28, 25, 20, 0.08);
+      margin: 1em 0;
+    }
+
+    .vditor-reset table {
+      width: 100%;
+      border-collapse: separate !important;
+      border-spacing: 0;
+      margin: 1.4em 0 !important;
+      font-size: 0.92rem;
+      overflow: hidden;
+      border-radius: 12px;
+      border: 1px solid rgba(28, 25, 20, 0.1) !important;
+      background: #fff;
+    }
+
+    .vditor-reset th,
+    .vditor-reset td {
+      padding: 10px 14px !important;
+      text-align: left;
+      border: none !important;
+      border-bottom: 1px solid rgba(28, 25, 20, 0.08) !important;
+      background: transparent !important;
+    }
+
+    .vditor-reset th {
+      background: var(--paper-deep) !important;
+      font-weight: 650 !important;
+      color: var(--ink) !important;
+      font-size: 0.82rem;
+      letter-spacing: 0.02em;
+    }
+
+    .vditor-reset tr:last-child td { border-bottom: none !important; }
+    .vditor-reset tr:hover td { background: rgba(212, 119, 59, 0.04) !important; }
+
+    .vditor-reset :not(pre) > code {
+      font-family: var(--font-mono) !important;
+      font-size: 0.86em !important;
+      background: rgba(28, 25, 20, 0.06) !important;
+      padding: 0.15em 0.4em !important;
+      border-radius: 6px !important;
+      color: #7a3d1e !important;
+      border: none !important;
+    }
+
+    /* 普通代码块：暖色暗底（对齐旧版 atelier 气质） */
+    .vditor-reset pre {
+      margin: 1.3em 0 !important;
+      padding: 16px 18px !important;
+      border-radius: 14px !important;
+      background: var(--code-bg) !important;
+      border: 1px solid rgba(28, 25, 20, 0.2) !important;
+      overflow-x: auto;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      color: var(--code-fg) !important;
+    }
+
+    .vditor-reset pre code,
+    .vditor-reset pre .hljs {
+      font-family: var(--font-mono) !important;
+      background: transparent !important;
+      /* 不加 !important，避免压过 kimbie-dark 的 token 色 */
+      color: var(--code-fg);
+      padding: 0 !important;
+      font-size: 0.8rem !important;
+      line-height: 1.55 !important;
+      border-radius: 0 !important;
+      display: block;
+    }
+
+    /* kimbie-dark 令牌色压到我们的暖底上，背景交给上面的 pre */
+    .vditor-reset .hljs {
+      background: transparent !important;
+    }
+
+    .vditor-copy {
+      background: transparent !important;
+    }
+
+    .vditor-copy > span,
+    .vditor-copy .vditor-tooltipped {
+      background: rgba(255, 255, 255, 0.08) !important;
+      border: 1px solid rgba(255, 255, 255, 0.14) !important;
+      border-radius: 999px !important;
+      color: rgba(240, 230, 216, 0.75) !important;
+    }
+
+    /* 流程图 / 公式预览：浅色卡片，不要套代码暗底 */
+    .vditor-reset pre.vditor-ir__preview:has(.language-mermaid),
+    .vditor-reset pre.vditor-ir__preview:has(.language-math),
+    .vditor-reset pre.vditor-ir__preview:has(.katex),
+    .vditor-reset pre.vditor-ir__preview:has(.katex-display),
+    .vditor-wysiwyg pre.vditor-reset .language-mermaid,
+    .vditor-preview .vditor-reset .language-mermaid,
+    .vditor-preview .vditor-reset .language-math {
       background: #fff !important;
+      border: 1px solid rgba(28, 25, 20, 0.08) !important;
+      box-shadow: 0 10px 30px rgba(28, 25, 20, 0.06) !important;
+      color: var(--ink) !important;
+      text-align: center;
+      padding: 18px 16px !important;
+    }
+
+    .vditor-reset .language-mermaid,
+    .vditor-reset [data-type="mermaid"] {
+      background: transparent !important;
+      border: none !important;
+      border-radius: 0 !important;
+      color: var(--ink) !important;
+      overflow-x: auto;
+      text-align: center;
+    }
+
+    .vditor-reset .language-mermaid svg {
+      max-width: 100%;
+      height: auto;
+      font-family: var(--font-ui) !important;
+    }
+
+    /* Mermaid 源码标记（未展开的 fence）仍用暗底；预览用浅色 */
+    .vditor-reset pre.vditor-ir__marker--pre:has(code.language-mermaid),
+    .vditor-reset pre.vditor-ir__marker--pre:has(code.language-math),
+    .vditor-reset pre.vditor-ir__marker--pre:has(code[data-type="math-block"]) {
+      background: rgba(28, 25, 20, 0.04) !important;
+      border: 1px dashed rgba(28, 25, 20, 0.14) !important;
+      box-shadow: none !important;
+      color: var(--ink-soft) !important;
+    }
+
+    .vditor-reset pre.vditor-ir__marker--pre:has(code.language-mermaid) code,
+    .vditor-reset pre.vditor-ir__marker--pre:has(code.language-math) code,
+    .vditor-reset pre.vditor-ir__marker--pre:has(code[data-type="math-block"]) code {
+      color: var(--ink-soft) !important;
+      font-size: 0.78rem !important;
+    }
+
+    .vditor-reset .katex-display {
+      margin: 0.4em 0;
+      padding: 8px 4px;
+      overflow-x: auto;
+      color: var(--ink) !important;
+    }
+
+    .vditor-reset pre.vditor-ir__preview .katex,
+    .vditor-reset pre.vditor-ir__preview .katex-display,
+    .vditor-reset .language-math {
+      color: var(--ink) !important;
+      background: transparent !important;
+    }
+
+    .vditor-reset input[type="checkbox"] {
+      margin-right: 0.45em;
+      accent-color: var(--accent);
+      width: 1em;
+      height: 1em;
+      vertical-align: -0.12em;
+    }
+
+    /* IR 语法标记淡化，避免压过正文气质 */
+    .vditor-ir__marker,
+    .vditor-ir__preview {
+      color: var(--ink-muted) !important;
+    }
+
+    .vditor-ir__node--hidden .vditor-ir__marker {
+      opacity: 0.45;
+    }
+
+    .vditor-counter {
+      color: var(--ink-muted) !important;
+      background: transparent !important;
+      font-family: var(--font-ui) !important;
+    }
+
+    /* Windows / 触控板：细滚动条，避免系统粗条破坏纸面感 */
+    .file-list,
+    .vditor-content,
+    .vditor-preview,
+    .vditor-ir,
+    .vditor-wysiwyg,
+    .vditor-sv {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(28, 25, 20, 0.25) transparent;
+    }
+
+    .file-list::-webkit-scrollbar,
+    .vditor-content::-webkit-scrollbar,
+    .vditor-preview::-webkit-scrollbar,
+    .vditor-ir::-webkit-scrollbar,
+    .vditor-wysiwyg::-webkit-scrollbar,
+    .vditor-sv::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    .file-list::-webkit-scrollbar-thumb,
+    .vditor-content::-webkit-scrollbar-thumb,
+    .vditor-preview::-webkit-scrollbar-thumb,
+    .vditor-ir::-webkit-scrollbar-thumb,
+    .vditor-wysiwyg::-webkit-scrollbar-thumb,
+    .vditor-sv::-webkit-scrollbar-thumb {
+      background: rgba(28, 25, 20, 0.22);
+      border-radius: 999px;
+    }
+
+    .file-list::-webkit-scrollbar-track,
+    .vditor-content::-webkit-scrollbar-track,
+    .vditor-preview::-webkit-scrollbar-track {
+      background: transparent;
     }
 
     .status-bar {
@@ -648,6 +984,14 @@
         align-items: flex-start;
       }
       .reader-body { min-height: 52vh; }
+      .vditor-ir pre.vditor-reset,
+      .vditor-wysiwyg pre.vditor-reset,
+      .vditor-wysiwyg > .vditor-reset,
+      .vditor-sv .vditor-reset,
+      .vditor-preview .vditor-reset {
+        padding-left: 22px !important;
+        padding-right: 22px !important;
+      }
     }
   </style>
 </head>
@@ -729,6 +1073,107 @@
   <script>
     (() => {
       const VDITOR_CDN = "https://cdn.jsdelivr.net/npm/vditor@3.10.9";
+      const MERMAID_OPTS = {
+        startOnLoad: false,
+        theme: "base",
+        securityLevel: "loose",
+        flowchart: { htmlLabels: true, useMaxWidth: true },
+        themeVariables: {
+          primaryColor: "#f4efe6",
+          primaryTextColor: "#1c1914",
+          primaryBorderColor: "#d4773b",
+          lineColor: "#6b5e4e",
+          secondaryColor: "#ebe4d6",
+          tertiaryColor: "#ffffff",
+          background: "#ffffff",
+          mainBkg: "#f4efe6",
+          nodeBorder: "#d4773b",
+          clusterBkg: "#ebe4d6",
+          titleColor: "#1c1914",
+          edgeLabelBackground: "#faf7f1",
+          fontFamily: '"DM Sans", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif',
+        },
+      };
+
+      function applyMermaidTheme() {
+        if (!globalThis.mermaid || typeof mermaid.initialize !== "function") return false;
+        try {
+          mermaid.initialize(MERMAID_OPTS);
+          return true;
+        } catch (_) {
+          return false;
+        }
+      }
+
+      function patchMermaidLoader() {
+        if (patchMermaidLoader.done) return;
+        patchMermaidLoader.done = true;
+        // Vditor 异步加载 mermaid 后会用默认主题初始化；这里劫持为墨览配色
+        let tries = 0;
+        const timer = setInterval(() => {
+          tries += 1;
+          if (applyMermaidTheme() || tries > 80) clearInterval(timer);
+        }, 250);
+
+        const origAppend = document.head.appendChild.bind(document.head);
+        document.head.appendChild = function patchedAppend(node) {
+          const el = origAppend(node);
+          if (node && node.tagName === "SCRIPT" && /mermaid/i.test(node.src || "")) {
+            node.addEventListener("load", () => {
+              applyMermaidTheme();
+              // 之后每次 initialize 都合并我们的主题
+              if (globalThis.mermaid && !mermaid.__molanPatched) {
+                const raw = mermaid.initialize.bind(mermaid);
+                mermaid.initialize = (opts = {}) =>
+                  raw({
+                    ...opts,
+                    ...MERMAID_OPTS,
+                    themeVariables: {
+                      ...(opts.themeVariables || {}),
+                      ...MERMAID_OPTS.themeVariables,
+                    },
+                  });
+                mermaid.__molanPatched = true;
+              }
+            });
+          }
+          return el;
+        };
+      }
+
+      function preloadMermaid() {
+        if (globalThis.mermaid) {
+          applyMermaidTheme();
+          return Promise.resolve();
+        }
+        return new Promise((resolve) => {
+          const s = document.createElement("script");
+          s.src = `${VDITOR_CDN}/dist/js/mermaid/mermaid.min.js`;
+          s.async = true;
+          s.onload = () => {
+            applyMermaidTheme();
+            if (globalThis.mermaid && !mermaid.__molanPatched) {
+              const raw = mermaid.initialize.bind(mermaid);
+              mermaid.initialize = (opts = {}) =>
+                raw({
+                  ...opts,
+                  ...MERMAID_OPTS,
+                  themeVariables: {
+                    ...(opts.themeVariables || {}),
+                    ...MERMAID_OPTS.themeVariables,
+                  },
+                });
+              mermaid.__molanPatched = true;
+            }
+            resolve();
+          };
+          s.onerror = () => resolve();
+          document.head.appendChild(s);
+        });
+      }
+
+      patchMermaidLoader();
+
       const pickBtn = document.getElementById("pickBtn");
       const pickFallbackLabel = document.getElementById("pickFallbackLabel");
       const dirInput = document.getElementById("dirInput");
@@ -1216,54 +1661,59 @@
         if (vditor) return Promise.resolve(vditor);
         if (vditorReady) return vditorReady;
 
-        vditorReady = new Promise((resolve) => {
-          vditor = new Vditor("vditor", {
-            cdn: VDITOR_CDN,
-            height: "100%",
-            mode: "ir",
-            theme: "classic",
-            icon: "ant",
-            placeholder: "开始编辑 Markdown…",
-            cache: { enable: false },
-            toolbar: [
-              "headings", "bold", "italic", "strike", "|",
-              "line", "quote", "list", "ordered-list", "check", "outdent", "indent", "|",
-              "code", "inline-code", "link", "table", "|",
-              "undo", "redo", "|",
-              "edit-mode", "outline", "preview", "fullscreen",
-            ],
-            toolbarConfig: { pin: true },
-            preview: {
-              hljs: { style: "github", lineNumber: false },
-              math: { engine: "KaTeX", inlineDigit: true },
-            },
-            counter: {
-              enable: true,
-              type: "text",
-              after: () => updateStatusRight(),
-            },
-            input: () => {
-              if (!activePath) return;
-              let nextDirty = true;
-              try {
-                nextDirty = vditor.getValue() !== baselineText;
-              } catch (_) { /* ignore */ }
-              setDirty(nextDirty);
-              renderSidebarList();
-            },
-            ctrlEnter: () => {
-              saveActiveFile();
-            },
-            after: () => {
-              if (pendingOpenPath) {
-                const path = pendingOpenPath;
-                pendingOpenPath = null;
-                openFile(path, { force: true });
-              }
-              resolve(vditor);
-            },
-          });
-        });
+        vditorReady = preloadMermaid().then(
+          () =>
+            new Promise((resolve) => {
+              vditor = new Vditor("vditor", {
+                cdn: VDITOR_CDN,
+                height: "100%",
+                mode: "ir",
+                theme: "classic",
+                icon: "ant",
+                placeholder: "开始编辑 Markdown…",
+                cache: { enable: false },
+                toolbar: [
+                  "headings", "bold", "italic", "strike", "|",
+                  "line", "quote", "list", "ordered-list", "check", "outdent", "indent", "|",
+                  "code", "inline-code", "link", "table", "|",
+                  "undo", "redo", "|",
+                  "edit-mode", "outline", "preview", "fullscreen",
+                ],
+                toolbarConfig: { pin: true },
+                preview: {
+                  theme: { current: "light" },
+                  hljs: { style: "kimbie-dark", lineNumber: false },
+                  math: { engine: "KaTeX", inlineDigit: true },
+                },
+                counter: {
+                  enable: true,
+                  type: "text",
+                  after: () => updateStatusRight(),
+                },
+                input: () => {
+                  if (!activePath) return;
+                  let nextDirty = true;
+                  try {
+                    nextDirty = vditor.getValue() !== baselineText;
+                  } catch (_) { /* ignore */ }
+                  setDirty(nextDirty);
+                  renderSidebarList();
+                },
+                ctrlEnter: () => {
+                  saveActiveFile();
+                },
+                after: () => {
+                  applyMermaidTheme();
+                  if (pendingOpenPath) {
+                    const path = pendingOpenPath;
+                    pendingOpenPath = null;
+                    openFile(path, { force: true });
+                  }
+                  resolve(vditor);
+                },
+              });
+            })
+        );
 
         return vditorReady;
       }
@@ -1297,6 +1747,8 @@
           statusLeft.textContent = `${file.name} · ${((file.size || text.length) / 1024).toFixed(1)} KB`;
           updateStatusRight();
           renderSidebarList();
+          applyMermaidTheme();
+          setTimeout(applyMermaidTheme, 400);
           try { vditor.focus(); } catch (_) { /* ignore */ }
         } catch (err) {
           console.warn(err);
