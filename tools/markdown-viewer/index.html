@@ -154,23 +154,7 @@
 
     .btn-ghost:hover { background: rgba(255,255,255,0.09); }
 
-    /* 用 label 触发文件对话框，避免 JS click 被浏览器拦截 */
-    label.btn {
-      display: block;
-      text-align: center;
-      position: relative;
-      overflow: hidden;
-    }
 
-    label.btn .dir-picker {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      opacity: 0;
-      cursor: pointer;
-      font-size: 0;
-    }
 
     .search-wrap {
       position: relative;
@@ -940,10 +924,6 @@
 
       <div class="toolbar">
         <button class="btn btn-primary" id="pickBtn" type="button">选择文件夹</button>
-        <label class="btn btn-ghost" id="pickFallbackLabel" title="兼容用；此方式无法一键恢复最近目录，建议优先用上方按钮">
-          浏览本地目录…
-          <input class="dir-picker" id="dirInput" type="file" webkitdirectory directory multiple />
-        </label>
         <div class="search-wrap">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
@@ -957,7 +937,7 @@
       <div class="file-list" id="fileList">
         <div class="empty-side">
           <span class="glyph">卷</span>
-          <p>选择一个本地文件夹后，这里会列出其中全部 Markdown 文档。</p>
+          <p>用 Chrome 点击「选择文件夹」。打开过的目录会出现在「最近目录」，可搜索并按使用时间排序。</p>
         </div>
       </div>
     </aside>
@@ -979,8 +959,8 @@
           <div class="hero-glyph">墨</div>
           <h2>把本地文档<br />摊开在<em>同一张纸</em>上</h2>
           <p>选择任意文件夹，自动扫描其中的 Markdown。支持 GFM 表格、围栏代码高亮、Mermaid 流程图，以及 KaTeX 数学公式——全部在浏览器本地完成，文件不会离开本机。</p>
-          <p style="color:var(--ink-muted);font-size:0.92rem;margin-top:-12px;margin-bottom:12px;line-height:1.6;">「选择文件夹」用较新的目录 API（Chrome 会先弹出授权）；「浏览本地目录…」用系统文件对话框。两者都只在本机读取，不会发到任何服务器。</p>
-          <p style="color:var(--ink-muted);font-size:0.88rem;margin-bottom:28px;line-height:1.55;padding:12px 14px;border-radius:12px;background:rgba(212,119,59,0.08);border:1px solid rgba(212,119,59,0.18);">打开过的目录会保存在本机「最近目录」中，可搜索、按最近使用排序；Chrome 下通常可一键重新打开。若在 Cursor 内置浏览器里点击无反应，请改用系统浏览器。</p>
+          <p style="color:var(--ink-muted);font-size:0.92rem;margin-top:-12px;margin-bottom:12px;line-height:1.6;">请使用 <strong>Chrome / Edge</strong>（需支持目录选择 API）。打开过的目录会记住，并可标注绝对路径以区分同名文件夹。</p>
+          <p style="color:var(--ink-muted);font-size:0.88rem;margin-bottom:28px;line-height:1.55;padding:12px 14px;border-radius:12px;background:rgba(212,119,59,0.08);border:1px solid rgba(212,119,59,0.18);">请勿使用 Cursor 内置浏览器：无法完成目录授权。用系统 Chrome 打开本页后再选文件夹。</p>
           <div class="feature-grid">
             <div class="feature"><strong>代码高亮</strong><span>常见语言语法着色，深色代码块便于阅读</span></div>
             <div class="feature"><strong>流程图</strong><span>识别 mermaid 代码块并即时渲染</span></div>
@@ -1019,8 +999,6 @@
   <script>
     (() => {
       const pickBtn = document.getElementById("pickBtn");
-      const pickFallbackLabel = document.getElementById("pickFallbackLabel");
-      const dirInput = document.getElementById("dirInput");
       const searchInput = document.getElementById("searchInput");
       const fileList = document.getElementById("fileList");
       const folderMeta = document.getElementById("folderMeta");
@@ -1246,35 +1224,6 @@
         return record;
       }
 
-      async function rememberLegacyFolder(name, fileCount) {
-        const all = await idbAllFolders();
-        const entered = window.prompt(
-          `请标注本次打开的「${name}」绝对路径或工程名（兼容模式无法自动读取完整路径）：`,
-          ""
-        );
-        const pathLabel = entered && entered.trim() ? entered.trim() : "";
-        const existingByLabel = pathLabel
-          ? all.find((r) => r.source === "legacy" && r.name === name && r.pathLabel === pathLabel)
-          : null;
-        const existing = existingByLabel || {
-          id: "legacy:" + name + ":" + (pathLabel || String(Date.now())),
-          name,
-          source: "legacy",
-          handle: null,
-          pathLabel,
-        };
-        existing.lastUsed = Date.now();
-        existing.fileCount = fileCount;
-        existing.name = name;
-        existing.source = "legacy";
-        existing.handle = null;
-        if (pathLabel) existing.pathLabel = pathLabel;
-        else if (!existing.pathLabel) existing.pathLabel = "";
-        await idbPutFolder(existing);
-        currentFolderId = existing.id;
-        await pruneRecentFolders();
-        await refreshRecentFolders();
-      }
 
       async function editFolderPathLabel(id, e) {
         e?.stopPropagation?.();
@@ -1474,8 +1423,6 @@
           const file = await entry.handle.getFile();
           entry.text = await file.text();
           entry.size = file.size;
-        } else if (entry.fileRef) {
-          entry.text = await entry.fileRef.text();
         } else {
           entry.text = "";
         }
@@ -1511,40 +1458,7 @@
         }
       }
 
-      function loadFromFileList(fileListObj) {
-        const all = Array.from(fileListObj || []);
-        const mdFiles = all.filter((f) => {
-          const rel = f.webkitRelativePath || f.name || "";
-          return isMarkdown(rel.split("/").pop() || f.name);
-        });
-        if (!mdFiles.length) {
-          toast(all.length ? "未找到 Markdown 文件" : "未选择任何文件");
-          statusLeft.textContent = "未读到 Markdown";
-          return;
-        }
-        const firstRel = mdFiles[0].webkitRelativePath || mdFiles[0].name;
-        folderName = firstRel.split("/")[0] || "文件夹";
-        const list = mdFiles.map((file) => {
-          const rel = file.webkitRelativePath || file.name;
-          const parts = rel.split("/");
-          return {
-            path: rel,
-            name: parts[parts.length - 1],
-            dir: parts.slice(0, -1).join("/") || ".",
-            size: file.size,
-            fileRef: file,
-          };
-        });
-        setFiles(list);
-        rememberLegacyFolder(folderName, list.length)
-          .then(() => renderSidebarList())
-          .catch((err) => console.warn(err));
-      }
 
-      function openLegacyFolderDialog() {
-        dirInput.value = "";
-        pickFallbackLabel.click();
-      }
 
       function setFiles(list) {
         htmlCache.clear();
@@ -1977,30 +1891,23 @@
       });
 
       pickBtn.addEventListener("click", async () => {
-        statusLeft.textContent = "正在打开文件夹选择…";
-        if (typeof window.showDirectoryPicker === "function") {
-          try {
-            await loadFromDirectoryHandle(await showDirectoryPicker({ mode: "read" }));
-          } catch (err) {
-            if (err && err.name === "AbortError") { statusLeft.textContent = "已取消选择"; return; }
-            console.warn(err);
-            statusLeft.textContent = "请改用「浏览本地目录…」";
-            toast("目录 API 不可用，请改用下方「浏览本地目录…」");
-          }
-        } else {
-          toast("当前浏览器请使用「浏览本地目录…」");
-          openLegacyFolderDialog();
+        if (typeof window.showDirectoryPicker !== "function") {
+          toast("请使用 Chrome / Edge 打开本页（需要目录选择 API）");
+          statusLeft.textContent = "当前浏览器不支持选择文件夹";
+          return;
         }
-      });
-
-      dirInput.addEventListener("change", () => {
-        if (dirInput.files && dirInput.files.length) loadFromFileList(dirInput.files);
-      });
-      dirInput.addEventListener("click", (e) => {
-        e.stopPropagation();
-        dirInput.value = "";
-        statusLeft.textContent = "请在系统对话框中选择本地文件夹…";
-        toast("请选择本地文件夹（仅本机读取）");
+        statusLeft.textContent = "正在打开文件夹选择…";
+        try {
+          await loadFromDirectoryHandle(await showDirectoryPicker({ mode: "read" }));
+        } catch (err) {
+          if (err && err.name === "AbortError") {
+            statusLeft.textContent = "已取消选择";
+            return;
+          }
+          console.warn(err);
+          statusLeft.textContent = "选择文件夹失败";
+          toast("选择文件夹失败，请确认使用 Chrome / Edge");
+        }
       });
 
       let searchTimer = 0;
@@ -2043,9 +1950,18 @@
 
       topBtn.addEventListener("click", () => readerBody.scrollTo({ top: 0, behavior: "smooth" }));
 
-      refreshRecentFolders()
-        .then(() => renderSidebarList())
-        .catch((err) => console.warn(err));
+      (async () => {
+        try {
+          const all = await idbAllFolders();
+          await Promise.all(all.filter((r) => r.source === "legacy").map((r) => idbDeleteFolder(r.id)));
+        } catch (err) { console.warn(err); }
+        await refreshRecentFolders();
+        renderSidebarList();
+        if (typeof window.showDirectoryPicker !== "function") {
+          statusLeft.textContent = "请使用 Chrome / Edge";
+          toast("墨览需要 Chrome / Edge");
+        }
+      })().catch((err) => console.warn(err));
     })();
   </script>
 </body>
