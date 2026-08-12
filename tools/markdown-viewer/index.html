@@ -66,12 +66,12 @@
       position: relative;
       z-index: 1;
       display: grid;
-      grid-template-columns: 320px 1fr;
+      grid-template-columns: 280px minmax(0, 1fr);
       height: 100%;
-      max-width: 1600px;
-      margin: 0 auto;
-      padding: 18px;
-      gap: 18px;
+      max-width: none;
+      margin: 0;
+      padding: 12px;
+      gap: 12px;
     }
 
     .sidebar {
@@ -337,7 +337,7 @@
     .reader-header {
       position: relative;
       z-index: 1;
-      padding: 22px 36px 16px;
+      padding: 16px 28px 12px;
       border-bottom: 1px solid rgba(28, 25, 20, 0.07);
       background: linear-gradient(180deg, rgba(250,247,241,0.95), rgba(244,239,230,0.7));
       backdrop-filter: blur(8px);
@@ -345,7 +345,7 @@
       align-items: flex-end;
       justify-content: space-between;
       gap: 16px;
-      min-height: 84px;
+      min-height: 68px;
     }
 
     .reader-title {
@@ -406,9 +406,9 @@
     }
 
     .welcome, .article {
-      max-width: 780px;
+      max-width: 1100px;
       margin: 0 auto;
-      padding: 28px 40px 20px;
+      padding: 22px 36px 20px;
     }
 
     .welcome {
