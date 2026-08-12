@@ -516,6 +516,7 @@
       text-decoration-thickness: 1px;
       text-underline-offset: 3px;
       transition: color 0.15s ease;
+      cursor: pointer;
     }
     .prose a:hover { color: var(--accent); }
 
@@ -1213,9 +1214,154 @@
         return cn + en;
       }
 
+      function dirname(path) {
+        const i = String(path).lastIndexOf("/");
+        return i <= 0 ? "" : path.slice(0, i);
+      }
+
+      function normalizePath(path) {
+        const parts = String(path || "").replace(/\\/g, "/").split("/");
+        const stack = [];
+        for (const part of parts) {
+          if (!part || part === ".") continue;
+          if (part === "..") {
+            if (stack.length) stack.pop();
+            continue;
+          }
+          stack.push(part);
+        }
+        return stack.join("/");
+      }
+
+      function splitHref(href) {
+        const raw = String(href || "").trim();
+        const hashIdx = raw.indexOf("#");
+        if (hashIdx < 0) return { path: raw, hash: "" };
+        return { path: raw.slice(0, hashIdx), hash: raw.slice(hashIdx + 1) };
+      }
+
+      function decodePath(path) {
+        try {
+          return decodeURIComponent(path);
+        } catch {
+          return path;
+        }
+      }
+
+      function resolveLocalPath(fromPath, hrefPath) {
+        let raw = decodePath(hrefPath).replace(/\\/g, "/").trim();
+        if (!raw) return "";
+        if (raw.startsWith("/")) {
+          return normalizePath(raw.replace(/^\/+/, ""));
+        }
+        const base = dirname(fromPath);
+        return normalizePath((base ? base + "/" : "") + raw);
+      }
+
+      function findLocalDoc(resolved) {
+        if (!resolved) return null;
+        const variants = new Set([resolved, resolved.replace(/^\.\//, "")]);
+        if (folderName) {
+          if (resolved === folderName || resolved.startsWith(folderName + "/")) {
+            variants.add(resolved.slice(folderName.length).replace(/^\//, ""));
+          } else {
+            variants.add(folderName + "/" + resolved);
+          }
+        }
+        for (const c of variants) {
+          const hit = files.find((f) => f.path === c);
+          if (hit) return hit;
+        }
+        for (const c of variants) {
+          const hit = files.find((f) => f.path.endsWith("/" + c));
+          if (hit) return hit;
+        }
+        const base = resolved.split("/").pop();
+        if (base && isMarkdown(base)) {
+          const hits = files.filter((f) => f.name === base);
+          if (hits.length === 1) return hits[0];
+        }
+        return null;
+      }
+
+      function slugifyHeading(text) {
+        return String(text || "")
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, "-")
+          .replace(/[^\w\u4e00-\u9fff-]/g, "");
+      }
+
+      function ensureHeadingIds() {
+        article.querySelectorAll("h1, h2, h3, h4, h5, h6").forEach((h) => {
+          if (!h.id) h.id = slugifyHeading(h.textContent);
+        });
+      }
+
+      function scrollToHash(hash) {
+        if (!hash) return;
+        const id = decodePath(hash);
+        const el =
+          article.querySelector(`#${CSS.escape(id)}`) ||
+          article.querySelector(`[name="${CSS.escape(id)}"]`);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+
+      function isExternalHref(href) {
+        return /^(https?:|mailto:|tel:)/i.test(href) || href.startsWith("//");
+      }
+
+      async function handleArticleLink(anchor, e) {
+        const href = anchor.getAttribute("href");
+        if (!href || href === "#") return;
+
+        // 仅页内锚点
+        if (href.startsWith("#")) {
+          e.preventDefault();
+          ensureHeadingIds();
+          scrollToHash(href.slice(1));
+          return;
+        }
+
+        // 互联网 / 协议链接：新标签打开，不离开阅读器
+        if (isExternalHref(href)) {
+          e.preventDefault();
+          const url = href.startsWith("//") ? "https:" + href : href;
+          window.open(url, "_blank", "noopener,noreferrer");
+          return;
+        }
+
+        // 本地相对/绝对路径（相对当前文档或 vault）
+        e.preventDefault();
+        const { path: hrefPath, hash } = splitHref(href);
+        if (!hrefPath) {
+          ensureHeadingIds();
+          scrollToHash(hash);
+          return;
+        }
+
+        const resolved = resolveLocalPath(activePath || "", hrefPath);
+        const target = findLocalDoc(resolved);
+        if (!target) {
+          toast(`未找到本地文档：${resolved || hrefPath}`);
+          statusLeft.textContent = `链接无效：${resolved || hrefPath}`;
+          return;
+        }
+
+        if (target.path !== activePath) {
+          await openFile(target.path);
+        }
+        if (hash) {
+          ensureHeadingIds();
+          // 等渲染完成再滚
+          requestAnimationFrame(() => scrollToHash(hash));
+        }
+      }
+
       async function enhanceArticle(text, seq) {
         const needsMath = MATH_RE.test(text);
         const needsMermaid = MERMAID_FENCE_RE.test(text) || !!article.querySelector(".mermaid");
+        ensureHeadingIds();
         if (needsMath) {
           await ensureKatex();
           if (seq !== renderSeq) return;
@@ -1353,6 +1499,12 @@
       document.addEventListener("keydown", (e) => { if (e.key === "Escape" && lightbox.classList.contains("open")) closeLightbox(); });
 
       article.addEventListener("click", async (e) => {
+        const anchor = e.target.closest("a[href]");
+        if (anchor && article.contains(anchor)) {
+          await handleArticleLink(anchor, e);
+          return;
+        }
+
         const btn = e.target.closest("[data-action]");
         if (!btn) return;
         const action = btn.getAttribute("data-action");
