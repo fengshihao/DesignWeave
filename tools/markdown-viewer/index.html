@@ -6,14 +6,11 @@
   <title>墨览 · Markdown Viewer</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/base16/atelier-cave-dark.min.css" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css" />
-  <script src="https://cdn.jsdelivr.net/npm/marked@15.0.7/lib/marked.umd.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mermaid@11.6.0/dist/mermaid.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/contrib/auto-render.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css" media="print" onload="this.media='all'" />
+  <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css" /></noscript>
   <style>
     :root {
       --ink: #1c1914;
@@ -83,7 +80,6 @@
       border: 1px solid var(--sidebar-edge);
       box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,0.06);
       overflow: hidden;
-      animation: rise 0.7s var(--ease) both;
     }
 
     .brand {
@@ -319,7 +315,6 @@
       border: 1px solid rgba(28, 25, 20, 0.08);
       box-shadow: var(--shadow);
       overflow: hidden;
-      animation: rise 0.7s var(--ease) 0.08s both;
       position: relative;
     }
 
@@ -936,6 +931,8 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/marked@15.0.7/lib/marked.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js"></script>
   <script>
     (() => {
       const pickBtn = document.getElementById("pickBtn");
@@ -954,13 +951,37 @@
       const copyBtn = document.getElementById("copyBtn");
       const topBtn = document.getElementById("topBtn");
       const toastEl = document.getElementById("toast");
+      const lightbox = document.getElementById("lightbox");
+      const lightboxStage = document.getElementById("lightboxStage");
+      const lightboxClose = document.getElementById("lightboxClose");
+      const lightboxZoomIn = document.getElementById("lightboxZoomIn");
+      const lightboxZoomOut = document.getElementById("lightboxZoomOut");
 
-      /** @type {{ path: string, name: string, dir: string, text: string, size: number }[]} */
       let files = [];
       let activePath = null;
       let folderName = "";
+      let renderSeq = 0;
+      let lightboxScale = 1;
+      const htmlCache = new Map();
+      const scriptCache = new Map();
+      const MATH_RE = /\$\$|\\\(|\\\[|(^|[^\\])\$/m;
+      const MERMAID_FENCE_RE = /```mermaid\b/i;
 
-      mermaid.initialize({
+      function loadScript(src) {
+        if (scriptCache.has(src)) return scriptCache.get(src);
+        const p = new Promise((resolve, reject) => {
+          const s = document.createElement("script");
+          s.src = src;
+          s.async = true;
+          s.onload = () => resolve();
+          s.onerror = () => reject(new Error("load failed: " + src));
+          document.head.appendChild(s);
+        });
+        scriptCache.set(src, p);
+        return p;
+      }
+
+      const MERMAID_OPTS = {
         startOnLoad: false,
         theme: "base",
         securityLevel: "loose",
@@ -973,7 +994,33 @@
           tertiaryColor: "#fff",
           fontFamily: "DM Sans, sans-serif",
         },
-      });
+      };
+
+      let mermaidReady = null;
+      function ensureMermaid() {
+        if (globalThis.mermaid) {
+          if (!mermaidReady) {
+            mermaid.initialize(MERMAID_OPTS);
+            mermaidReady = Promise.resolve();
+          }
+          return mermaidReady;
+        }
+        mermaidReady = loadScript("https://cdn.jsdelivr.net/npm/mermaid@11.6.0/dist/mermaid.min.js").then(() => {
+          mermaid.initialize(MERMAID_OPTS);
+        });
+        return mermaidReady;
+      }
+
+      let katexReady = null;
+      function ensureKatex() {
+        if (globalThis.renderMathInElement) return Promise.resolve();
+        if (!katexReady) {
+          katexReady = loadScript("https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.js").then(() =>
+            loadScript("https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/contrib/auto-render.min.js")
+          );
+        }
+        return katexReady;
+      }
 
       function escapeHtml(s) {
         return String(s)
@@ -984,7 +1031,6 @@
       }
 
       const { Marked } = globalThis.marked;
-
       const md = new Marked({
         gfm: true,
         breaks: false,
@@ -1002,16 +1048,12 @@
                 <div class="mermaid">${escapeHtml(text)}</div>
               </div>`;
             }
-            const languageClass = language
-              ? `hljs language-${escapeHtml(language)}`
-              : "hljs";
+            const languageClass = language ? `hljs language-${escapeHtml(language)}` : "hljs";
             const highlighted =
               language && hljs.getLanguage(language)
                 ? hljs.highlight(text, { language }).value
                 : hljs.highlight(text, { language: "plaintext" }).value;
-            const label = language
-              ? `<span class="code-lang">${escapeHtml(language)}</span>`
-              : "";
+            const label = language ? `<span class="code-lang">${escapeHtml(language)}</span>` : "";
             return `<div class="code-block">
               ${label}
               <button type="button" class="code-copy" data-action="copy-code-block">复制</button>
@@ -1033,23 +1075,30 @@
         return /\.(md|markdown|mdx|mdown)$/i.test(name);
       }
 
+      async function ensureFileText(entry) {
+        if (entry.text != null) return entry.text;
+        if (entry.handle) {
+          const file = await entry.handle.getFile();
+          entry.text = await file.text();
+          entry.size = file.size;
+        } else if (entry.fileRef) {
+          entry.text = await entry.fileRef.text();
+        } else {
+          entry.text = "";
+        }
+        return entry.text;
+      }
+
       async function collectFromDirectoryHandle(rootHandle, base = "") {
         const out = [];
         for await (const [name, handle] of rootHandle.entries()) {
           const path = base ? `${base}/${name}` : name;
           if (handle.kind === "directory") {
-            if (name === "node_modules" || name === ".git" || name === ".pnpm-store") continue;
+            if (name === "node_modules" || name === ".git" || name === ".pnpm-store" || name === "dist" || name === "build") continue;
             out.push(...(await collectFromDirectoryHandle(handle, path)));
           } else if (handle.kind === "file" && isMarkdown(name)) {
             const file = await handle.getFile();
-            const text = await file.text();
-            out.push({
-              path,
-              name,
-              dir: base || ".",
-              text,
-              size: file.size,
-            });
+            out.push({ path, name, dir: base || ".", size: file.size, handle });
           }
         }
         return out;
@@ -1058,16 +1107,14 @@
       async function loadFromDirectoryHandle(handle) {
         folderName = handle.name;
         statusLeft.textContent = "正在扫描…";
-        const collected = await collectFromDirectoryHandle(handle);
-        setFiles(collected);
+        setFiles(await collectFromDirectoryHandle(handle));
       }
 
       function loadFromFileList(fileListObj) {
         const all = Array.from(fileListObj || []);
         const mdFiles = all.filter((f) => {
           const rel = f.webkitRelativePath || f.name || "";
-          const base = rel.split("/").pop() || f.name;
-          return isMarkdown(base);
+          return isMarkdown(rel.split("/").pop() || f.name);
         });
         if (!mdFiles.length) {
           toast(all.length ? "未找到 Markdown 文件" : "未选择任何文件");
@@ -1076,32 +1123,26 @@
         }
         const firstRel = mdFiles[0].webkitRelativePath || mdFiles[0].name;
         folderName = firstRel.split("/")[0] || "文件夹";
-        statusLeft.textContent = `正在读取本地目录（${mdFiles.length}）…`;
-        Promise.all(
-          mdFiles.map(async (file) => {
-            const rel = file.webkitRelativePath || file.name;
-            const parts = rel.split("/");
-            const name = parts[parts.length - 1];
-            const dir = parts.slice(0, -1).join("/") || ".";
-            const text = await file.text();
-            return { path: rel, name, dir, text, size: file.size };
-          })
-        )
-          .then(setFiles)
-          .catch((err) => {
-            console.warn(err);
-            toast("读取文件夹失败");
-            statusLeft.textContent = "读取本地目录失败";
-          });
+        setFiles(mdFiles.map((file) => {
+          const rel = file.webkitRelativePath || file.name;
+          const parts = rel.split("/");
+          return {
+            path: rel,
+            name: parts[parts.length - 1],
+            dir: parts.slice(0, -1).join("/") || ".",
+            size: file.size,
+            fileRef: file,
+          };
+        }));
       }
 
       function openLegacyFolderDialog() {
-        // 允许重复选同一目录；通过点击 label 打开，比 input.click() 更稳
         dirInput.value = "";
         pickFallbackLabel.click();
       }
 
       function setFiles(list) {
+        htmlCache.clear();
         files = list.sort((a, b) => a.path.localeCompare(b.path, "zh-CN"));
         searchInput.disabled = files.length === 0;
         searchInput.value = "";
@@ -1109,14 +1150,11 @@
         folderMeta.innerHTML = files.length
           ? `文件夹 <strong>${escapeHtml(folderName)}</strong> · ${files.length} 篇文档`
           : "";
-        statusLeft.textContent = files.length
-          ? `已加载 ${files.length} 篇 Markdown`
-          : "未找到 Markdown 文件";
-        statusRight.textContent = folderName ? folderName : "本地 · 不上云";
+        statusLeft.textContent = files.length ? `已索引 ${files.length} 篇 Markdown` : "未找到 Markdown 文件";
+        statusRight.textContent = folderName || "本地 · 不上云";
         renderFileList();
-        if (files.length) {
-          openFile(files[0].path);
-        } else {
+        if (files.length) openFile(files[0].path);
+        else {
           showWelcome();
           toast("该文件夹中没有 Markdown 文档");
         }
@@ -1124,48 +1162,26 @@
 
       function renderFileList() {
         const q = searchInput.value.trim().toLowerCase();
-        const filtered = files.filter(
-          (f) => !q || f.path.toLowerCase().includes(q) || f.name.toLowerCase().includes(q)
-        );
-
+        const filtered = files.filter((f) => !q || f.path.toLowerCase().includes(q) || f.name.toLowerCase().includes(q));
         if (!files.length) {
-          fileList.innerHTML = `
-            <div class="empty-side">
-              <span class="glyph">卷</span>
-              <p>选择一个本地文件夹后，这里会列出其中全部 Markdown 文档。</p>
-            </div>`;
+          fileList.innerHTML = `<div class="empty-side"><span class="glyph">卷</span><p>选择一个本地文件夹后，这里会列出其中全部 Markdown 文档。</p></div>`;
           return;
         }
-
         if (!filtered.length) {
-          fileList.innerHTML = `
-            <div class="empty-side">
-              <span class="glyph">空</span>
-              <p>没有匹配「${escapeHtml(searchInput.value)}」的文档。</p>
-            </div>`;
+          fileList.innerHTML = `<div class="empty-side"><span class="glyph">空</span><p>没有匹配「${escapeHtml(searchInput.value)}」的文档。</p></div>`;
           return;
         }
-
         const groups = new Map();
         for (const f of filtered) {
           const key = f.dir === "." || f.dir === folderName ? "根目录" : f.dir.replace(new RegExp("^" + escapeRegExp(folderName) + "/?"), "") || "根目录";
           if (!groups.has(key)) groups.set(key, []);
           groups.get(key).push(f);
         }
-
         let html = "";
         for (const [group, items] of groups) {
           html += `<div class="file-group-title">${escapeHtml(group)}</div>`;
           for (const f of items) {
-            const active = f.path === activePath ? " active" : "";
-            html += `
-              <button class="file-item${active}" type="button" data-path="${escapeHtml(f.path)}">
-                <span class="file-icon">文</span>
-                <span>
-                  <div class="file-name">${escapeHtml(f.name)}</div>
-                  <div class="file-path">${escapeHtml(f.path)}</div>
-                </span>
-              </button>`;
+            html += `<button class="file-item${f.path === activePath ? " active" : ""}" type="button" data-path="${escapeHtml(f.path)}"><span class="file-icon">文</span><span><div class="file-name">${escapeHtml(f.name)}</div><div class="file-path">${escapeHtml(f.path)}</div></span></button>`;
           }
         }
         fileList.innerHTML = html;
@@ -1191,55 +1207,74 @@
         activePath = null;
       }
 
-      async function openFile(path) {
-        const file = files.find((f) => f.path === path);
-        if (!file) return;
-        activePath = path;
-        setActiveFileItem(path);
-
-        readerEyebrow.textContent = file.dir === "." ? folderName || "文档" : file.dir;
-        readerTitle.textContent = file.name.replace(/\.(md|markdown|mdx|mdown)$/i, "");
-        welcome.hidden = true;
-        article.hidden = false;
-        copyBtn.hidden = false;
-        topBtn.hidden = false;
-
-        article.innerHTML = md.parse(file.text);
-
-        renderMathInElement(article, {
-          delimiters: [
-            { left: "$$", right: "$$", display: true },
-            { left: "\\[", right: "\\]", display: true },
-            { left: "$", right: "$", display: false },
-            { left: "\\(", right: "\\)", display: false },
-          ],
-          throwOnError: false,
-        });
-
-        try {
-          await mermaid.run({ nodes: article.querySelectorAll(".mermaid") });
-        } catch (err) {
-          console.warn("Mermaid render error", err);
-        }
-
-        readerBody.scrollTop = 0;
-        const kb = (file.size / 1024).toFixed(1);
-        statusLeft.textContent = `${file.name} · ${kb} KB`;
-        statusRight.textContent = `${countWords(file.text)} 字`;
-      }
-
       function countWords(text) {
         const cn = (text.match(/[\u4e00-\u9fff]/g) || []).length;
         const en = (text.replace(/[\u4e00-\u9fff]/g, " ").match(/[A-Za-z0-9]+/g) || []).length;
         return cn + en;
       }
 
-      const lightbox = document.getElementById("lightbox");
-      const lightboxStage = document.getElementById("lightboxStage");
-      const lightboxClose = document.getElementById("lightboxClose");
-      const lightboxZoomIn = document.getElementById("lightboxZoomIn");
-      const lightboxZoomOut = document.getElementById("lightboxZoomOut");
-      let lightboxScale = 1;
+      async function enhanceArticle(text, seq) {
+        const needsMath = MATH_RE.test(text);
+        const needsMermaid = MERMAID_FENCE_RE.test(text) || !!article.querySelector(".mermaid");
+        if (needsMath) {
+          await ensureKatex();
+          if (seq !== renderSeq) return;
+          renderMathInElement(article, {
+            delimiters: [
+              { left: "$$", right: "$$", display: true },
+              { left: "\\[", right: "\\]", display: true },
+              { left: "$", right: "$", display: false },
+              { left: "\\(", right: "\\)", display: false },
+            ],
+            throwOnError: false,
+          });
+        }
+        if (needsMermaid) {
+          const nodes = article.querySelectorAll(".mermaid");
+          if (nodes.length) {
+            await ensureMermaid();
+            if (seq !== renderSeq) return;
+            try { await mermaid.run({ nodes }); } catch (err) { console.warn("Mermaid render error", err); }
+          }
+        }
+      }
+
+      async function openFile(path) {
+        const file = files.find((f) => f.path === path);
+        if (!file) return;
+        const seq = ++renderSeq;
+        activePath = path;
+        setActiveFileItem(path);
+        readerEyebrow.textContent = file.dir === "." ? folderName || "文档" : file.dir;
+        readerTitle.textContent = file.name.replace(/\.(md|markdown|mdx|mdown)$/i, "");
+        welcome.hidden = true;
+        article.hidden = false;
+        copyBtn.hidden = false;
+        topBtn.hidden = false;
+        statusLeft.textContent = `正在打开 ${file.name}…`;
+        try {
+          const text = await ensureFileText(file);
+          if (seq !== renderSeq) return;
+          let html = htmlCache.get(path);
+          if (!html) {
+            html = md.parse(text);
+            htmlCache.set(path, html);
+          }
+          article.innerHTML = html;
+          readerBody.scrollTop = 0;
+          statusLeft.textContent = `${file.name} · ${(file.size / 1024).toFixed(1)} KB`;
+          statusRight.textContent = `${countWords(text)} 字`;
+          await Promise.resolve();
+          if (seq !== renderSeq) return;
+          await enhanceArticle(text, seq);
+        } catch (err) {
+          console.warn(err);
+          if (seq !== renderSeq) return;
+          article.innerHTML = "<p>无法读取该文件。</p>";
+          statusLeft.textContent = "读取失败";
+          toast("读取文件失败");
+        }
+      }
 
       function closeLightbox() {
         lightbox.classList.remove("open");
@@ -1255,10 +1290,7 @@
 
       function openLightboxFromWrap(wrap) {
         const svg = wrap.querySelector(".mermaid svg");
-        if (!svg) {
-          toast("流程图尚未渲染完成");
-          return;
-        }
+        if (!svg) { toast("流程图尚未渲染完成"); return; }
         lightboxScale = 1.25;
         lightboxStage.innerHTML = "";
         const clone = svg.cloneNode(true);
@@ -1272,35 +1304,14 @@
         lightbox.setAttribute("aria-hidden", "false");
       }
 
-      lightboxClose.addEventListener("click", closeLightbox);
-      lightbox.addEventListener("click", (e) => {
-        if (e.target === lightbox) closeLightbox();
-      });
-      lightboxZoomIn.addEventListener("click", () => {
-        lightboxScale = Math.min(lightboxScale + 0.25, 4);
-        applyLightboxScale();
-      });
-      lightboxZoomOut.addEventListener("click", () => {
-        lightboxScale = Math.max(lightboxScale - 0.25, 0.5);
-        applyLightboxScale();
-      });
-      document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && lightbox.classList.contains("open")) closeLightbox();
-      });
-
       async function copyText(text, okMsg) {
-        try {
-          await navigator.clipboard.writeText(text);
-          toast(okMsg || "已复制");
-        } catch {
-          toast("复制失败");
-        }
+        try { await navigator.clipboard.writeText(text); toast(okMsg || "已复制"); }
+        catch { toast("复制失败"); }
       }
 
       async function copySvgAsPng(svg) {
         const xml = new XMLSerializer().serializeToString(svg);
-        const svgBlob = new Blob([xml], { type: "image/svg+xml;charset=utf-8" });
-        const url = URL.createObjectURL(svgBlob);
+        const url = URL.createObjectURL(new Blob([xml], { type: "image/svg+xml;charset=utf-8" }));
         try {
           const img = await new Promise((resolve, reject) => {
             const el = new Image();
@@ -1335,44 +1346,33 @@
         }
       }
 
+      lightboxClose.addEventListener("click", closeLightbox);
+      lightbox.addEventListener("click", (e) => { if (e.target === lightbox) closeLightbox(); });
+      lightboxZoomIn.addEventListener("click", () => { lightboxScale = Math.min(lightboxScale + 0.25, 4); applyLightboxScale(); });
+      lightboxZoomOut.addEventListener("click", () => { lightboxScale = Math.max(lightboxScale - 0.25, 0.5); applyLightboxScale(); });
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape" && lightbox.classList.contains("open")) closeLightbox(); });
+
       article.addEventListener("click", async (e) => {
         const btn = e.target.closest("[data-action]");
         if (!btn) return;
         const action = btn.getAttribute("data-action");
-
         if (action === "zoom") {
           const wrap = btn.closest(".diagram-wrap");
           if (wrap) openLightboxFromWrap(wrap);
           return;
         }
-
         if (action === "copy-code") {
-          const wrap = btn.closest(".diagram-wrap");
-          const source = wrap?.querySelector(".mermaid-source")?.textContent || "";
-          await copyText(source, "已复制流程图代码");
+          await copyText(btn.closest(".diagram-wrap")?.querySelector(".mermaid-source")?.textContent || "", "已复制流程图代码");
           return;
         }
-
         if (action === "copy-image") {
-          const wrap = btn.closest(".diagram-wrap");
-          const svg = wrap?.querySelector(".mermaid svg");
-          if (!svg) {
-            toast("流程图尚未渲染完成");
-            return;
-          }
-          try {
-            await copySvgAsPng(svg);
-          } catch (err) {
-            console.warn(err);
-            toast("复制图片失败");
-          }
+          const svg = btn.closest(".diagram-wrap")?.querySelector(".mermaid svg");
+          if (!svg) { toast("流程图尚未渲染完成"); return; }
+          try { await copySvgAsPng(svg); } catch (err) { console.warn(err); toast("复制图片失败"); }
           return;
         }
-
         if (action === "copy-code-block") {
-          const block = btn.closest(".code-block");
-          const source = block?.querySelector(".code-source")?.textContent || "";
-          await copyText(source, "已复制代码");
+          await copyText(btn.closest(".code-block")?.querySelector(".code-source")?.textContent || "", "已复制代码");
         }
       });
 
@@ -1380,13 +1380,9 @@
         statusLeft.textContent = "正在打开文件夹选择…";
         if (typeof window.showDirectoryPicker === "function") {
           try {
-            const handle = await showDirectoryPicker({ mode: "read" });
-            await loadFromDirectoryHandle(handle);
+            await loadFromDirectoryHandle(await showDirectoryPicker({ mode: "read" }));
           } catch (err) {
-            if (err && err.name === "AbortError") {
-              statusLeft.textContent = "已取消选择";
-              return;
-            }
+            if (err && err.name === "AbortError") { statusLeft.textContent = "已取消选择"; return; }
             console.warn(err);
             statusLeft.textContent = "请改用「浏览本地目录…」";
             toast("目录 API 不可用，请改用下方「浏览本地目录…」");
@@ -1397,13 +1393,9 @@
         }
       });
 
-      // 直接点 label 内的透明 input 即可；change 负责加载
       dirInput.addEventListener("change", () => {
-        if (dirInput.files && dirInput.files.length) {
-          loadFromFileList(dirInput.files);
-        }
+        if (dirInput.files && dirInput.files.length) loadFromFileList(dirInput.files);
       });
-
       dirInput.addEventListener("click", (e) => {
         e.stopPropagation();
         dirInput.value = "";
@@ -1411,28 +1403,30 @@
         toast("请选择本地文件夹（仅本机读取）");
       });
 
-      searchInput.addEventListener("input", () => renderFileList());
+      let searchTimer = 0;
+      searchInput.addEventListener("input", () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => renderFileList(), 80);
+      });
 
       fileList.addEventListener("click", (e) => {
         const btn = e.target.closest(".file-item");
         if (!btn) return;
-        openFile(btn.dataset.path);
+        const path = btn.dataset.path;
+        if (path === activePath) return;
+        openFile(path);
       });
 
       copyBtn.addEventListener("click", async () => {
         const file = files.find((f) => f.path === activePath);
         if (!file) return;
         try {
-          await navigator.clipboard.writeText(file.text);
+          await navigator.clipboard.writeText(await ensureFileText(file));
           toast("已复制 Markdown 原文");
-        } catch {
-          toast("复制失败");
-        }
+        } catch { toast("复制失败"); }
       });
 
-      topBtn.addEventListener("click", () => {
-        readerBody.scrollTo({ top: 0, behavior: "smooth" });
-      });
+      topBtn.addEventListener("click", () => readerBody.scrollTo({ top: 0, behavior: "smooth" }));
     })();
   </script>
 </body>
