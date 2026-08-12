@@ -3,14 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>墨览 · Markdown Viewer</title>
+  <title>墨览 · Markdown Studio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/base16/atelier-cave-dark.min.css" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css" media="print" onload="this.media='all'" />
-  <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css" /></noscript>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vditor@3.10.9/dist/index.css" />
   <style>
     :root {
       --ink: #1c1914;
@@ -29,10 +27,13 @@
       --danger: #c45c4a;
       --shadow: 0 24px 60px rgba(28, 25, 20, 0.12);
       --radius: 14px;
-      --font-display: "Instrument Serif", Georgia, serif;
-      --font-ui: "DM Sans", system-ui, sans-serif;
-      --font-mono: "JetBrains Mono", ui-monospace, monospace;
+      --font-display: "Instrument Serif", Georgia, "Times New Roman", "Songti SC", SimSun, serif;
+      /* Windows: Segoe UI + 微软雅黑；macOS: PingFang；避免只靠 Google Fonts */
+      --font-ui: "DM Sans", "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+      --font-mono: "JetBrains Mono", "Cascadia Code", "Cascadia Mono", Consolas, "Courier New", ui-monospace, monospace;
       --ease: cubic-bezier(0.22, 1, 0.36, 1);
+      --code-bg: #2a211c;
+      --code-fg: #f0e6d8;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -41,11 +42,23 @@
       height: 100%;
       color: var(--ink);
       font-family: var(--font-ui);
+      /* Windows ClearType 下不要强行 antialiased，否则中文发虚 */
+      text-rendering: optimizeLegibility;
       background:
         radial-gradient(1200px 600px at 10% -10%, rgba(212, 119, 59, 0.12), transparent 55%),
         radial-gradient(900px 500px at 100% 0%, rgba(107, 143, 113, 0.1), transparent 50%),
         linear-gradient(165deg, #efe8db 0%, var(--paper) 45%, #e7dfd0 100%);
       overflow: hidden;
+    }
+
+    /* 衬线标题在 Windows 上避免伪粗体 */
+    .brand h1,
+    .reader-title h2,
+    .welcome h2,
+    .vditor-reset h1,
+    .vditor-reset h2,
+    .vditor-reset h3 {
+      font-synthesis: none;
     }
 
     body::before {
@@ -65,8 +78,6 @@
       display: grid;
       grid-template-columns: 280px minmax(0, 1fr);
       height: 100%;
-      max-width: none;
-      margin: 0;
       padding: 12px;
       gap: 12px;
     }
@@ -154,11 +165,24 @@
 
     .btn-ghost:hover { background: rgba(255,255,255,0.09); }
 
-
-
-    .search-wrap {
+    label.btn {
+      display: block;
+      text-align: center;
       position: relative;
+      overflow: hidden;
     }
+
+    label.btn .dir-picker {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+      font-size: 0;
+    }
+
+    .search-wrap { position: relative; }
 
     .search-wrap svg {
       position: absolute;
@@ -201,10 +225,9 @@
 
     .recent-row {
       display: grid;
-      grid-template-columns: 1fr auto auto;
+      grid-template-columns: 1fr auto;
       gap: 2px;
       align-items: stretch;
-      margin-bottom: 2px;
     }
 
     .recent-item {
@@ -219,7 +242,7 @@
       display: grid;
       grid-template-columns: 20px 1fr;
       gap: 7px;
-      align-items: start;
+      align-items: center;
       font-family: var(--font-ui);
       transition: background 0.15s ease, border-color 0.15s ease;
     }
@@ -231,7 +254,6 @@
 
     .recent-item .file-icon {
       background: rgba(232, 160, 106, 0.14);
-      margin-top: 1px;
     }
 
     .recent-name {
@@ -241,41 +263,24 @@
       word-break: break-word;
     }
 
-    .recent-path {
-      margin-top: 2px;
-      font-size: 0.64rem;
-      color: var(--accent-soft);
-      line-height: 1.3;
-      word-break: break-all;
-      opacity: 0.92;
-    }
-
-    .recent-path.missing {
-      color: rgba(232, 226, 214, 0.38);
-      font-style: italic;
-    }
-
     .recent-meta {
-      margin-top: 2px;
+      margin-top: 1px;
       font-size: 0.62rem;
       color: rgba(232, 226, 214, 0.4);
     }
 
-    .recent-label,
     .recent-remove {
       appearance: none;
       border: none;
       background: transparent;
       color: rgba(232, 226, 214, 0.35);
       cursor: pointer;
-      font-size: 0.72rem;
+      font-size: 0.85rem;
       line-height: 1;
       padding: 4px 6px;
       border-radius: 6px;
-      align-self: center;
     }
 
-    .recent-label:hover,
     .recent-remove:hover {
       color: #e8a06a;
       background: rgba(255,255,255,0.06);
@@ -384,20 +389,9 @@
       position: relative;
     }
 
-    .main::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      background:
-        linear-gradient(90deg, transparent 0, transparent calc(48px - 1px), rgba(28,25,20,0.035) calc(48px - 1px), rgba(28,25,20,0.035) 48px, transparent 48px);
-      opacity: 0.7;
-      z-index: 0;
-    }
-
     .reader-header {
       position: relative;
-      z-index: 1;
+      z-index: 2;
       padding: 16px 28px 12px;
       border-bottom: 1px solid rgba(28, 25, 20, 0.07);
       background: linear-gradient(180deg, rgba(250,247,241,0.95), rgba(244,239,230,0.7));
@@ -409,9 +403,7 @@
       min-height: 68px;
     }
 
-    .reader-title {
-      min-width: 0;
-    }
+    .reader-title { min-width: 0; }
 
     .reader-title .eyebrow {
       font-size: 0.72rem;
@@ -421,6 +413,8 @@
       font-weight: 600;
       margin-bottom: 6px;
     }
+
+    .reader-title .eyebrow.dirty { color: var(--accent); }
 
     .reader-title h2 {
       font-family: var(--font-display);
@@ -435,6 +429,8 @@
       display: flex;
       gap: 8px;
       flex-shrink: 0;
+      flex-wrap: wrap;
+      justify-content: flex-end;
     }
 
     .chip {
@@ -447,7 +443,7 @@
       font-weight: 600;
       cursor: pointer;
       font-family: var(--font-ui);
-      transition: background 0.2s ease, border-color 0.2s ease;
+      transition: background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
     }
 
     .chip:hover {
@@ -456,24 +452,43 @@
       color: var(--accent);
     }
 
+    .chip:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .chip-primary {
+      background: linear-gradient(135deg, var(--accent) 0%, #b85f28 100%);
+      border-color: transparent;
+      color: #fff8f1;
+    }
+
+    .chip-primary:hover:not(:disabled) {
+      color: #fff;
+      border-color: transparent;
+      box-shadow: 0 6px 16px var(--accent-glow);
+    }
+
+    .chip-primary:disabled {
+      background: rgba(28, 25, 20, 0.12);
+      color: var(--ink-muted);
+    }
+
     .reader-body {
       position: relative;
       z-index: 1;
       flex: 1;
-      overflow: auto;
-      padding: 8px 0 48px;
-      scrollbar-width: thin;
-      scrollbar-color: rgba(28,25,20,0.2) transparent;
-    }
-
-    .welcome, .article {
-      max-width: 1100px;
-      margin: 0 auto;
-      padding: 22px 36px 20px;
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
     }
 
     .welcome {
-      padding-top: 64px;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 64px 36px 48px;
+      overflow: auto;
       animation: fade-in 0.6s var(--ease) both;
     }
 
@@ -547,308 +562,368 @@
       line-height: 1.45;
     }
 
-    /* —— Markdown prose —— */
-    .prose {
-      font-size: 0.98rem;
-      line-height: 1.58;
-      color: var(--ink);
+    .editor-wrap {
+      flex: 1;
+      min-height: 0;
+      display: none;
+      padding: 0;
+      background: var(--paper-lift);
     }
 
-    .prose > *:first-child { margin-top: 0; }
+    .editor-wrap.visible { display: flex; flex-direction: column; }
 
-    .prose h1, .prose h2, .prose h3, .prose h4 {
-      font-family: var(--font-display);
-      font-weight: 400;
-      line-height: 1.22;
-      color: var(--ink);
-      margin: 1.25em 0 0.4em;
-      scroll-margin-top: 24px;
+    #vditor {
+      flex: 1;
+      min-height: 0;
+      border: none !important;
+      border-radius: 0 !important;
     }
 
-    .prose h1 {
-      font-size: 2.1rem;
-      padding-bottom: 0.3em;
-      border-bottom: 1px solid rgba(28,25,20,0.1);
+    .vditor {
+      border: none !important;
+      border-radius: 0 !important;
+      background: transparent !important;
     }
 
-    .prose h2 { font-size: 1.55rem; }
-    .prose h3 { font-size: 1.22rem; }
-    .prose h4 { font-size: 1.05rem; font-family: var(--font-ui); font-weight: 650; }
+    .vditor-toolbar {
+      background: rgba(244, 239, 230, 0.92) !important;
+      border-bottom: 1px solid rgba(28, 25, 20, 0.08) !important;
+      padding-left: 12px !important;
+      padding-right: 12px !important;
+    }
 
-    .prose p { margin: 0.65em 0; }
+    .vditor-toolbar__item .vditor-tooltipped {
+      color: var(--ink-soft) !important;
+    }
 
-    .prose a {
-      color: #a85a24;
+    .vditor-content,
+    .vditor-ir,
+    .vditor-wysiwyg,
+    .vditor-sv,
+    .vditor-preview {
+      background: transparent !important;
+    }
+
+    /* 对齐旧版 .prose：衬线标题 + 暖色正文，压过 Vditor 默认系统字体 */
+    .vditor-ir pre.vditor-reset,
+    .vditor-wysiwyg pre.vditor-reset,
+    .vditor-wysiwyg > .vditor-reset,
+    .vditor-sv .vditor-reset,
+    .vditor-preview .vditor-reset {
+      max-width: 1100px;
+      margin: 0 auto !important;
+      padding: 22px 36px 48px !important;
+      font-family: var(--font-ui) !important;
+      font-size: 0.98rem !important;
+      line-height: 1.58 !important;
+      color: var(--ink) !important;
+      background: transparent !important;
+    }
+
+    .vditor-reset h1,
+    .vditor-reset h2,
+    .vditor-reset h3,
+    .vditor-reset h4 {
+      font-family: var(--font-display) !important;
+      font-weight: 400 !important;
+      line-height: 1.22 !important;
+      color: var(--ink) !important;
+      margin: 1.25em 0 0.4em !important;
+      border-bottom: none !important;
+      padding-bottom: 0 !important;
+    }
+
+    .vditor-reset h1 {
+      font-size: 2.1rem !important;
+      padding-bottom: 0.3em !important;
+      border-bottom: 1px solid rgba(28, 25, 20, 0.1) !important;
+    }
+
+    .vditor-reset h2 { font-size: 1.55rem !important; }
+    .vditor-reset h3 { font-size: 1.22rem !important; }
+    .vditor-reset h4 {
+      font-size: 1.05rem !important;
+      font-family: var(--font-ui) !important;
+      font-weight: 650 !important;
+    }
+
+    .vditor-reset h5,
+    .vditor-reset h6 {
+      font-family: var(--font-ui) !important;
+      font-weight: 650 !important;
+      color: var(--ink-soft) !important;
+      margin: 1.1em 0 0.35em !important;
+    }
+
+    .vditor-reset p { margin: 0.65em 0 !important; }
+
+    .vditor-reset a {
+      color: #a85a24 !important;
       text-decoration-thickness: 1px;
       text-underline-offset: 3px;
-      transition: color 0.15s ease;
-      cursor: pointer;
     }
-    .prose a:hover { color: var(--accent); }
 
-    .prose strong { font-weight: 700; color: #15120e; }
+    .vditor-reset a:hover { color: var(--accent) !important; }
 
-    .prose em { font-style: italic; color: var(--ink-soft); }
+    /* IR 模式链接是 span，不是 <a> */
+    .vditor-ir__link {
+      color: #a85a24 !important;
+      text-decoration: underline;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+    }
 
-    .prose blockquote {
-      margin: 1em 0;
-      padding: 0.15em 0 0.15em 1em;
-      border-left: 3px solid var(--accent);
-      color: var(--ink-soft);
-      background: linear-gradient(90deg, rgba(212,119,59,0.07), transparent 70%);
+    .vditor-reset strong,
+    .vditor-ir__node[data-type="strong"] {
+      font-weight: 700 !important;
+      color: #15120e !important;
+    }
+
+    .vditor-reset em,
+    .vditor-ir__node[data-type="em"] {
+      font-style: italic !important;
+      color: var(--ink-soft) !important;
+    }
+
+    .vditor-reset blockquote {
+      margin: 1em 0 !important;
+      padding: 0.15em 0 0.15em 1em !important;
+      border-left: 3px solid var(--accent) !important;
+      color: var(--ink-soft) !important;
+      background: linear-gradient(90deg, rgba(212, 119, 59, 0.07), transparent 70%) !important;
       border-radius: 0 10px 10px 0;
     }
 
-    .prose ul, .prose ol {
-      margin: 0.65em 0;
-      padding-left: 1.35em;
+    .vditor-reset ul,
+    .vditor-reset ol {
+      margin: 0.65em 0 !important;
+      padding-left: 1.35em !important;
     }
 
-    .prose li { margin: 0.22em 0; }
-    .prose li::marker { color: var(--accent); }
+    .vditor-reset li { margin: 0.22em 0 !important; }
+    .vditor-reset li::marker { color: var(--accent); }
 
-    .prose hr {
-      border: none;
-      height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(28,25,20,0.18), transparent);
-      margin: 1.5em 0;
+    .vditor-reset hr {
+      border: none !important;
+      height: 1px !important;
+      background: linear-gradient(90deg, transparent, rgba(28, 25, 20, 0.18), transparent) !important;
+      margin: 1.5em 0 !important;
     }
 
-    .prose img {
+    .vditor-reset img {
       max-width: 100%;
       border-radius: 12px;
-      border: 1px solid rgba(28,25,20,0.08);
-      box-shadow: 0 10px 30px rgba(28,25,20,0.08);
+      border: 1px solid rgba(28, 25, 20, 0.08);
+      box-shadow: 0 10px 30px rgba(28, 25, 20, 0.08);
       margin: 1em 0;
     }
 
-    .prose table {
+    .vditor-reset table {
       width: 100%;
-      border-collapse: separate;
+      border-collapse: separate !important;
       border-spacing: 0;
-      margin: 1.4em 0;
+      margin: 1.4em 0 !important;
       font-size: 0.92rem;
       overflow: hidden;
       border-radius: 12px;
-      border: 1px solid rgba(28,25,20,0.1);
+      border: 1px solid rgba(28, 25, 20, 0.1) !important;
       background: #fff;
     }
 
-    .prose th, .prose td {
-      padding: 10px 14px;
+    .vditor-reset th,
+    .vditor-reset td {
+      padding: 10px 14px !important;
       text-align: left;
-      border-bottom: 1px solid rgba(28,25,20,0.08);
+      border: none !important;
+      border-bottom: 1px solid rgba(28, 25, 20, 0.08) !important;
+      background: transparent !important;
     }
 
-    .prose th {
-      background: var(--paper-deep);
-      font-weight: 650;
-      color: var(--ink);
+    .vditor-reset th {
+      background: var(--paper-deep) !important;
+      font-weight: 650 !important;
+      color: var(--ink) !important;
       font-size: 0.82rem;
       letter-spacing: 0.02em;
     }
 
-    .prose tr:last-child td { border-bottom: none; }
-    .prose tr:hover td { background: rgba(212,119,59,0.04); }
+    .vditor-reset tr:last-child td { border-bottom: none !important; }
+    .vditor-reset tr:hover td { background: rgba(212, 119, 59, 0.04) !important; }
 
-    .prose code {
-      font-family: var(--font-mono);
-      font-size: 0.86em;
-      background: rgba(28,25,20,0.06);
-      padding: 0.15em 0.4em;
-      border-radius: 6px;
-      color: #7a3d1e;
+    .vditor-reset :not(pre) > code {
+      font-family: var(--font-mono) !important;
+      font-size: 0.86em !important;
+      background: rgba(28, 25, 20, 0.06) !important;
+      padding: 0.15em 0.4em !important;
+      border-radius: 6px !important;
+      color: #7a3d1e !important;
+      border: none !important;
     }
 
-    .prose pre {
-      margin: 1.3em 0;
-      padding: 16px 18px;
-      border-radius: 14px;
-      background: #2a211c !important;
-      border: 1px solid rgba(28,25,20,0.2);
+    /* 普通代码块：暖色暗底（对齐旧版 atelier 气质） */
+    .vditor-reset pre {
+      margin: 1.3em 0 !important;
+      padding: 16px 18px !important;
+      border-radius: 14px !important;
+      background: var(--code-bg) !important;
+      border: 1px solid rgba(28, 25, 20, 0.2) !important;
       overflow-x: auto;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      color: var(--code-fg) !important;
     }
 
-    .prose pre code {
-      background: transparent;
-      color: #f0e6d8;
-      padding: 0;
-      font-size: 0.8rem;
-      line-height: 1.5;
-      border-radius: 0;
+    .vditor-reset pre code,
+    .vditor-reset pre .hljs {
+      font-family: var(--font-mono) !important;
+      background: transparent !important;
+      /* 不加 !important，避免压过 kimbie-dark 的 token 色 */
+      color: var(--code-fg);
+      padding: 0 !important;
+      font-size: 0.8rem !important;
+      line-height: 1.55 !important;
+      border-radius: 0 !important;
+      display: block;
     }
 
-    .prose .code-block {
-      position: relative;
-      margin: 1.3em 0;
+    /* kimbie-dark 令牌色压到我们的暖底上，背景交给上面的 pre */
+    .vditor-reset .hljs {
+      background: transparent !important;
     }
 
-    .prose .code-block pre { margin: 0; }
-
-    .prose .code-lang {
-      position: absolute;
-      top: 10px;
-      right: 64px;
-      font-size: 0.68rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: rgba(240,230,216,0.45);
-      font-family: var(--font-ui);
-      font-weight: 600;
-      pointer-events: none;
+    .vditor-copy {
+      background: transparent !important;
     }
 
-    .prose .code-copy {
-      position: absolute;
-      top: 8px;
-      right: 10px;
-      z-index: 2;
-      appearance: none;
-      border: 1px solid rgba(255,255,255,0.14);
-      background: rgba(255,255,255,0.08);
-      color: rgba(240,230,216,0.75);
-      border-radius: 999px;
-      padding: 3px 10px;
-      font-size: 0.7rem;
-      font-weight: 600;
-      font-family: var(--font-ui);
-      cursor: pointer;
+    .vditor-copy > span,
+    .vditor-copy .vditor-tooltipped {
+      background: rgba(255, 255, 255, 0.08) !important;
+      border: 1px solid rgba(255, 255, 255, 0.14) !important;
+      border-radius: 999px !important;
+      color: rgba(240, 230, 216, 0.75) !important;
     }
 
-    .prose .code-copy:hover {
-      background: rgba(255,255,255,0.16);
-      color: #fff;
+    /* 流程图 / 公式预览：浅色卡片，不要套代码暗底 */
+    .vditor-reset pre.vditor-ir__preview:has(.language-mermaid),
+    .vditor-reset pre.vditor-ir__preview:has(.language-math),
+    .vditor-reset pre.vditor-ir__preview:has(.katex),
+    .vditor-reset pre.vditor-ir__preview:has(.katex-display),
+    .vditor-wysiwyg pre.vditor-reset .language-mermaid,
+    .vditor-preview .vditor-reset .language-mermaid,
+    .vditor-preview .vditor-reset .language-math {
+      background: #fff !important;
+      border: 1px solid rgba(28, 25, 20, 0.08) !important;
+      box-shadow: 0 10px 30px rgba(28, 25, 20, 0.06) !important;
+      color: var(--ink) !important;
+      text-align: center;
+      padding: 18px 16px !important;
     }
 
-    .prose .mermaid {
-      margin: 0;
-      padding: 16px;
-      background: transparent;
-      border: none;
-      border-radius: 0;
+    .vditor-reset .language-mermaid,
+    .vditor-reset [data-type="mermaid"] {
+      background: transparent !important;
+      border: none !important;
+      border-radius: 0 !important;
+      color: var(--ink) !important;
       overflow-x: auto;
       text-align: center;
     }
 
-    .prose .mermaid svg { max-width: 100%; height: auto; }
-
-    .diagram-wrap {
-      position: relative;
-      margin: 1.2em 0;
-      background: #fff;
-      border: 1px solid rgba(28,25,20,0.08);
-      border-radius: 14px;
-      overflow: hidden;
-    }
-
-    .diagram-toolbar {
-      display: flex;
-      justify-content: flex-end;
-      gap: 6px;
-      padding: 8px 10px;
-      border-bottom: 1px solid rgba(28,25,20,0.06);
-      background: rgba(244,239,230,0.65);
-    }
-
-    .diagram-toolbar button {
-      appearance: none;
-      border: 1px solid rgba(28,25,20,0.1);
-      background: rgba(255,255,255,0.7);
-      color: var(--ink-soft);
-      border-radius: 999px;
-      padding: 4px 10px;
-      font-size: 0.72rem;
-      font-weight: 600;
-      font-family: var(--font-ui);
-      cursor: pointer;
-    }
-
-    .diagram-toolbar button:hover {
-      border-color: rgba(212,119,59,0.35);
-      color: var(--accent);
-      background: #fff;
-    }
-
-    .lightbox {
-      position: fixed;
-      inset: 0;
-      z-index: 80;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-      background: rgba(20, 18, 14, 0.72);
-      backdrop-filter: blur(6px);
-    }
-
-    .lightbox.open { display: flex; }
-
-    .lightbox-panel {
-      position: relative;
-      width: min(96vw, 1400px);
-      height: min(90vh, 900px);
-      background: #fff;
-      border-radius: 16px;
-      box-shadow: 0 24px 80px rgba(0,0,0,0.35);
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-
-    .lightbox-bar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 12px 16px;
-      border-bottom: 1px solid rgba(28,25,20,0.08);
-      background: var(--paper-lift);
-    }
-
-    .lightbox-bar strong {
-      font-size: 0.88rem;
-      font-weight: 650;
-    }
-
-    .lightbox-actions {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-
-    .lightbox-stage {
-      flex: 1;
-      overflow: auto;
-      padding: 24px;
-      text-align: center;
-      background:
-        linear-gradient(90deg, rgba(28,25,20,0.03) 1px, transparent 1px) 0 0 / 24px 24px,
-        linear-gradient(rgba(28,25,20,0.03) 1px, transparent 1px) 0 0 / 24px 24px,
-        #faf7f1;
-    }
-
-    .lightbox-stage .mermaid,
-    .lightbox-stage svg {
-      max-width: none !important;
-      width: auto;
+    .vditor-reset .language-mermaid svg {
+      max-width: 100%;
       height: auto;
-      margin: 0 auto;
+      font-family: var(--font-ui) !important;
     }
 
-    .lightbox-stage svg {
-      transform-origin: center top;
+    /* Mermaid 源码标记（未展开的 fence）仍用暗底；预览用浅色 */
+    .vditor-reset pre.vditor-ir__marker--pre:has(code.language-mermaid),
+    .vditor-reset pre.vditor-ir__marker--pre:has(code.language-math),
+    .vditor-reset pre.vditor-ir__marker--pre:has(code[data-type="math-block"]) {
+      background: rgba(28, 25, 20, 0.04) !important;
+      border: 1px dashed rgba(28, 25, 20, 0.14) !important;
+      box-shadow: none !important;
+      color: var(--ink-soft) !important;
     }
 
-    .prose .katex-display {
-      margin: 1.2em 0;
-      padding: 12px 8px;
+    .vditor-reset pre.vditor-ir__marker--pre:has(code.language-mermaid) code,
+    .vditor-reset pre.vditor-ir__marker--pre:has(code.language-math) code,
+    .vditor-reset pre.vditor-ir__marker--pre:has(code[data-type="math-block"]) code {
+      color: var(--ink-soft) !important;
+      font-size: 0.78rem !important;
+    }
+
+    .vditor-reset .katex-display {
+      margin: 0.4em 0;
+      padding: 8px 4px;
       overflow-x: auto;
+      color: var(--ink) !important;
     }
 
-    .prose input[type="checkbox"] {
+    .vditor-reset pre.vditor-ir__preview .katex,
+    .vditor-reset pre.vditor-ir__preview .katex-display,
+    .vditor-reset .language-math {
+      color: var(--ink) !important;
+      background: transparent !important;
+    }
+
+    .vditor-reset input[type="checkbox"] {
       margin-right: 0.45em;
       accent-color: var(--accent);
+      width: 1em;
+      height: 1em;
+      vertical-align: -0.12em;
+    }
+
+    /* IR 语法标记淡化，避免压过正文气质 */
+    .vditor-ir__marker,
+    .vditor-ir__preview {
+      color: var(--ink-muted) !important;
+    }
+
+    .vditor-ir__node--hidden .vditor-ir__marker {
+      opacity: 0.45;
+    }
+
+    .vditor-counter {
+      color: var(--ink-muted) !important;
+      background: transparent !important;
+      font-family: var(--font-ui) !important;
+    }
+
+    /* Windows / 触控板：细滚动条，避免系统粗条破坏纸面感 */
+    .file-list,
+    .vditor-content,
+    .vditor-preview,
+    .vditor-ir,
+    .vditor-wysiwyg,
+    .vditor-sv {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(28, 25, 20, 0.25) transparent;
+    }
+
+    .file-list::-webkit-scrollbar,
+    .vditor-content::-webkit-scrollbar,
+    .vditor-preview::-webkit-scrollbar,
+    .vditor-ir::-webkit-scrollbar,
+    .vditor-wysiwyg::-webkit-scrollbar,
+    .vditor-sv::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    .file-list::-webkit-scrollbar-thumb,
+    .vditor-content::-webkit-scrollbar-thumb,
+    .vditor-preview::-webkit-scrollbar-thumb,
+    .vditor-ir::-webkit-scrollbar-thumb,
+    .vditor-wysiwyg::-webkit-scrollbar-thumb,
+    .vditor-sv::-webkit-scrollbar-thumb {
+      background: rgba(28, 25, 20, 0.22);
+      border-radius: 999px;
+    }
+
+    .file-list::-webkit-scrollbar-track,
+    .vditor-content::-webkit-scrollbar-track,
+    .vditor-preview::-webkit-scrollbar-track {
+      background: transparent;
     }
 
     .status-bar {
@@ -886,11 +961,6 @@
       transform: translateX(-50%) translateY(0);
     }
 
-    @keyframes rise {
-      from { opacity: 0; transform: translateY(14px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
     @keyframes fade-in {
       from { opacity: 0; transform: translateY(8px); }
       to { opacity: 1; transform: translateY(0); }
@@ -906,9 +976,22 @@
       }
       .sidebar { min-height: 42vh; max-height: 48vh; }
       .main { min-height: 70vh; }
-      .welcome, .article { padding-left: 22px; padding-right: 22px; }
+      .welcome { padding-left: 22px; padding-right: 22px; }
       .feature-grid { grid-template-columns: 1fr; }
-      .reader-header { padding: 18px 22px 14px; flex-direction: column; align-items: flex-start; }
+      .reader-header {
+        padding: 18px 22px 14px;
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .reader-body { min-height: 52vh; }
+      .vditor-ir pre.vditor-reset,
+      .vditor-wysiwyg pre.vditor-reset,
+      .vditor-wysiwyg > .vditor-reset,
+      .vditor-sv .vditor-reset,
+      .vditor-preview .vditor-reset {
+        padding-left: 22px !important;
+        padding-right: 22px !important;
+      }
     }
   </style>
 </head>
@@ -919,11 +1002,15 @@
         <div class="brand-mark">
           <h1>墨<span>览</span></h1>
         </div>
-        <p>本地 Markdown 阅读室 · 代码 / 流程图 / 公式 / 表格</p>
+        <p>本地 Markdown 工作室 · 所见即所得 · 写回原文件</p>
       </div>
 
       <div class="toolbar">
         <button class="btn btn-primary" id="pickBtn" type="button">选择文件夹</button>
+        <label class="btn btn-ghost" id="pickFallbackLabel" title="兼容模式：可打开阅读；保存将下载文件（无法直接写回）">
+          浏览本地目录…
+          <input class="dir-picker" id="dirInput" type="file" webkitdirectory directory multiple />
+        </label>
         <div class="search-wrap">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
@@ -937,7 +1024,7 @@
       <div class="file-list" id="fileList">
         <div class="empty-side">
           <span class="glyph">卷</span>
-          <p>用 Chrome 点击「选择文件夹」。打开过的目录会出现在「最近目录」，可搜索并按使用时间排序。</p>
+          <p>选择一个本地文件夹后，这里会列出其中全部 Markdown 文档。</p>
         </div>
       </div>
     </aside>
@@ -946,29 +1033,31 @@
       <header class="reader-header">
         <div class="reader-title">
           <div class="eyebrow" id="readerEyebrow">准备就绪</div>
-          <h2 id="readerTitle">打开文件夹，开始阅读</h2>
+          <h2 id="readerTitle">打开文件夹，开始编辑</h2>
         </div>
         <div class="reader-actions">
+          <button class="chip chip-primary" id="saveBtn" type="button" hidden disabled>保存</button>
           <button class="chip" id="copyBtn" type="button" hidden>复制原文</button>
-          <button class="chip" id="topBtn" type="button" hidden>回到顶部</button>
         </div>
       </header>
 
       <div class="reader-body" id="readerBody">
         <section class="welcome" id="welcome">
           <div class="hero-glyph">墨</div>
-          <h2>把本地文档<br />摊开在<em>同一张纸</em>上</h2>
-          <p>选择任意文件夹，自动扫描其中的 Markdown。支持 GFM 表格、围栏代码高亮、Mermaid 流程图，以及 KaTeX 数学公式——全部在浏览器本地完成，文件不会离开本机。</p>
-          <p style="color:var(--ink-muted);font-size:0.92rem;margin-top:-12px;margin-bottom:12px;line-height:1.6;">请使用 <strong>Chrome / Edge</strong>（需支持目录选择 API）。打开过的目录会记住，并可标注绝对路径以区分同名文件夹。</p>
-          <p style="color:var(--ink-muted);font-size:0.88rem;margin-bottom:28px;line-height:1.55;padding:12px 14px;border-radius:12px;background:rgba(212,119,59,0.08);border:1px solid rgba(212,119,59,0.18);">请勿使用 Cursor 内置浏览器：无法完成目录授权。用系统 Chrome 打开本页后再选文件夹。</p>
+          <h2>本地文档<br />在<em>同一张纸</em>上改写</h2>
+          <p>选择任意文件夹，自动扫描 Markdown。用 Vditor 即时渲染（类 Typora）编辑；Chrome / Edge 可直接写回原文件。文件不会离开本机。</p>
+          <p style="color:var(--ink-muted);font-size:0.92rem;margin-top:-12px;margin-bottom:12px;line-height:1.6;">「选择文件夹」申请读写权限以便保存；「浏览本地目录…」为兼容导入，保存时将下载文件。</p>
+          <p style="color:var(--ink-muted);font-size:0.88rem;margin-bottom:28px;line-height:1.55;padding:12px 14px;border-radius:12px;background:rgba(212,119,59,0.08);border:1px solid rgba(212,119,59,0.18);">快捷键 <strong>Cmd/Ctrl+S</strong> 保存。打开过的目录会记在「最近目录」中，可一键重新打开（需再次授权读写）。</p>
           <div class="feature-grid">
-            <div class="feature"><strong>代码高亮</strong><span>常见语言语法着色，深色代码块便于阅读</span></div>
-            <div class="feature"><strong>流程图</strong><span>识别 mermaid 代码块并即时渲染</span></div>
-            <div class="feature"><strong>数学公式</strong><span>支持行内与块级 KaTeX 公式</span></div>
-            <div class="feature"><strong>表格与任务列表</strong><span>完整 GFM，含勾选任务项</span></div>
+            <div class="feature"><strong>所见即所得</strong><span>IR / WYSIWYG / 分屏，工具栏可切换</span></div>
+            <div class="feature"><strong>写回本地</strong><span>File System Access 直接改原文件</span></div>
+            <div class="feature"><strong>公式与图表</strong><span>KaTeX、Mermaid 等由 Vditor 内置</span></div>
+            <div class="feature"><strong>不上云</strong><span>全部在浏览器本地完成</span></div>
           </div>
         </section>
-        <article class="article prose" id="article" hidden></article>
+        <div class="editor-wrap" id="editorWrap">
+          <div id="vditor"></div>
+        </div>
       </div>
 
       <footer class="status-bar">
@@ -980,55 +1069,140 @@
 
   <div class="toast" id="toast" role="status"></div>
 
-  <div class="lightbox" id="lightbox" aria-hidden="true">
-    <div class="lightbox-panel" role="dialog" aria-modal="true" aria-label="流程图放大">
-      <div class="lightbox-bar">
-        <strong>流程图</strong>
-        <div class="lightbox-actions">
-          <button class="chip" type="button" id="lightboxZoomOut">缩小</button>
-          <button class="chip" type="button" id="lightboxZoomIn">放大</button>
-          <button class="chip" type="button" id="lightboxClose">关闭</button>
-        </div>
-      </div>
-      <div class="lightbox-stage" id="lightboxStage"></div>
-    </div>
-  </div>
-
-  <script src="https://cdn.jsdelivr.net/npm/marked@15.0.7/lib/marked.umd.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vditor@3.10.9/dist/index.min.js"></script>
   <script>
     (() => {
+      const VDITOR_CDN = "https://cdn.jsdelivr.net/npm/vditor@3.10.9";
+      const MERMAID_OPTS = {
+        startOnLoad: false,
+        theme: "base",
+        securityLevel: "loose",
+        flowchart: { htmlLabels: true, useMaxWidth: true },
+        themeVariables: {
+          primaryColor: "#f4efe6",
+          primaryTextColor: "#1c1914",
+          primaryBorderColor: "#d4773b",
+          lineColor: "#6b5e4e",
+          secondaryColor: "#ebe4d6",
+          tertiaryColor: "#ffffff",
+          background: "#ffffff",
+          mainBkg: "#f4efe6",
+          nodeBorder: "#d4773b",
+          clusterBkg: "#ebe4d6",
+          titleColor: "#1c1914",
+          edgeLabelBackground: "#faf7f1",
+          fontFamily: '"DM Sans", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif',
+        },
+      };
+
+      function applyMermaidTheme() {
+        if (!globalThis.mermaid || typeof mermaid.initialize !== "function") return false;
+        try {
+          mermaid.initialize(MERMAID_OPTS);
+          return true;
+        } catch (_) {
+          return false;
+        }
+      }
+
+      function patchMermaidLoader() {
+        if (patchMermaidLoader.done) return;
+        patchMermaidLoader.done = true;
+        // Vditor 异步加载 mermaid 后会用默认主题初始化；这里劫持为墨览配色
+        let tries = 0;
+        const timer = setInterval(() => {
+          tries += 1;
+          if (applyMermaidTheme() || tries > 80) clearInterval(timer);
+        }, 250);
+
+        const origAppend = document.head.appendChild.bind(document.head);
+        document.head.appendChild = function patchedAppend(node) {
+          const el = origAppend(node);
+          if (node && node.tagName === "SCRIPT" && /mermaid/i.test(node.src || "")) {
+            node.addEventListener("load", () => {
+              applyMermaidTheme();
+              // 之后每次 initialize 都合并我们的主题
+              if (globalThis.mermaid && !mermaid.__molanPatched) {
+                const raw = mermaid.initialize.bind(mermaid);
+                mermaid.initialize = (opts = {}) =>
+                  raw({
+                    ...opts,
+                    ...MERMAID_OPTS,
+                    themeVariables: {
+                      ...(opts.themeVariables || {}),
+                      ...MERMAID_OPTS.themeVariables,
+                    },
+                  });
+                mermaid.__molanPatched = true;
+              }
+            });
+          }
+          return el;
+        };
+      }
+
+      function preloadMermaid() {
+        if (globalThis.mermaid) {
+          applyMermaidTheme();
+          return Promise.resolve();
+        }
+        return new Promise((resolve) => {
+          const s = document.createElement("script");
+          s.src = `${VDITOR_CDN}/dist/js/mermaid/mermaid.min.js`;
+          s.async = true;
+          s.onload = () => {
+            applyMermaidTheme();
+            if (globalThis.mermaid && !mermaid.__molanPatched) {
+              const raw = mermaid.initialize.bind(mermaid);
+              mermaid.initialize = (opts = {}) =>
+                raw({
+                  ...opts,
+                  ...MERMAID_OPTS,
+                  themeVariables: {
+                    ...(opts.themeVariables || {}),
+                    ...MERMAID_OPTS.themeVariables,
+                  },
+                });
+              mermaid.__molanPatched = true;
+            }
+            resolve();
+          };
+          s.onerror = () => resolve();
+          document.head.appendChild(s);
+        });
+      }
+
+      patchMermaidLoader();
+
       const pickBtn = document.getElementById("pickBtn");
+      const pickFallbackLabel = document.getElementById("pickFallbackLabel");
+      const dirInput = document.getElementById("dirInput");
       const searchInput = document.getElementById("searchInput");
       const fileList = document.getElementById("fileList");
       const folderMeta = document.getElementById("folderMeta");
       const welcome = document.getElementById("welcome");
-      const article = document.getElementById("article");
+      const editorWrap = document.getElementById("editorWrap");
       const readerTitle = document.getElementById("readerTitle");
       const readerEyebrow = document.getElementById("readerEyebrow");
-      const readerBody = document.getElementById("readerBody");
       const statusLeft = document.getElementById("statusLeft");
       const statusRight = document.getElementById("statusRight");
+      const saveBtn = document.getElementById("saveBtn");
       const copyBtn = document.getElementById("copyBtn");
-      const topBtn = document.getElementById("topBtn");
       const toastEl = document.getElementById("toast");
-      const lightbox = document.getElementById("lightbox");
-      const lightboxStage = document.getElementById("lightboxStage");
-      const lightboxClose = document.getElementById("lightboxClose");
-      const lightboxZoomIn = document.getElementById("lightboxZoomIn");
-      const lightboxZoomOut = document.getElementById("lightboxZoomOut");
 
       let files = [];
       let activePath = null;
       let folderName = "";
       let currentFolderId = null;
       let recentFolders = [];
-      let renderSeq = 0;
-      let lightboxScale = 1;
-      const htmlCache = new Map();
-      const scriptCache = new Map();
-      const MATH_RE = /\$\$|\\\(|\\\[|(^|[^\\])\$/m;
-      const MERMAID_FENCE_RE = /```mermaid\b/i;
+      let folderSource = null; // "fs-access" | "legacy"
+      let dirty = false;
+      let baselineText = "";
+      let vditor = null;
+      let vditorReady = null;
+      let pendingOpenPath = null;
+      let openSeq = 0;
+
       const DB_NAME = "molan-viewer";
       const DB_STORE = "folders";
       const MAX_RECENT = 30;
@@ -1057,31 +1231,11 @@
         });
       }
 
-      function formatRelativeTime(ts) {
-        const diff = Date.now() - ts;
-        if (diff < 60_000) return "刚刚";
-        if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} 分钟前`;
-        if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)} 小时前`;
-        if (diff < 86_400_000 * 7) return `${Math.floor(diff / 86_400_000)} 天前`;
-        return new Date(ts).toLocaleDateString("zh-CN");
-      }
-
-      async function idbGetFolder(id) {
-        const db = await openDb();
-        return new Promise((resolve, reject) => {
-          const tx = db.transaction(DB_STORE, "readonly");
-          const req = tx.objectStore(DB_STORE).get(id);
-          req.onsuccess = () => resolve(req.result || null);
-          req.onerror = () => reject(req.error);
-        });
-      }
-
       async function idbPutFolder(record) {
         const db = await openDb();
         return new Promise((resolve, reject) => {
           const tx = db.transaction(DB_STORE, "readwrite");
-          const req = tx.objectStore(DB_STORE).put(record);
-          req.onerror = () => reject(req.error);
+          tx.objectStore(DB_STORE).put(record);
           tx.oncomplete = () => resolve();
           tx.onerror = () => reject(tx.error);
         });
@@ -1091,156 +1245,83 @@
         const db = await openDb();
         return new Promise((resolve, reject) => {
           const tx = db.transaction(DB_STORE, "readwrite");
-          const req = tx.objectStore(DB_STORE).delete(id);
-          req.onerror = () => reject(req.error);
+          tx.objectStore(DB_STORE).delete(id);
           tx.oncomplete = () => resolve();
           tx.onerror = () => reject(tx.error);
         });
       }
 
-      /** 当前会话内句柄缓存，避免仅依赖 IDB 反序列化 */
-      const sessionHandles = new Map();
-
-      function isDirectoryHandle(value) {
-        return !!(value && typeof value === "object" && value.kind === "directory" && typeof value.getDirectoryHandle === "function");
-      }
-
-      async function ensureHandlePermission(handle) {
-        if (!isDirectoryHandle(handle)) return false;
-        const opts = { mode: "read" };
-        try {
-          if (typeof handle.queryPermission === "function") {
-            const q = await handle.queryPermission(opts);
-            if (q === "granted") return true;
-          }
-          if (typeof handle.requestPermission === "function") {
-            const r = await handle.requestPermission(opts);
-            return r === "granted";
-          }
-          // 旧环境：直接尝试读取
-          return true;
-        } catch (err) {
-          console.warn(err);
-          return false;
-        }
+      function formatRelativeTime(ts) {
+        const diff = Date.now() - ts;
+        if (diff < 60_000) return "刚刚";
+        if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} 分钟前`;
+        if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)} 小时前`;
+        if (diff < 86_400_000 * 7) return `${Math.floor(diff / 86_400_000)} 天前`;
+        return new Date(ts).toLocaleDateString("zh-CN");
       }
 
       async function refreshRecentFolders() {
         try {
           const all = await idbAllFolders();
-          recentFolders = all
-            .map((r) => {
-              const cached = sessionHandles.get(r.id);
-              if (cached && !isDirectoryHandle(r.handle)) r.handle = cached;
-              if (isDirectoryHandle(r.handle)) sessionHandles.set(r.id, r.handle);
-              return r;
-            })
-            .sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+          recentFolders = all.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
         } catch (err) {
           console.warn(err);
           recentFolders = [];
         }
       }
 
-      async function deleteLegacyDuplicates(name) {
-        const all = await idbAllFolders();
-        await Promise.all(
-          all
-            .filter((r) => r.source === "legacy" && r.name === name)
-            .map((r) => idbDeleteFolder(r.id))
-        );
-      }
-
       async function rememberDirectoryHandle(handle) {
-        if (!isDirectoryHandle(handle)) {
-          throw new Error("invalid directory handle");
-        }
         const all = await idbAllFolders();
         let record = null;
-        // 只按句柄同一性匹配，避免不同工程下同名 doc 被合并成一条
         for (const rec of all) {
-          const h = rec.handle || sessionHandles.get(rec.id);
-          if (isDirectoryHandle(h) && typeof h.isSameEntry === "function") {
+          if (rec.handle && typeof rec.handle.isSameEntry === "function") {
             try {
-              if (await h.isSameEntry(handle)) {
+              if (await rec.handle.isSameEntry(handle)) {
                 record = rec;
                 break;
               }
             } catch (_) { /* ignore */ }
           }
         }
-
-        const isNew = !record;
-        const sameNameOthers = all.filter((r) => {
-          if (r.name !== handle.name) return false;
-          if (record && r.id === record.id) return false;
-          return true;
-        });
-
         if (!record) {
           record = {
             id: crypto.randomUUID(),
             name: handle.name,
             source: "fs-access",
-            pathLabel: "",
+            handle,
             lastUsed: Date.now(),
             fileCount: files.length || 0,
           };
+        } else {
+          record.name = handle.name;
+          record.handle = handle;
+          record.source = "fs-access";
+          record.lastUsed = Date.now();
+          record.fileCount = files.length || record.fileCount || 0;
         }
-
-        record.name = handle.name;
-        record.source = "fs-access";
-        record.handle = handle;
-        record.lastUsed = Date.now();
-        record.fileCount = files.length || record.fileCount || 0;
-        if (typeof record.pathLabel !== "string") record.pathLabel = record.pathLabel || "";
-
-        const shouldAsk =
-          !record.pathLabel ||
-          (isNew && sameNameOthers.length > 0) ||
-          (!record.pathLabel && sameNameOthers.length > 0);
-
-        if (shouldAsk && !record.pathLabel) {
-          const tip =
-            sameNameOthers.length > 0
-              ? `已有 ${sameNameOthers.length} 个也叫「${handle.name}」的目录。请标注本目录绝对路径或工程名（例如 /Users/me/DesignWeave/doc）：`
-              : `请标注「${handle.name}」的绝对路径或工程名（浏览器无法自动读取完整路径，便于区分同名目录；可留空）：`;
-          const entered = window.prompt(tip, "");
-          if (entered && entered.trim()) record.pathLabel = entered.trim();
-        }
-
         await idbPutFolder(record);
-        sessionHandles.set(record.id, handle);
         currentFolderId = record.id;
-
-        const saved = await idbGetFolder(record.id);
-        if (!isDirectoryHandle(saved?.handle)) {
-          console.warn("Directory handle was not persisted to IndexedDB; session reopen still works.");
-        }
-
-        await deleteLegacyDuplicates(handle.name);
         await pruneRecentFolders();
         await refreshRecentFolders();
         return record;
       }
 
-
-      async function editFolderPathLabel(id, e) {
-        e?.stopPropagation?.();
-        const rec = (await idbGetFolder(id)) || recentFolders.find((r) => r.id === id);
-        if (!rec) return;
-        const entered = window.prompt(
-          `标注「${rec.name}」的绝对路径或工程名（用于区分同名目录）：`,
-          rec.pathLabel || ""
-        );
-        if (entered === null) return;
-        rec.pathLabel = entered.trim();
-        const cached = sessionHandles.get(rec.id);
-        if (cached) rec.handle = cached;
-        await idbPutFolder(rec);
+      async function rememberLegacyFolder(name, fileCount) {
+        const id = "legacy:" + name;
+        const all = await idbAllFolders();
+        const existing = all.find((r) => r.id === id) || {
+          id,
+          name,
+          source: "legacy",
+          handle: null,
+        };
+        existing.lastUsed = Date.now();
+        existing.fileCount = fileCount;
+        existing.name = name;
+        await idbPutFolder(existing);
+        currentFolderId = existing.id;
+        await pruneRecentFolders();
         await refreshRecentFolders();
-        renderSidebarList();
-        toast(rec.pathLabel ? "已更新路径标注" : "已清空路径标注");
       }
 
       async function pruneRecentFolders() {
@@ -1253,12 +1334,11 @@
       async function touchCurrentFolder(fileCount) {
         if (!currentFolderId) return;
         try {
-          const rec = (await idbGetFolder(currentFolderId)) || recentFolders.find((r) => r.id === currentFolderId);
+          const all = await idbAllFolders();
+          const rec = all.find((r) => r.id === currentFolderId);
           if (!rec) return;
           rec.lastUsed = Date.now();
           if (typeof fileCount === "number") rec.fileCount = fileCount;
-          const cached = sessionHandles.get(rec.id);
-          if (cached) rec.handle = cached;
           await idbPutFolder(rec);
           await refreshRecentFolders();
         } catch (err) {
@@ -1266,38 +1346,41 @@
         }
       }
 
+      async function ensurePermission(handle, mode = "readwrite") {
+        let state = "prompt";
+        if (typeof handle.queryPermission === "function") {
+          state = await handle.queryPermission({ mode });
+        }
+        if (state !== "granted" && typeof handle.requestPermission === "function") {
+          state = await handle.requestPermission({ mode });
+        }
+        return state === "granted";
+      }
+
       async function reopenRecentFolder(id) {
-        const rec =
-          recentFolders.find((r) => r.id === id) ||
-          (await idbGetFolder(id));
+        const rec = recentFolders.find((r) => r.id === id) || (await idbAllFolders()).find((r) => r.id === id);
         if (!rec) {
           toast("记录不存在");
           return;
         }
-
-        const handle = (isDirectoryHandle(rec.handle) && rec.handle) || sessionHandles.get(rec.id) || null;
-        if (!handle) {
-          toast("该记录无法直接打开：请点「选择文件夹」授权一次，之后即可一键打开");
-          statusLeft.textContent = "需要「选择文件夹」授权后才能一键重开";
-          return;
+        if (rec.handle) {
+          try {
+            const ok = await ensurePermission(rec.handle, "readwrite");
+            if (!ok) {
+              toast("需要读写授权才能重新打开并保存");
+              return;
+            }
+            statusLeft.textContent = `正在打开 ${rec.name}…`;
+            await loadFromDirectoryHandle(rec.handle);
+            return;
+          } catch (err) {
+            console.warn(err);
+            toast("无法直接打开，请重新选择该文件夹");
+            return;
+          }
         }
-
-        statusLeft.textContent = `正在打开 ${rec.pathLabel || rec.name || handle.name}…`;
-        const ok = await ensureHandlePermission(handle);
-        if (!ok) {
-          toast("未获得目录读取授权");
-          statusLeft.textContent = "未获得目录授权";
-          return;
-        }
-
-        try {
-          sessionHandles.set(rec.id, handle);
-          await loadFromDirectoryHandle(handle);
-        } catch (err) {
-          console.warn(err);
-          toast("打开目录失败，请用「选择文件夹」重新授权");
-          statusLeft.textContent = "打开目录失败";
-        }
+        toast(`「${rec.name}」需再次选择（兼容模式无法直接恢复）`);
+        openLegacyFolderDialog();
       }
 
       async function removeRecentFolder(id, e) {
@@ -1309,61 +1392,6 @@
         toast("已从最近记录中移除");
       }
 
-      function loadScript(src) {
-        if (scriptCache.has(src)) return scriptCache.get(src);
-        const p = new Promise((resolve, reject) => {
-          const s = document.createElement("script");
-          s.src = src;
-          s.async = true;
-          s.onload = () => resolve();
-          s.onerror = () => reject(new Error("load failed: " + src));
-          document.head.appendChild(s);
-        });
-        scriptCache.set(src, p);
-        return p;
-      }
-
-      const MERMAID_OPTS = {
-        startOnLoad: false,
-        theme: "base",
-        securityLevel: "loose",
-        themeVariables: {
-          primaryColor: "#f4efe6",
-          primaryTextColor: "#1c1914",
-          primaryBorderColor: "#d4773b",
-          lineColor: "#6b5e4e",
-          secondaryColor: "#ebe4d6",
-          tertiaryColor: "#fff",
-          fontFamily: "DM Sans, sans-serif",
-        },
-      };
-
-      let mermaidReady = null;
-      function ensureMermaid() {
-        if (globalThis.mermaid) {
-          if (!mermaidReady) {
-            mermaid.initialize(MERMAID_OPTS);
-            mermaidReady = Promise.resolve();
-          }
-          return mermaidReady;
-        }
-        mermaidReady = loadScript("https://cdn.jsdelivr.net/npm/mermaid@11.6.0/dist/mermaid.min.js").then(() => {
-          mermaid.initialize(MERMAID_OPTS);
-        });
-        return mermaidReady;
-      }
-
-      let katexReady = null;
-      function ensureKatex() {
-        if (globalThis.renderMathInElement) return Promise.resolve();
-        if (!katexReady) {
-          katexReady = loadScript("https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.js").then(() =>
-            loadScript("https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/contrib/auto-render.min.js")
-          );
-        }
-        return katexReady;
-      }
-
       function escapeHtml(s) {
         return String(s)
           .replace(/&/g, "&amp;")
@@ -1371,40 +1399,6 @@
           .replace(/>/g, "&gt;")
           .replace(/"/g, "&quot;");
       }
-
-      const { Marked } = globalThis.marked;
-      const md = new Marked({
-        gfm: true,
-        breaks: false,
-        renderer: {
-          code({ text, lang }) {
-            const language = (lang || "").trim().split(/\s+/)[0];
-            if (language === "mermaid") {
-              return `<div class="diagram-wrap">
-                <div class="diagram-toolbar">
-                  <button type="button" data-action="zoom">放大观看</button>
-                  <button type="button" data-action="copy-code">复制代码</button>
-                  <button type="button" data-action="copy-image">复制图片</button>
-                </div>
-                <pre class="mermaid-source" hidden>${escapeHtml(text)}</pre>
-                <div class="mermaid">${escapeHtml(text)}</div>
-              </div>`;
-            }
-            const languageClass = language ? `hljs language-${escapeHtml(language)}` : "hljs";
-            const highlighted =
-              language && hljs.getLanguage(language)
-                ? hljs.highlight(text, { language }).value
-                : hljs.highlight(text, { language: "plaintext" }).value;
-            const label = language ? `<span class="code-lang">${escapeHtml(language)}</span>` : "";
-            return `<div class="code-block">
-              ${label}
-              <button type="button" class="code-copy" data-action="copy-code-block">复制</button>
-              <pre class="code-source" hidden>${escapeHtml(text)}</pre>
-              <pre><code class="${languageClass}">${highlighted}</code></pre>
-            </div>\n`;
-          },
-        },
-      });
 
       function toast(msg) {
         toastEl.textContent = msg;
@@ -1417,12 +1411,62 @@
         return /\.(md|markdown|mdx|mdown)$/i.test(name);
       }
 
+      function countWords(text) {
+        const cn = (text.match(/[\u4e00-\u9fff]/g) || []).length;
+        const en = (text.replace(/[\u4e00-\u9fff]/g, " ").match(/[A-Za-z0-9]+/g) || []).length;
+        return cn + en;
+      }
+
+      function canWriteActive() {
+        const file = files.find((f) => f.path === activePath);
+        return !!(file && file.handle);
+      }
+
+      function setDirty(next) {
+        dirty = !!next;
+        readerEyebrow.classList.toggle("dirty", dirty);
+        if (activePath) {
+          const file = files.find((f) => f.path === activePath);
+          if (file) {
+            readerEyebrow.textContent = dirty
+              ? "未保存"
+              : (file.dir === "." ? folderName || "文档" : file.dir);
+          }
+        }
+        saveBtn.disabled = !dirty;
+        if (activePath) {
+          saveBtn.title = canWriteActive()
+            ? "写回本地文件 (Cmd/Ctrl+S)"
+            : "兼容模式：将下载 Markdown 文件 (Cmd/Ctrl+S)";
+          saveBtn.textContent = canWriteActive() ? "保存" : "下载保存";
+        }
+        updateStatusRight();
+      }
+
+      function updateStatusRight() {
+        if (!activePath || !vditor) {
+          statusRight.textContent = folderSource === "legacy"
+            ? "兼容导入 · 保存将下载"
+            : (folderName || "本地 · 不上云");
+          return;
+        }
+        try {
+          const text = vditor.getValue();
+          const modeHint = folderSource === "legacy" ? "下载落盘" : (dirty ? "未保存" : "已同步");
+          statusRight.textContent = `${countWords(text)} 字 · ${modeHint}`;
+        } catch (_) {
+          statusRight.textContent = dirty ? "未保存" : "本地 · 不上云";
+        }
+      }
+
       async function ensureFileText(entry) {
         if (entry.text != null) return entry.text;
         if (entry.handle) {
           const file = await entry.handle.getFile();
           entry.text = await file.text();
           entry.size = file.size;
+        } else if (entry.fileRef) {
+          entry.text = await entry.fileRef.text();
         } else {
           entry.text = "";
         }
@@ -1446,6 +1490,7 @@
 
       async function loadFromDirectoryHandle(handle) {
         folderName = handle.name;
+        folderSource = "fs-access";
         statusLeft.textContent = "正在扫描…";
         const collected = await collectFromDirectoryHandle(handle);
         setFiles(collected);
@@ -1458,18 +1503,58 @@
         }
       }
 
+      function loadFromFileList(fileListObj) {
+        const all = Array.from(fileListObj || []);
+        const mdFiles = all.filter((f) => {
+          const rel = f.webkitRelativePath || f.name || "";
+          return isMarkdown(rel.split("/").pop() || f.name);
+        });
+        if (!mdFiles.length) {
+          toast(all.length ? "未找到 Markdown 文件" : "未选择任何文件");
+          statusLeft.textContent = "未读到 Markdown";
+          return;
+        }
+        const firstRel = mdFiles[0].webkitRelativePath || mdFiles[0].name;
+        folderName = firstRel.split("/")[0] || "文件夹";
+        folderSource = "legacy";
+        const list = mdFiles.map((file) => {
+          const rel = file.webkitRelativePath || file.name;
+          const parts = rel.split("/");
+          return {
+            path: rel,
+            name: parts[parts.length - 1],
+            dir: parts.slice(0, -1).join("/") || ".",
+            size: file.size,
+            fileRef: file,
+          };
+        });
+        setFiles(list);
+        rememberLegacyFolder(folderName, list.length)
+          .then(() => renderSidebarList())
+          .catch((err) => console.warn(err));
+        toast("兼容模式：可编辑，保存将下载文件");
+      }
 
+      function openLegacyFolderDialog() {
+        dirInput.value = "";
+        pickFallbackLabel.click();
+      }
 
       function setFiles(list) {
-        htmlCache.clear();
         files = list.sort((a, b) => a.path.localeCompare(b.path, "zh-CN"));
         searchInput.value = "";
         folderMeta.classList.toggle("visible", !!files.length);
+        const writeHint = folderSource === "fs-access" ? "可写回" : "保存将下载";
         folderMeta.innerHTML = files.length
-          ? `文件夹 <strong>${escapeHtml(folderName)}</strong>${currentFolderId && recentFolders.find((r) => r.id === currentFolderId)?.pathLabel ? ` · <span title="路径标注">${escapeHtml(recentFolders.find((r) => r.id === currentFolderId).pathLabel)}</span>` : ""} · ${files.length} 篇文档`
+          ? `文件夹 <strong>${escapeHtml(folderName)}</strong> · ${files.length} 篇 · ${writeHint}`
           : "";
         statusLeft.textContent = files.length ? `已索引 ${files.length} 篇 Markdown` : "未找到 Markdown 文件";
-        statusRight.textContent = folderName || "本地 · 不上云";
+        statusRight.textContent = folderSource === "legacy"
+          ? "兼容导入 · 保存将下载"
+          : (folderName || "本地 · 不上云");
+        dirty = false;
+        baselineText = "";
+        activePath = null;
         renderSidebarList();
         if (files.length) openFile(files[0].path);
         else {
@@ -1479,36 +1564,28 @@
       }
 
       function renderRecentSection(q) {
-        const matched = recentFolders.filter((r) => {
-          if (!q) return true;
-          const name = (r.name || "").toLowerCase();
-          const pathLabel = (r.pathLabel || "").toLowerCase();
-          return name.includes(q) || pathLabel.includes(q);
-        });
+        const matched = recentFolders.filter((r) => !q || (r.name || "").toLowerCase().includes(q));
         if (!matched.length) return "";
         let html = `<div class="file-group-title">最近目录</div>`;
         for (const r of matched) {
-          const canOpen = isDirectoryHandle(r.handle) || sessionHandles.has(r.id);
           const count = typeof r.fileCount === "number" ? `${r.fileCount} 篇 · ` : "";
-          const mode = canOpen ? "点击直接打开" : "需先用「选择文件夹」授权";
-          const pathText = r.pathLabel
-            ? escapeHtml(r.pathLabel)
-            : "未标注绝对路径（点「径」补充）";
-          const pathClass = r.pathLabel ? "recent-path" : "recent-path missing";
+          const mode = r.handle ? "可直接打开" : "需再次选择";
           html += `<div class="recent-row">
             <button class="recent-item" type="button" data-recent-id="${escapeHtml(r.id)}">
               <span class="file-icon">夹</span>
               <span>
                 <div class="recent-name">${escapeHtml(r.name || "未命名")}</div>
-                <div class="${pathClass}">${pathText}</div>
                 <div class="recent-meta">${count}${formatRelativeTime(r.lastUsed || 0)} · ${mode}</div>
               </span>
             </button>
-            <button class="recent-label" type="button" data-label-recent="${escapeHtml(r.id)}" title="标注绝对路径">径</button>
             <button class="recent-remove" type="button" data-remove-recent="${escapeHtml(r.id)}" title="移除记录">×</button>
           </div>`;
         }
         return html;
+      }
+
+      function escapeRegExp(s) {
+        return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       }
 
       function renderSidebarList() {
@@ -1521,7 +1598,7 @@
             fileList.innerHTML = recentHtml;
             return;
           }
-          fileList.innerHTML = `<div class="empty-side"><span class="glyph">卷</span><p>选择一个本地文件夹后，这里会列出文档；打开过的目录会记在「最近目录」里，可搜索并按使用时间排序。</p></div>`;
+          fileList.innerHTML = `<div class="empty-side"><span class="glyph">卷</span><p>选择一个本地文件夹后，这里会列出文档；打开过的目录会记在「最近目录」里。</p></div>`;
           return;
         }
 
@@ -1536,7 +1613,9 @@
 
         const groups = new Map();
         for (const f of filtered) {
-          const key = f.dir === "." || f.dir === folderName ? "根目录" : f.dir.replace(new RegExp("^" + escapeRegExp(folderName) + "/?"), "") || "根目录";
+          const key = f.dir === "." || f.dir === folderName
+            ? "根目录"
+            : f.dir.replace(new RegExp("^" + escapeRegExp(folderName) + "/?"), "") || "根目录";
           if (!groups.has(key)) groups.set(key, []);
           groups.get(key).push(f);
         }
@@ -1544,7 +1623,8 @@
         for (const [group, items] of groups) {
           if (group !== "根目录") html += `<div class="file-group-title">${escapeHtml(group)}</div>`;
           for (const f of items) {
-            html += `<button class="file-item${f.path === activePath ? " active" : ""}" type="button" data-path="${escapeHtml(f.path)}"><span class="file-icon">文</span><span><div class="file-name">${escapeHtml(f.name)}</div><div class="file-path">${escapeHtml(f.path)}</div></span></button>`;
+            const dirtyMark = f.path === activePath && dirty ? " ·" : "";
+            html += `<button class="file-item${f.path === activePath ? " active" : ""}" type="button" data-path="${escapeHtml(f.path)}"><span class="file-icon">文</span><span><div class="file-name">${escapeHtml(f.name)}${dirtyMark}</div><div class="file-path">${escapeHtml(f.path)}</div></span></button>`;
           }
         }
         fileList.innerHTML = html;
@@ -1556,358 +1636,221 @@
         if (next) next.classList.add("active");
       }
 
-      function escapeRegExp(s) {
-        return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      }
-
       function showWelcome() {
         welcome.hidden = false;
-        article.hidden = true;
+        editorWrap.classList.remove("visible");
+        saveBtn.hidden = true;
         copyBtn.hidden = true;
-        topBtn.hidden = true;
+        readerEyebrow.classList.remove("dirty");
         readerEyebrow.textContent = "准备就绪";
-        readerTitle.textContent = "打开文件夹，开始阅读";
+        readerTitle.textContent = "打开文件夹，开始编辑";
         activePath = null;
-      }
-
-      function countWords(text) {
-        const cn = (text.match(/[\u4e00-\u9fff]/g) || []).length;
-        const en = (text.replace(/[\u4e00-\u9fff]/g, " ").match(/[A-Za-z0-9]+/g) || []).length;
-        return cn + en;
-      }
-
-      function dirname(path) {
-        const i = String(path).lastIndexOf("/");
-        return i <= 0 ? "" : path.slice(0, i);
-      }
-
-      function normalizePath(path) {
-        const parts = String(path || "").replace(/\\/g, "/").split("/");
-        const stack = [];
-        for (const part of parts) {
-          if (!part || part === ".") continue;
-          if (part === "..") {
-            if (stack.length) stack.pop();
-            continue;
-          }
-          stack.push(part);
-        }
-        return stack.join("/");
-      }
-
-      function splitHref(href) {
-        const raw = String(href || "").trim();
-        const hashIdx = raw.indexOf("#");
-        if (hashIdx < 0) return { path: raw, hash: "" };
-        return { path: raw.slice(0, hashIdx), hash: raw.slice(hashIdx + 1) };
-      }
-
-      function decodePath(path) {
-        try {
-          return decodeURIComponent(path);
-        } catch {
-          return path;
+        dirty = false;
+        baselineText = "";
+        if (vditor) {
+          try { vditor.setValue("", true); } catch (_) { /* ignore */ }
         }
       }
 
-      function resolveLocalPath(fromPath, hrefPath) {
-        let raw = decodePath(hrefPath).replace(/\\/g, "/").trim();
-        if (!raw) return "";
-        if (raw.startsWith("/")) {
-          return normalizePath(raw.replace(/^\/+/, ""));
-        }
-        const base = dirname(fromPath);
-        return normalizePath((base ? base + "/" : "") + raw);
+      function confirmDiscardIfDirty() {
+        if (!dirty) return true;
+        return window.confirm("当前文档有未保存更改，确定放弃吗？");
       }
 
-      function findLocalDoc(resolved) {
-        if (!resolved) return null;
-        const variants = new Set([resolved, resolved.replace(/^\.\//, "")]);
-        if (folderName) {
-          if (resolved === folderName || resolved.startsWith(folderName + "/")) {
-            variants.add(resolved.slice(folderName.length).replace(/^\//, ""));
-          } else {
-            variants.add(folderName + "/" + resolved);
-          }
-        }
-        for (const c of variants) {
-          const hit = files.find((f) => f.path === c);
-          if (hit) return hit;
-        }
-        for (const c of variants) {
-          const hit = files.find((f) => f.path.endsWith("/" + c));
-          if (hit) return hit;
-        }
-        const base = resolved.split("/").pop();
-        if (base && isMarkdown(base)) {
-          const hits = files.filter((f) => f.name === base);
-          if (hits.length === 1) return hits[0];
-        }
-        return null;
+      function ensureVditor() {
+        if (vditor) return Promise.resolve(vditor);
+        if (vditorReady) return vditorReady;
+
+        vditorReady = preloadMermaid().then(
+          () =>
+            new Promise((resolve) => {
+              vditor = new Vditor("vditor", {
+                cdn: VDITOR_CDN,
+                height: "100%",
+                mode: "ir",
+                theme: "classic",
+                icon: "ant",
+                placeholder: "开始编辑 Markdown…",
+                cache: { enable: false },
+                toolbar: [
+                  "headings", "bold", "italic", "strike", "|",
+                  "line", "quote", "list", "ordered-list", "check", "outdent", "indent", "|",
+                  "code", "inline-code", "link", "table", "|",
+                  "undo", "redo", "|",
+                  "edit-mode", "outline", "preview", "fullscreen",
+                ],
+                toolbarConfig: { pin: true },
+                preview: {
+                  theme: { current: "light" },
+                  hljs: { style: "kimbie-dark", lineNumber: false },
+                  math: { engine: "KaTeX", inlineDigit: true },
+                },
+                counter: {
+                  enable: true,
+                  type: "text",
+                  after: () => updateStatusRight(),
+                },
+                input: () => {
+                  if (!activePath) return;
+                  let nextDirty = true;
+                  try {
+                    nextDirty = vditor.getValue() !== baselineText;
+                  } catch (_) { /* ignore */ }
+                  setDirty(nextDirty);
+                  renderSidebarList();
+                },
+                ctrlEnter: () => {
+                  saveActiveFile();
+                },
+                after: () => {
+                  applyMermaidTheme();
+                  if (pendingOpenPath) {
+                    const path = pendingOpenPath;
+                    pendingOpenPath = null;
+                    openFile(path, { force: true });
+                  }
+                  resolve(vditor);
+                },
+              });
+            })
+        );
+
+        return vditorReady;
       }
 
-      function slugifyHeading(text) {
-        return String(text || "")
-          .trim()
-          .toLowerCase()
-          .replace(/\s+/g, "-")
-          .replace(/[^\w\u4e00-\u9fff-]/g, "");
-      }
-
-      function ensureHeadingIds() {
-        article.querySelectorAll("h1, h2, h3, h4, h5, h6").forEach((h) => {
-          if (!h.id) h.id = slugifyHeading(h.textContent);
-        });
-      }
-
-      function scrollToHash(hash) {
-        if (!hash) return;
-        const id = decodePath(hash);
-        const el =
-          article.querySelector(`#${CSS.escape(id)}`) ||
-          article.querySelector(`[name="${CSS.escape(id)}"]`);
-        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-
-      function isExternalHref(href) {
-        return /^(https?:|mailto:|tel:)/i.test(href) || href.startsWith("//");
-      }
-
-      async function handleArticleLink(anchor, e) {
-        const href = anchor.getAttribute("href");
-        if (!href || href === "#") return;
-
-        // 仅页内锚点
-        if (href.startsWith("#")) {
-          e.preventDefault();
-          ensureHeadingIds();
-          scrollToHash(href.slice(1));
-          return;
-        }
-
-        // 互联网 / 协议链接：新标签打开，不离开阅读器
-        if (isExternalHref(href)) {
-          e.preventDefault();
-          const url = href.startsWith("//") ? "https:" + href : href;
-          window.open(url, "_blank", "noopener,noreferrer");
-          return;
-        }
-
-        // 本地相对/绝对路径（相对当前文档或 vault）
-        e.preventDefault();
-        const { path: hrefPath, hash } = splitHref(href);
-        if (!hrefPath) {
-          ensureHeadingIds();
-          scrollToHash(hash);
-          return;
-        }
-
-        const resolved = resolveLocalPath(activePath || "", hrefPath);
-        const target = findLocalDoc(resolved);
-        if (!target) {
-          toast(`未找到本地文档：${resolved || hrefPath}`);
-          statusLeft.textContent = `链接无效：${resolved || hrefPath}`;
-          return;
-        }
-
-        if (target.path !== activePath) {
-          await openFile(target.path);
-        }
-        if (hash) {
-          ensureHeadingIds();
-          // 等渲染完成再滚
-          requestAnimationFrame(() => scrollToHash(hash));
-        }
-      }
-
-      async function enhanceArticle(text, seq) {
-        const needsMath = MATH_RE.test(text);
-        const needsMermaid = MERMAID_FENCE_RE.test(text) || !!article.querySelector(".mermaid");
-        ensureHeadingIds();
-        if (needsMath) {
-          await ensureKatex();
-          if (seq !== renderSeq) return;
-          renderMathInElement(article, {
-            delimiters: [
-              { left: "$$", right: "$$", display: true },
-              { left: "\\[", right: "\\]", display: true },
-              { left: "$", right: "$", display: false },
-              { left: "\\(", right: "\\)", display: false },
-            ],
-            throwOnError: false,
-          });
-        }
-        if (needsMermaid) {
-          const nodes = article.querySelectorAll(".mermaid");
-          if (nodes.length) {
-            await ensureMermaid();
-            if (seq !== renderSeq) return;
-            try { await mermaid.run({ nodes }); } catch (err) { console.warn("Mermaid render error", err); }
-          }
-        }
-      }
-
-      async function openFile(path) {
+      async function openFile(path, opts = {}) {
         const file = files.find((f) => f.path === path);
         if (!file) return;
-        const seq = ++renderSeq;
-        activePath = path;
-        setActiveFileItem(path);
-        readerEyebrow.textContent = file.dir === "." ? folderName || "文档" : file.dir;
-        readerTitle.textContent = file.name.replace(/\.(md|markdown|mdx|mdown)$/i, "");
+        if (!opts.force && path === activePath) return;
+        if (!opts.force && !confirmDiscardIfDirty()) return;
+
+        const seq = ++openSeq;
         welcome.hidden = true;
-        article.hidden = false;
+        editorWrap.classList.add("visible");
+        saveBtn.hidden = false;
         copyBtn.hidden = false;
-        topBtn.hidden = false;
         statusLeft.textContent = `正在打开 ${file.name}…`;
+
+        await ensureVditor();
+        if (seq !== openSeq) return;
+
         try {
           const text = await ensureFileText(file);
-          if (seq !== renderSeq) return;
-          let html = htmlCache.get(path);
-          if (!html) {
-            html = md.parse(text);
-            htmlCache.set(path, html);
-          }
-          article.innerHTML = html;
-          readerBody.scrollTop = 0;
-          statusLeft.textContent = `${file.name} · ${(file.size / 1024).toFixed(1)} KB`;
-          statusRight.textContent = `${countWords(text)} 字`;
-          await Promise.resolve();
-          if (seq !== renderSeq) return;
-          await enhanceArticle(text, seq);
+          if (seq !== openSeq) return;
+
+          activePath = path;
+          setActiveFileItem(path);
+          readerTitle.textContent = file.name.replace(/\.(md|markdown|mdx|mdown)$/i, "");
+          baselineText = text;
+          vditor.setValue(text, true);
+          setDirty(false);
+          statusLeft.textContent = `${file.name} · ${((file.size || text.length) / 1024).toFixed(1)} KB`;
+          updateStatusRight();
+          renderSidebarList();
+          applyMermaidTheme();
+          setTimeout(applyMermaidTheme, 400);
+          try { vditor.focus(); } catch (_) { /* ignore */ }
         } catch (err) {
           console.warn(err);
-          if (seq !== renderSeq) return;
-          article.innerHTML = "<p>无法读取该文件。</p>";
+          if (seq !== openSeq) return;
           statusLeft.textContent = "读取失败";
           toast("读取文件失败");
         }
       }
 
-      function closeLightbox() {
-        lightbox.classList.remove("open");
-        lightbox.setAttribute("aria-hidden", "true");
-        lightboxStage.innerHTML = "";
-        lightboxScale = 1;
+      function downloadMarkdown(filename, text) {
+        const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename || "document.md";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
       }
 
-      function applyLightboxScale() {
-        const svg = lightboxStage.querySelector("svg");
-        if (svg) svg.style.transform = `scale(${lightboxScale})`;
-      }
+      async function saveActiveFile() {
+        if (!activePath || !vditor) return;
+        const file = files.find((f) => f.path === activePath);
+        if (!file) return;
 
-      function openLightboxFromWrap(wrap) {
-        const svg = wrap.querySelector(".mermaid svg");
-        if (!svg) { toast("流程图尚未渲染完成"); return; }
-        lightboxScale = 1.25;
-        lightboxStage.innerHTML = "";
-        const clone = svg.cloneNode(true);
-        clone.removeAttribute("style");
-        clone.style.maxWidth = "none";
-        clone.style.width = clone.getAttribute("width") || "auto";
-        clone.style.height = "auto";
-        clone.style.transform = `scale(${lightboxScale})`;
-        lightboxStage.appendChild(clone);
-        lightbox.classList.add("open");
-        lightbox.setAttribute("aria-hidden", "false");
-      }
+        const text = vditor.getValue();
+        statusLeft.textContent = "正在保存…";
 
-      async function copyText(text, okMsg) {
-        try { await navigator.clipboard.writeText(text); toast(okMsg || "已复制"); }
-        catch { toast("复制失败"); }
-      }
-
-      async function copySvgAsPng(svg) {
-        const xml = new XMLSerializer().serializeToString(svg);
-        const url = URL.createObjectURL(new Blob([xml], { type: "image/svg+xml;charset=utf-8" }));
         try {
-          const img = await new Promise((resolve, reject) => {
-            const el = new Image();
-            el.onload = () => resolve(el);
-            el.onerror = reject;
-            el.src = url;
-          });
-          const scale = 2;
-          const canvas = document.createElement("canvas");
-          const w = img.naturalWidth || svg.viewBox?.baseVal?.width || svg.clientWidth || 800;
-          const h = img.naturalHeight || svg.viewBox?.baseVal?.height || svg.clientHeight || 600;
-          canvas.width = Math.max(1, Math.floor(w * scale));
-          canvas.height = Math.max(1, Math.floor(h * scale));
-          const ctx = canvas.getContext("2d");
-          ctx.fillStyle = "#ffffff";
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
-          if (!blob) throw new Error("toBlob failed");
-          if (navigator.clipboard && window.ClipboardItem) {
-            await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-            toast("已复制流程图图片");
-          } else {
-            const a = document.createElement("a");
-            a.href = URL.createObjectURL(blob);
-            a.download = "diagram.png";
-            a.click();
-            toast("当前浏览器不支持复制图片，已改为下载");
+          if (file.handle) {
+            const ok = await ensurePermission(file.handle, "readwrite");
+            if (!ok) {
+              toast("没有写权限，已改为下载");
+              downloadMarkdown(file.name, text);
+              baselineText = text;
+              file.text = text;
+              setDirty(false);
+              statusLeft.textContent = `${file.name} · 已下载`;
+              return;
+            }
+            const writable = await file.handle.createWritable();
+            await writable.write(text);
+            await writable.close();
+            file.text = text;
+            file.size = new Blob([text]).size;
+            baselineText = text;
+            setDirty(false);
+            statusLeft.textContent = `${file.name} · 已保存`;
+            toast("已写回本地文件");
+            renderSidebarList();
+            return;
           }
-        } finally {
-          URL.revokeObjectURL(url);
+
+          downloadMarkdown(file.name, text);
+          file.text = text;
+          baselineText = text;
+          setDirty(false);
+          statusLeft.textContent = `${file.name} · 已下载`;
+          toast("兼容模式：已下载 Markdown");
+          renderSidebarList();
+        } catch (err) {
+          console.warn(err);
+          statusLeft.textContent = "保存失败";
+          toast("保存失败");
         }
       }
 
-      lightboxClose.addEventListener("click", closeLightbox);
-      lightbox.addEventListener("click", (e) => { if (e.target === lightbox) closeLightbox(); });
-      lightboxZoomIn.addEventListener("click", () => { lightboxScale = Math.min(lightboxScale + 0.25, 4); applyLightboxScale(); });
-      lightboxZoomOut.addEventListener("click", () => { lightboxScale = Math.max(lightboxScale - 0.25, 0.5); applyLightboxScale(); });
-      document.addEventListener("keydown", (e) => { if (e.key === "Escape" && lightbox.classList.contains("open")) closeLightbox(); });
-
-      article.addEventListener("click", async (e) => {
-        const anchor = e.target.closest("a[href]");
-        if (anchor && article.contains(anchor)) {
-          await handleArticleLink(anchor, e);
-          return;
-        }
-
-        const btn = e.target.closest("[data-action]");
-        if (!btn) return;
-        const action = btn.getAttribute("data-action");
-        if (action === "zoom") {
-          const wrap = btn.closest(".diagram-wrap");
-          if (wrap) openLightboxFromWrap(wrap);
-          return;
-        }
-        if (action === "copy-code") {
-          await copyText(btn.closest(".diagram-wrap")?.querySelector(".mermaid-source")?.textContent || "", "已复制流程图代码");
-          return;
-        }
-        if (action === "copy-image") {
-          const svg = btn.closest(".diagram-wrap")?.querySelector(".mermaid svg");
-          if (!svg) { toast("流程图尚未渲染完成"); return; }
-          try { await copySvgAsPng(svg); } catch (err) { console.warn(err); toast("复制图片失败"); }
-          return;
-        }
-        if (action === "copy-code-block") {
-          await copyText(btn.closest(".code-block")?.querySelector(".code-source")?.textContent || "", "已复制代码");
+      pickBtn.addEventListener("click", async () => {
+        if (!confirmDiscardIfDirty()) return;
+        statusLeft.textContent = "正在打开文件夹选择…";
+        if (typeof window.showDirectoryPicker === "function") {
+          try {
+            await loadFromDirectoryHandle(await showDirectoryPicker({ mode: "readwrite" }));
+          } catch (err) {
+            if (err && err.name === "AbortError") {
+              statusLeft.textContent = "已取消选择";
+              return;
+            }
+            console.warn(err);
+            statusLeft.textContent = "请改用「浏览本地目录…」";
+            toast("目录 API 不可用，请改用下方「浏览本地目录…」");
+          }
+        } else {
+          toast("当前浏览器请使用「浏览本地目录…」（保存将下载）");
+          openLegacyFolderDialog();
         }
       });
 
-      pickBtn.addEventListener("click", async () => {
-        if (typeof window.showDirectoryPicker !== "function") {
-          toast("请使用 Chrome / Edge 打开本页（需要目录选择 API）");
-          statusLeft.textContent = "当前浏览器不支持选择文件夹";
+      dirInput.addEventListener("change", () => {
+        if (!confirmDiscardIfDirty()) {
+          dirInput.value = "";
           return;
         }
-        statusLeft.textContent = "正在打开文件夹选择…";
-        try {
-          await loadFromDirectoryHandle(await showDirectoryPicker({ mode: "read" }));
-        } catch (err) {
-          if (err && err.name === "AbortError") {
-            statusLeft.textContent = "已取消选择";
-            return;
-          }
-          console.warn(err);
-          statusLeft.textContent = "选择文件夹失败";
-          toast("选择文件夹失败，请确认使用 Chrome / Edge");
-        }
+        if (dirInput.files && dirInput.files.length) loadFromFileList(dirInput.files);
+      });
+
+      dirInput.addEventListener("click", (e) => {
+        e.stopPropagation();
+        dirInput.value = "";
+        statusLeft.textContent = "请在系统对话框中选择本地文件夹…";
+        toast("请选择本地文件夹（仅本机读取）");
       });
 
       let searchTimer = 0;
@@ -1922,46 +1865,47 @@
           removeRecentFolder(removeBtn.getAttribute("data-remove-recent"), e);
           return;
         }
-        const labelBtn = e.target.closest("[data-label-recent]");
-        if (labelBtn) {
-          editFolderPathLabel(labelBtn.getAttribute("data-label-recent"), e);
-          return;
-        }
         const recentBtn = e.target.closest("[data-recent-id]");
         if (recentBtn) {
+          if (!confirmDiscardIfDirty()) return;
           reopenRecentFolder(recentBtn.getAttribute("data-recent-id"));
           return;
         }
         const btn = e.target.closest(".file-item");
         if (!btn) return;
         const path = btn.dataset.path;
-        if (path === activePath) return;
         openFile(path);
       });
 
+      saveBtn.addEventListener("click", () => saveActiveFile());
+
       copyBtn.addEventListener("click", async () => {
-        const file = files.find((f) => f.path === activePath);
-        if (!file) return;
+        if (!vditor) return;
         try {
-          await navigator.clipboard.writeText(await ensureFileText(file));
+          await navigator.clipboard.writeText(vditor.getValue());
           toast("已复制 Markdown 原文");
-        } catch { toast("复制失败"); }
+        } catch {
+          toast("复制失败");
+        }
       });
 
-      topBtn.addEventListener("click", () => readerBody.scrollTo({ top: 0, behavior: "smooth" }));
-
-      (async () => {
-        try {
-          const all = await idbAllFolders();
-          await Promise.all(all.filter((r) => r.source === "legacy").map((r) => idbDeleteFolder(r.id)));
-        } catch (err) { console.warn(err); }
-        await refreshRecentFolders();
-        renderSidebarList();
-        if (typeof window.showDirectoryPicker !== "function") {
-          statusLeft.textContent = "请使用 Chrome / Edge";
-          toast("墨览需要 Chrome / Edge");
+      document.addEventListener("keydown", (e) => {
+        const key = e.key.toLowerCase();
+        if ((e.metaKey || e.ctrlKey) && key === "s") {
+          e.preventDefault();
+          saveActiveFile();
         }
-      })().catch((err) => console.warn(err));
+      });
+
+      window.addEventListener("beforeunload", (e) => {
+        if (!dirty) return;
+        e.preventDefault();
+        e.returnValue = "";
+      });
+
+      refreshRecentFolders()
+        .then(() => renderSidebarList())
+        .catch((err) => console.warn(err));
     })();
   </script>
 </body>

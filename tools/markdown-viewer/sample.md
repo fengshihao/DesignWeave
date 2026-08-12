@@ -1,6 +1,6 @@
 # 墨览示例文档
 
-> 用本文件验证代码、流程图、公式与表格渲染。
+> 用本文件验证所见即所得编辑、代码、流程图、公式与表格。
 
 ## 行内与强调
 
@@ -10,13 +10,13 @@
 
 - [x] 选择本地文件夹
 - [x] 列出 Markdown
-- [ ] 继续写下一篇文档
+- [ ] 在 Vditor 中编辑并保存
 
 ## 表格
 
 | 元素 | 引擎 | 说明 |
 | --- | --- | --- |
-| 代码高亮 | highlight.js | 常见语言着色 |
+| 代码高亮 | Vditor | 常见语言着色 |
 | 流程图 | Mermaid | mermaid 代码块 |
 | 数学公式 | KaTeX | 行内与块级公式 |
 | 表格 | GFM | 管道表格 |
@@ -41,7 +41,8 @@ flowchart LR
   B --> C{是否有文档}
   C -->|有| D[侧栏列表]
   C -->|无| E[提示为空]
-  D --> F[渲染阅读]
+  D --> F[Vditor 编辑]
+  F --> G[写回本地]
 ```
 
 ## 数学公式
@@ -51,18 +52,13 @@ flowchart LR
 块级公式：
 
 $$
-\int_{-\infty}^{\infty} e^{-x^2}\,dx = \sqrt{\pi}
-$$
-
-$$
-\begin{aligned}
-\nabla \cdot \mathbf{E} &= \frac{\rho}{\varepsilon_0} \\
-\nabla \times \mathbf{B} &= \mu_0\mathbf{J} + \mu_0\varepsilon_0\frac{\partial\mathbf{E}}{\partial t}
-\end{aligned}
+\int_{-\infty}^{\infty} e^{-x^2} dx = \sqrt{\pi}
 $$
 
 ## 引用
 
-> 文档应就近可读，不必先上传云端。
->
-> —— 墨览设计备忘
+> 本地 Markdown 目录是真相源；编辑器只是打开它的窗口。
+
+## 保存验收
+
+改完本节标题或勾选任务后，按 `Cmd/Ctrl+S`（或点「保存」），再用外部编辑器确认文件已更新。
