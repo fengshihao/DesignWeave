@@ -957,18 +957,24 @@
       opacity: 0.45;
     }
 
-    /* 流程图预览悬浮操作条 */
+    /* 流程图预览悬浮操作条（图标按钮） */
     .molan-diagram-toolbar {
       position: absolute;
       top: 8px;
       right: 8px;
       z-index: 3;
       display: flex;
-      gap: 6px;
-      opacity: 0.72;
+      gap: 4px;
+      padding: 3px;
+      border-radius: 999px;
+      background: rgba(250, 247, 241, 0.88);
+      border: 1px solid rgba(28, 25, 20, 0.08);
+      box-shadow: 0 6px 18px rgba(28, 25, 20, 0.1);
+      opacity: 0.78;
       transform: translateY(0);
       transition: opacity 0.18s ease;
       pointer-events: auto;
+      backdrop-filter: blur(6px);
     }
 
     .vditor-ir__preview:has(.language-mermaid):hover .molan-diagram-toolbar,
@@ -978,30 +984,67 @@
       opacity: 1;
     }
 
-    .molan-diagram-toolbar button {
+    .icon-btn {
       appearance: none;
-      border: 1px solid rgba(28, 25, 20, 0.1);
-      background: rgba(250, 247, 241, 0.92);
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid transparent;
+      background: transparent;
       color: var(--ink-soft);
       border-radius: 999px;
-      padding: 4px 10px;
-      font-size: 0.72rem;
-      font-weight: 600;
-      font-family: var(--font-ui);
       cursor: pointer;
-      box-shadow: 0 4px 12px rgba(28, 25, 20, 0.08);
+      flex: 0 0 auto;
+      line-height: 0;
     }
 
-    .molan-diagram-toolbar button:hover {
-      border-color: rgba(212, 119, 59, 0.35);
+    .icon-btn svg {
+      width: 15px;
+      height: 15px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.85;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      pointer-events: none;
+    }
+
+    .icon-btn:hover {
+      border-color: rgba(212, 119, 59, 0.28);
       color: var(--accent);
       background: #fff;
     }
 
-    .molan-diagram-toolbar button[data-molan-action="edit"] {
-      border-color: rgba(212, 119, 59, 0.35);
+    .icon-btn:focus-visible {
+      outline: 2px solid rgba(212, 119, 59, 0.45);
+      outline-offset: 1px;
+    }
+
+    .molan-diagram-toolbar .icon-btn[data-molan-action="edit"] {
       color: #a85a24;
       background: rgba(255, 248, 240, 0.96);
+      border-color: rgba(212, 119, 59, 0.28);
+    }
+
+    .molan-diagram-toolbar .icon-btn[data-molan-action="edit"]:hover {
+      background: #fff;
+      color: var(--accent);
+    }
+
+    .lightbox-actions .icon-btn {
+      width: 32px;
+      height: 32px;
+      border: 1px solid rgba(28, 25, 20, 0.1);
+      background: rgba(255, 255, 255, 0.85);
+      box-shadow: 0 2px 8px rgba(28, 25, 20, 0.06);
+    }
+
+    .lightbox-actions .icon-btn svg {
+      width: 16px;
+      height: 16px;
     }
 
     .lightbox {
@@ -1056,7 +1099,7 @@
 
     .lightbox-actions {
       display: flex;
-      gap: 8px;
+      gap: 6px;
       align-items: center;
       flex-wrap: wrap;
       justify-content: flex-end;
@@ -1287,11 +1330,21 @@
           <span class="hint">拖动平移 · 滚轮缩放 · Esc 关闭</span>
         </div>
         <div class="lightbox-actions">
-          <button class="chip" type="button" id="lightboxZoomOut">缩小</button>
-          <button class="chip" type="button" id="lightboxZoomIn">放大</button>
-          <button class="chip" type="button" id="lightboxReset">复位</button>
-          <button class="chip" type="button" id="lightboxCopyImage">复制图片</button>
-          <button class="chip" type="button" id="lightboxClose">关闭</button>
+          <button class="icon-btn" type="button" id="lightboxZoomOut" title="缩小" aria-label="缩小">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M8 11h6M21 21l-4.3-4.3"/></svg>
+          </button>
+          <button class="icon-btn" type="button" id="lightboxZoomIn" title="放大" aria-label="放大">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M11 8v6M8 11h6M21 21l-4.3-4.3"/></svg>
+          </button>
+          <button class="icon-btn" type="button" id="lightboxReset" title="复位" aria-label="复位">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+          </button>
+          <button class="icon-btn" type="button" id="lightboxCopyImage" title="复制图片" aria-label="复制图片">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="M3 16l5-4 4 3 3-2 6 5"/></svg>
+          </button>
+          <button class="icon-btn" type="button" id="lightboxClose" title="关闭" aria-label="关闭">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
         </div>
       </div>
       <div class="lightbox-stage" id="lightboxStage">
@@ -1816,10 +1869,18 @@
           const bar = document.createElement("div");
           bar.className = "molan-diagram-toolbar";
           bar.innerHTML = `
-            <button type="button" data-molan-action="edit">编辑</button>
-            <button type="button" data-molan-action="zoom">观看</button>
-            <button type="button" data-molan-action="copy-code">复制代码</button>
-            <button type="button" data-molan-action="copy-image">复制图片</button>
+            <button type="button" class="icon-btn" data-molan-action="edit" title="编辑源码" aria-label="编辑源码">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg>
+            </button>
+            <button type="button" class="icon-btn" data-molan-action="zoom" title="观看（拖动/缩放）" aria-label="观看流程图">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3H5a2 2 0 0 0-2 2v4"/><path d="M15 3h4a2 2 0 0 1 2 2v4"/><path d="M9 21H5a2 2 0 0 1-2-2v-4"/><path d="M15 21h4a2 2 0 0 0 2-2v-4"/></svg>
+            </button>
+            <button type="button" class="icon-btn" data-molan-action="copy-code" title="复制代码" aria-label="复制代码">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2"/><rect x="4" y="8" width="12" height="12" rx="2"/></svg>
+            </button>
+            <button type="button" class="icon-btn" data-molan-action="copy-image" title="复制图片" aria-label="复制图片">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="M3 16l5-4 4 3 3-2 6 5"/></svg>
+            </button>
           `;
           shell.appendChild(bar);
         });
