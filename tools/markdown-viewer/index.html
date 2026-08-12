@@ -215,6 +215,69 @@
     .folder-meta.visible { display: block; }
     .folder-meta strong { color: var(--accent-soft); font-weight: 600; }
 
+    .recent-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 2px;
+      align-items: stretch;
+    }
+
+    .recent-item {
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      border: 1px solid transparent;
+      color: #e8e2d6;
+      border-radius: 8px;
+      padding: 7px 8px;
+      cursor: pointer;
+      display: grid;
+      grid-template-columns: 20px 1fr;
+      gap: 7px;
+      align-items: center;
+      font-family: var(--font-ui);
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+
+    .recent-item:hover {
+      background: rgba(255,255,255,0.05);
+      border-color: rgba(255,255,255,0.06);
+    }
+
+    .recent-item .file-icon {
+      background: rgba(232, 160, 106, 0.14);
+    }
+
+    .recent-name {
+      font-size: 0.78rem;
+      font-weight: 550;
+      line-height: 1.25;
+      word-break: break-word;
+    }
+
+    .recent-meta {
+      margin-top: 1px;
+      font-size: 0.62rem;
+      color: rgba(232, 226, 214, 0.4);
+    }
+
+    .recent-remove {
+      appearance: none;
+      border: none;
+      background: transparent;
+      color: rgba(232, 226, 214, 0.35);
+      cursor: pointer;
+      font-size: 0.85rem;
+      line-height: 1;
+      padding: 4px 6px;
+      border-radius: 6px;
+    }
+
+    .recent-remove:hover {
+      color: #e8a06a;
+      background: rgba(255,255,255,0.06);
+    }
+
     .file-list {
       flex: 1;
       overflow: auto;
@@ -867,7 +930,7 @@
             <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
             <path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
           </svg>
-          <input class="search" id="searchInput" type="search" placeholder="筛选文档…" disabled />
+          <input class="search" id="searchInput" type="search" placeholder="搜索文档或最近目录…" />
         </div>
       </div>
 
@@ -898,7 +961,7 @@
           <h2>把本地文档<br />摊开在<em>同一张纸</em>上</h2>
           <p>选择任意文件夹，自动扫描其中的 Markdown。支持 GFM 表格、围栏代码高亮、Mermaid 流程图，以及 KaTeX 数学公式——全部在浏览器本地完成，文件不会离开本机。</p>
           <p style="color:var(--ink-muted);font-size:0.92rem;margin-top:-12px;margin-bottom:12px;line-height:1.6;">「选择文件夹」用较新的目录 API（Chrome 会先弹出授权）；「浏览本地目录…」用系统文件对话框。两者都只在本机读取，不会发到任何服务器。</p>
-          <p style="color:var(--ink-muted);font-size:0.88rem;margin-bottom:28px;line-height:1.55;padding:12px 14px;border-radius:12px;background:rgba(212,119,59,0.08);border:1px solid rgba(212,119,59,0.18);">若在 Cursor 内置浏览器里点击无反应，属正常限制（无法弹出系统授权/文件夹对话框）。请用 Chrome / Edge / Safari 打开本页后再选文件夹。</p>
+          <p style="color:var(--ink-muted);font-size:0.88rem;margin-bottom:28px;line-height:1.55;padding:12px 14px;border-radius:12px;background:rgba(212,119,59,0.08);border:1px solid rgba(212,119,59,0.18);">打开过的目录会保存在本机「最近目录」中，可搜索、按最近使用排序；Chrome 下通常可一键重新打开。若在 Cursor 内置浏览器里点击无反应，请改用系统浏览器。</p>
           <div class="feature-grid">
             <div class="feature"><strong>代码高亮</strong><span>常见语言语法着色，深色代码块便于阅读</span></div>
             <div class="feature"><strong>流程图</strong><span>识别 mermaid 代码块并即时渲染</span></div>
@@ -961,12 +1024,197 @@
       let files = [];
       let activePath = null;
       let folderName = "";
+      let currentFolderId = null;
+      let recentFolders = [];
       let renderSeq = 0;
       let lightboxScale = 1;
       const htmlCache = new Map();
       const scriptCache = new Map();
       const MATH_RE = /\$\$|\\\(|\\\[|(^|[^\\])\$/m;
       const MERMAID_FENCE_RE = /```mermaid\b/i;
+      const DB_NAME = "molan-viewer";
+      const DB_STORE = "folders";
+      const MAX_RECENT = 30;
+
+      function openDb() {
+        return new Promise((resolve, reject) => {
+          const req = indexedDB.open(DB_NAME, 1);
+          req.onupgradeneeded = () => {
+            const db = req.result;
+            if (!db.objectStoreNames.contains(DB_STORE)) {
+              db.createObjectStore(DB_STORE, { keyPath: "id" });
+            }
+          };
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        });
+      }
+
+      async function idbAllFolders() {
+        const db = await openDb();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction(DB_STORE, "readonly");
+          const req = tx.objectStore(DB_STORE).getAll();
+          req.onsuccess = () => resolve(req.result || []);
+          req.onerror = () => reject(req.error);
+        });
+      }
+
+      async function idbPutFolder(record) {
+        const db = await openDb();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction(DB_STORE, "readwrite");
+          tx.objectStore(DB_STORE).put(record);
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
+      }
+
+      async function idbDeleteFolder(id) {
+        const db = await openDb();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction(DB_STORE, "readwrite");
+          tx.objectStore(DB_STORE).delete(id);
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
+      }
+
+      function formatRelativeTime(ts) {
+        const diff = Date.now() - ts;
+        if (diff < 60_000) return "刚刚";
+        if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} 分钟前`;
+        if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)} 小时前`;
+        if (diff < 86_400_000 * 7) return `${Math.floor(diff / 86_400_000)} 天前`;
+        return new Date(ts).toLocaleDateString("zh-CN");
+      }
+
+      async function refreshRecentFolders() {
+        try {
+          const all = await idbAllFolders();
+          recentFolders = all.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+        } catch (err) {
+          console.warn(err);
+          recentFolders = [];
+        }
+      }
+
+      async function rememberDirectoryHandle(handle) {
+        const all = await idbAllFolders();
+        let record = null;
+        for (const rec of all) {
+          if (rec.handle && typeof rec.handle.isSameEntry === "function") {
+            try {
+              if (await rec.handle.isSameEntry(handle)) {
+                record = rec;
+                break;
+              }
+            } catch (_) { /* ignore */ }
+          }
+        }
+        if (!record) {
+          record = {
+            id: crypto.randomUUID(),
+            name: handle.name,
+            source: "fs-access",
+            handle,
+            lastUsed: Date.now(),
+            fileCount: files.length || 0,
+          };
+        } else {
+          record.name = handle.name;
+          record.handle = handle;
+          record.source = "fs-access";
+          record.lastUsed = Date.now();
+          record.fileCount = files.length || record.fileCount || 0;
+        }
+        await idbPutFolder(record);
+        currentFolderId = record.id;
+        await pruneRecentFolders();
+        await refreshRecentFolders();
+        return record;
+      }
+
+      async function rememberLegacyFolder(name, fileCount) {
+        const id = "legacy:" + name;
+        const all = await idbAllFolders();
+        const existing = all.find((r) => r.id === id) || {
+          id,
+          name,
+          source: "legacy",
+          handle: null,
+        };
+        existing.lastUsed = Date.now();
+        existing.fileCount = fileCount;
+        existing.name = name;
+        await idbPutFolder(existing);
+        currentFolderId = existing.id;
+        await pruneRecentFolders();
+        await refreshRecentFolders();
+      }
+
+      async function pruneRecentFolders() {
+        const all = await idbAllFolders();
+        if (all.length <= MAX_RECENT) return;
+        const sorted = all.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+        await Promise.all(sorted.slice(MAX_RECENT).map((r) => idbDeleteFolder(r.id)));
+      }
+
+      async function touchCurrentFolder(fileCount) {
+        if (!currentFolderId) return;
+        try {
+          const all = await idbAllFolders();
+          const rec = all.find((r) => r.id === currentFolderId);
+          if (!rec) return;
+          rec.lastUsed = Date.now();
+          if (typeof fileCount === "number") rec.fileCount = fileCount;
+          await idbPutFolder(rec);
+          await refreshRecentFolders();
+        } catch (err) {
+          console.warn(err);
+        }
+      }
+
+      async function reopenRecentFolder(id) {
+        const rec = recentFolders.find((r) => r.id === id) || (await idbAllFolders()).find((r) => r.id === id);
+        if (!rec) {
+          toast("记录不存在");
+          return;
+        }
+        if (rec.handle) {
+          try {
+            let state = "prompt";
+            if (typeof rec.handle.queryPermission === "function") {
+              state = await rec.handle.queryPermission({ mode: "read" });
+            }
+            if (state !== "granted" && typeof rec.handle.requestPermission === "function") {
+              state = await rec.handle.requestPermission({ mode: "read" });
+            }
+            if (state !== "granted") {
+              toast("需要授权才能重新打开该目录");
+              return;
+            }
+            statusLeft.textContent = `正在打开 ${rec.name}…`;
+            await loadFromDirectoryHandle(rec.handle);
+            return;
+          } catch (err) {
+            console.warn(err);
+            toast("无法直接打开，请重新选择该文件夹");
+            return;
+          }
+        }
+        toast(`「${rec.name}」需再次选择（兼容模式无法直接恢复）`);
+        openLegacyFolderDialog();
+      }
+
+      async function removeRecentFolder(id, e) {
+        e?.stopPropagation?.();
+        await idbDeleteFolder(id);
+        if (currentFolderId === id) currentFolderId = null;
+        await refreshRecentFolders();
+        renderSidebarList();
+        toast("已从最近记录中移除");
+      }
 
       function loadScript(src) {
         if (scriptCache.has(src)) return scriptCache.get(src);
@@ -1108,7 +1356,15 @@
       async function loadFromDirectoryHandle(handle) {
         folderName = handle.name;
         statusLeft.textContent = "正在扫描…";
-        setFiles(await collectFromDirectoryHandle(handle));
+        const collected = await collectFromDirectoryHandle(handle);
+        setFiles(collected);
+        try {
+          await rememberDirectoryHandle(handle);
+          await touchCurrentFolder(collected.length);
+          renderSidebarList();
+        } catch (err) {
+          console.warn(err);
+        }
       }
 
       function loadFromFileList(fileListObj) {
@@ -1124,7 +1380,7 @@
         }
         const firstRel = mdFiles[0].webkitRelativePath || mdFiles[0].name;
         folderName = firstRel.split("/")[0] || "文件夹";
-        setFiles(mdFiles.map((file) => {
+        const list = mdFiles.map((file) => {
           const rel = file.webkitRelativePath || file.name;
           const parts = rel.split("/");
           return {
@@ -1134,7 +1390,11 @@
             size: file.size,
             fileRef: file,
           };
-        }));
+        });
+        setFiles(list);
+        rememberLegacyFolder(folderName, list.length)
+          .then(() => renderSidebarList())
+          .catch((err) => console.warn(err));
       }
 
       function openLegacyFolderDialog() {
@@ -1145,7 +1405,6 @@
       function setFiles(list) {
         htmlCache.clear();
         files = list.sort((a, b) => a.path.localeCompare(b.path, "zh-CN"));
-        searchInput.disabled = files.length === 0;
         searchInput.value = "";
         folderMeta.classList.toggle("visible", !!files.length);
         folderMeta.innerHTML = files.length
@@ -1153,7 +1412,7 @@
           : "";
         statusLeft.textContent = files.length ? `已索引 ${files.length} 篇 Markdown` : "未找到 Markdown 文件";
         statusRight.textContent = folderName || "本地 · 不上云";
-        renderFileList();
+        renderSidebarList();
         if (files.length) openFile(files[0].path);
         else {
           showWelcome();
@@ -1161,26 +1420,59 @@
         }
       }
 
-      function renderFileList() {
+      function renderRecentSection(q) {
+        const matched = recentFolders.filter((r) => !q || (r.name || "").toLowerCase().includes(q));
+        if (!matched.length) return "";
+        let html = `<div class="file-group-title">最近目录</div>`;
+        for (const r of matched) {
+          const count = typeof r.fileCount === "number" ? `${r.fileCount} 篇 · ` : "";
+          const mode = r.handle ? "可直接打开" : "需再次选择";
+          html += `<div class="recent-row">
+            <button class="recent-item" type="button" data-recent-id="${escapeHtml(r.id)}">
+              <span class="file-icon">夹</span>
+              <span>
+                <div class="recent-name">${escapeHtml(r.name || "未命名")}</div>
+                <div class="recent-meta">${count}${formatRelativeTime(r.lastUsed || 0)} · ${mode}</div>
+              </span>
+            </button>
+            <button class="recent-remove" type="button" data-remove-recent="${escapeHtml(r.id)}" title="移除记录">×</button>
+          </div>`;
+        }
+        return html;
+      }
+
+      function renderSidebarList() {
         const q = searchInput.value.trim().toLowerCase();
+        const recentHtml = renderRecentSection(q);
         const filtered = files.filter((f) => !q || f.path.toLowerCase().includes(q) || f.name.toLowerCase().includes(q));
+
         if (!files.length) {
-          fileList.innerHTML = `<div class="empty-side"><span class="glyph">卷</span><p>选择一个本地文件夹后，这里会列出其中全部 Markdown 文档。</p></div>`;
+          if (recentHtml) {
+            fileList.innerHTML = recentHtml;
+            return;
+          }
+          fileList.innerHTML = `<div class="empty-side"><span class="glyph">卷</span><p>选择一个本地文件夹后，这里会列出文档；打开过的目录会记在「最近目录」里，可搜索并按使用时间排序。</p></div>`;
           return;
         }
+
+        let html = recentHtml;
         if (!filtered.length) {
-          fileList.innerHTML = `<div class="empty-side"><span class="glyph">空</span><p>没有匹配「${escapeHtml(searchInput.value)}」的文档。</p></div>`;
+          html += recentHtml
+            ? `<div class="empty-side" style="padding:18px 8px"><p>当前文件夹没有匹配「${escapeHtml(searchInput.value)}」的文档。</p></div>`
+            : `<div class="empty-side"><span class="glyph">空</span><p>没有匹配「${escapeHtml(searchInput.value)}」的文档。</p></div>`;
+          fileList.innerHTML = html;
           return;
         }
+
         const groups = new Map();
         for (const f of filtered) {
           const key = f.dir === "." || f.dir === folderName ? "根目录" : f.dir.replace(new RegExp("^" + escapeRegExp(folderName) + "/?"), "") || "根目录";
           if (!groups.has(key)) groups.set(key, []);
           groups.get(key).push(f);
         }
-        let html = "";
+        html += `<div class="file-group-title">当前文档</div>`;
         for (const [group, items] of groups) {
-          html += `<div class="file-group-title">${escapeHtml(group)}</div>`;
+          if (group !== "根目录") html += `<div class="file-group-title">${escapeHtml(group)}</div>`;
           for (const f of items) {
             html += `<button class="file-item${f.path === activePath ? " active" : ""}" type="button" data-path="${escapeHtml(f.path)}"><span class="file-icon">文</span><span><div class="file-name">${escapeHtml(f.name)}</div><div class="file-path">${escapeHtml(f.path)}</div></span></button>`;
           }
@@ -1558,10 +1850,20 @@
       let searchTimer = 0;
       searchInput.addEventListener("input", () => {
         clearTimeout(searchTimer);
-        searchTimer = setTimeout(() => renderFileList(), 80);
+        searchTimer = setTimeout(() => renderSidebarList(), 80);
       });
 
       fileList.addEventListener("click", (e) => {
+        const removeBtn = e.target.closest("[data-remove-recent]");
+        if (removeBtn) {
+          removeRecentFolder(removeBtn.getAttribute("data-remove-recent"), e);
+          return;
+        }
+        const recentBtn = e.target.closest("[data-recent-id]");
+        if (recentBtn) {
+          reopenRecentFolder(recentBtn.getAttribute("data-recent-id"));
+          return;
+        }
         const btn = e.target.closest(".file-item");
         if (!btn) return;
         const path = btn.dataset.path;
@@ -1579,6 +1881,10 @@
       });
 
       topBtn.addEventListener("click", () => readerBody.scrollTo({ top: 0, behavior: "smooth" }));
+
+      refreshRecentFolders()
+        .then(() => renderSidebarList())
+        .catch((err) => console.warn(err));
     })();
   </script>
 </body>
