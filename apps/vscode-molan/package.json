@@ -1,8 +1,8 @@
 {
   "name": "molan-markdown",
   "displayName": "墨览 Markdown",
-  "description": "用墨览打开 Markdown：默认预览，随时编辑，保存写回原文件。",
-  "version": "0.1.2",
+  "description": "用墨览打开 Markdown：点开即可编辑，保存写回原文件。",
+  "version": "0.1.3",
   "publisher": "fengshihao",
   "license": "MIT",
   "icon": "icon.png",

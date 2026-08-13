@@ -9,10 +9,10 @@
 | Publisher ID | `fengshihao` |
 | Extension ID / name | `molan-markdown` |
 | Display name / 显示名称 | 墨览 Markdown |
-| Short description / 简短说明 | 用墨览打开 Markdown：默认预览，随时编辑，保存写回原文件。 |
+| Short description / 简短说明 | 用墨览打开 Markdown：点开即可编辑，保存写回原文件。 |
 | Categories / 分类 | Other |
 | Tags / 标签 | markdown, vditor, wysiwyg, 墨览, mermaid, typora |
-| Version | 0.1.2 |
+| Version | 0.1.3 |
 | License | MIT |
 | Repository | https://github.com/fengshihao/DesignWeave.git |
 | Homepage | https://github.com/fengshihao/DesignWeave/tree/main/apps/vscode-molan |
@@ -28,11 +28,11 @@
 | 高清原图（备用） | `media/icon-1024.png` | 1024×1024，市场网页若要更大图用这个 |
 | 商店截图 | `media/screenshot.jpg` | 已压缩 JPEG，写入 README |
 | 许可证 | `LICENSE` | MIT |
-| 更新日志 | `CHANGELOG.md` | 0.1.2 |
+| 更新日志 | `CHANGELOG.md` | 0.1.3 |
 
 完整介绍就是 `README.md`（面向普通用户，市场详情页会自动用它）。开发调试见 `DEV.md`。
 
-商店 README 里的截图**不会**从 vsix 里读，而是去拉 GitHub 上的公开 HTTPS 地址。本扩展在仓库子目录，打包时必须带 `--baseImagesUrl .../apps/vscode-molan`（已写进 `package.json` 脚本）。另外仓库目前是 **Private**，商店访客打不开 GitHub 图，需要把仓库设为 Public，截图才会出现。
+商店 README 里的截图**不会**从 vsix 里读，而是去拉 GitHub 上的公开 HTTPS 地址。本扩展在仓库子目录，打包时必须带 `--baseImagesUrl .../apps/vscode-molan`（已写进 `package.json` 脚本）。仓库需为 Public，商店才能显示截图。
 
 ## 发布命令
 
@@ -53,4 +53,4 @@ npx @vscode/vsce publish --no-dependencies --baseContentUrl https://github.com/f
 pnpm --filter molan-markdown package
 ```
 
-Cursor 用户走 Open VSX（另一套账号）：https://open-vsx.org/ ，用 `npx ovsx publish molan-markdown-0.1.2.vsix -p <token>`。
+Cursor 用户走 Open VSX（另一套账号）：https://open-vsx.org/ ，用 `npx ovsx publish molan-markdown-0.1.3.vsix -p <token>`。

@@ -511,9 +511,10 @@
           "undo", "redo", "|",
           "edit-mode", "outline", "preview", "fullscreen",
         ],
-        toolbarConfig: { pin: true },
+        toolbarConfig: { pin: true, hide: false },
         preview: {
           delay: 800,
+          maxWidth: 2400,
           actions: options.previewActions || [],
           theme: { current: "light" },
           hljs: { style: "kimbie-dark", lineNumber: false },

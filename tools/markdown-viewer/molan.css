@@ -573,17 +573,43 @@
       border: none !important;
       border-radius: 0 !important;
       background: transparent !important;
+      display: flex !important;
+      flex-direction: column !important;
+      height: 100% !important;
     }
 
     .vditor-toolbar {
-      background: rgba(244, 239, 230, 0.92) !important;
+      display: flex !important;
+      flex-wrap: wrap;
+      align-items: center;
+      flex-shrink: 0;
+      min-height: 36px;
+      overflow: visible !important;
+      z-index: 3;
+      background: rgba(244, 239, 230, 0.96) !important;
       border-bottom: 1px solid rgba(28, 25, 20, 0.08) !important;
-      padding-left: 12px !important;
-      padding-right: 12px !important;
+      padding-left: 8px !important;
+      padding-right: 8px !important;
+    }
+
+    .vditor-toolbar__item,
+    .vditor-toolbar__divider {
+      float: none !important;
     }
 
     .vditor-toolbar__item .vditor-tooltipped {
       color: var(--ink-soft) !important;
+    }
+
+    .vditor-toolbar__item svg {
+      width: 15px;
+      height: 15px;
+      fill: currentColor;
+    }
+
+    .vditor-content {
+      flex: 1;
+      min-height: 0;
     }
 
     .vditor-content,
@@ -600,9 +626,12 @@
     .vditor-wysiwyg > .vditor-reset,
     .vditor-sv .vditor-reset,
     .vditor-preview .vditor-reset {
-      max-width: 1100px;
+      max-width: none !important;
+      width: 100%;
+      box-sizing: border-box;
       margin: 0 auto !important;
-      padding: 22px 36px 48px !important;
+      padding: 22px 40px 56px !important;
+      overflow-x: auto;
       font-family: var(--font-ui) !important;
       font-size: 0.98rem !important;
       line-height: 1.58 !important;
@@ -709,12 +738,13 @@
     }
 
     .vditor-reset table {
-      width: 100%;
+      width: max-content;
+      max-width: none;
       border-collapse: separate !important;
       border-spacing: 0;
       margin: 1.4em 0 !important;
       font-size: 0.92rem;
-      overflow: hidden;
+      overflow: visible;
       border-radius: 12px;
       border: 1px solid rgba(28, 25, 20, 0.1) !important;
       background: #fff;

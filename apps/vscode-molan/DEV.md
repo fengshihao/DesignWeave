@@ -22,9 +22,9 @@ pnpm --filter molan-markdown package
 会在 `apps/vscode-molan/` 生成 `.vsix`：
 
 ```bash
-code --install-extension apps/vscode-molan/molan-markdown-0.1.2.vsix
+code --install-extension apps/vscode-molan/molan-markdown-0.1.3.vsix
 # Cursor：
-cursor --install-extension apps/vscode-molan/molan-markdown-0.1.2.vsix
+cursor --install-extension apps/vscode-molan/molan-markdown-0.1.3.vsix
 ```
 
 ## 实现要点
@@ -33,7 +33,7 @@ cursor --install-extension apps/vscode-molan/molan-markdown-0.1.2.vsix
 - 与浏览器工作室共用 `tools/markdown-viewer` 的 `molan.css` + `molan-editor.js`；编译时拷贝进扩展
 - 内置裁剪后的 Vditor 3.10.9（Lute + Mermaid + KaTeX + highlight），不依赖外网 CDN
 - 撤销由 Vditor 处理；VS Code 负责脏状态、保存、热退出备份
-- 打开默认预览；`setValue`/`getValue` 往返不标脏，只有真正编辑才询问保存
+- 打开默认编辑；`setValue`/`getValue` 往返不标脏，只有真正编辑才询问保存
 
 填表与发布见 `MARKETPLACE.md`。
 

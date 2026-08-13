@@ -64,14 +64,16 @@ const editorSource = readFileSync(join(viewer, "molan-editor.js"), "utf8");
 assert(editorSource.includes("global.MolanEditor"), "exports MolanEditor");
 assert(editorSource.includes("create("), "has create()");
 assert(editorSource.includes("setPreview"), "preview mode API");
+assert(editorSource.includes("hide: false"), "toolbar stays visible");
 
 const bridge = readFileSync(join(root, "media/vscode-bridge.js"), "utf8");
-assert(bridge.includes("setPreview(true)"), "opens in preview");
+assert(bridge.includes('msg.type === "setContent" && api.isPreview()'), "only refreshes preview on external reload");
+assert(!bridge.includes("msg.type === \"init\" || api.isPreview()"), "does not force preview on init");
 assert(bridge.includes("value !== baseline"), "ignores Vditor setValue round-trip");
 
 const readme = readFileSync(join(root, "README.md"), "utf8");
 assert(readme.includes("![墨览编辑器](media/screenshot.jpg)"), "store screenshot");
-assert(readme.includes("默认是**预览**") || readme.includes("默认是预览"), "user-facing preview copy");
+assert(readme.includes("默认就是**编辑**") || readme.includes("默认就是编辑"), "user-facing edit default");
 assert(!readme.includes("pnpm --filter"), "README must not contain packaging commands");
 assert(!readme.includes("viewType"), "README must not contain implementation jargon");
 assert(existsSync(join(root, "DEV.md")), "developer docs live in DEV.md");
