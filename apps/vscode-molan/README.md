@@ -1,6 +1,6 @@
 # 墨览 · VS Code / Cursor 扩展
 
-把 `tools/markdown-viewer` 里的墨览所见即所得编辑器，注册成 Markdown 的**自定义编辑器**。安装后点击 `.md` / `.markdown` / `.mdown` / `.mdx` 会直接用墨览打开，`Cmd/Ctrl+S` 写回原文件。
+把单文件 `tools/markdown-viewer/index.html` 里的墨览所见即所得编辑器，注册成 Markdown 的**自定义编辑器**。安装后点击 `.md` / `.markdown` / `.mdown` / `.mdx` 会直接用墨览打开，`Cmd/Ctrl+S` 写回原文件。
 
 侧栏文件树仍用 VS Code 自带的资源管理器；扩展里只嵌入编辑器、流程图灯箱和墨览样式。
 
@@ -40,5 +40,5 @@ cursor --install-extension apps/vscode-molan/molan-markdown-0.1.0.vsix
 ## 实现说明
 
 - 自定义编辑器 viewType：`molan.markdownEditor`，`priority: default`
-- Webview 内复用 `molan.css` + `molan-editor.js`（与浏览器工作室同源），Vditor 3.10.9 打进扩展，不依赖外网 CDN
+- 浏览器工作室仍是单文件 `tools/markdown-viewer/index.html`；编译扩展时从中抽出样式和编辑器脚本，Vditor 3.10.9 打进扩展，不依赖外网 CDN
 - 撤销由 Vditor 处理；VS Code 负责脏状态、保存、热退出备份

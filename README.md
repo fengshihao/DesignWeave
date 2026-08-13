@@ -39,7 +39,7 @@ Windows 请在 **Git Bash** 里跑（仅 `scripts/dev.sh` 一个 bash 脚本，�
 
 ## 墨览 Markdown 编辑器
 
-`tools/markdown-viewer` 是本地所见即所得 Markdown 工作室（浏览器打开）。同一套编辑器已包装为 **VS Code / Cursor 扩展**：安装后点击 `.md` 文件即用墨览打开，保存写回原文件。
+`tools/markdown-viewer/index.html` 仍是**单文件**本地所见即所得工作室（浏览器直接打开）。同一份 HTML 也包装为 **VS Code / Cursor 扩展**：安装后点击 `.md` 文件即用墨览打开，保存写回原文件。
 
 ```bash
 pnpm --filter molan-markdown compile   # 或 pnpm vscode:molan
