@@ -9,6 +9,7 @@
   const searchInput = document.getElementById("searchInput");
   const fileList = document.getElementById("fileList");
   const folderMeta = document.getElementById("folderMeta");
+  const libraryTitle = document.getElementById("libraryTitle");
   const welcome = document.getElementById("welcome");
   const editorWrap = document.getElementById("editorWrap");
   const readerTitle = document.getElementById("readerTitle");
@@ -486,10 +487,21 @@
     }
   }
 
+  function syncLibraryTitle() {
+    if (!libraryTitle) return;
+    if (files.length) {
+      libraryTitle.textContent = folderName || t("recentFolders");
+      libraryTitle.classList.add("is-folder");
+    } else {
+      libraryTitle.textContent = t("recentFolders");
+      libraryTitle.classList.remove("is-folder");
+    }
+  }
+
   function renderRecentSection(q) {
     const matched = recentFolders.filter((r) => !q || (r.name || "").toLowerCase().includes(q));
     if (!matched.length) return "";
-    let html = `<div class="file-group-title">${t("recentFolders")}</div>`;
+    let html = files.length ? `<div class="file-group-title">${t("recentFolders")}</div>` : "";
     for (const r of matched) {
       const count = typeof r.fileCount === "number" ? t("docsCount", { n: r.fileCount }) : "";
       const mode = r.handle ? t("canOpenDirect") : t("needSelectAgain");
@@ -512,6 +524,7 @@
   }
 
   function renderSidebarList() {
+    syncLibraryTitle();
     const q = searchInput.value.trim().toLowerCase();
     const recentHtml = renderRecentSection(q);
     const filtered = files.filter((f) => !q || f.path.toLowerCase().includes(q) || f.name.toLowerCase().includes(q));

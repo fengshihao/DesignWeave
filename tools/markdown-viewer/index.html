@@ -60,8 +60,6 @@
       </div>
 
       <div class="toolbar">
-        <button class="btn btn-primary" id="pickBtn" type="button" data-i18n="pickFolder">选择文件夹</button>
-        <button class="btn btn-ghost" id="pickFallbackBtn" type="button" hidden title="传统文件选择 API；Cursor 内置浏览器可用" data-i18n="pickCompat" data-i18n-title="pickCompatTitle">兼容模式选文件夹</button>
         <div class="search-wrap">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
@@ -71,11 +69,28 @@
         </div>
       </div>
 
+      <div class="library-head">
+        <div class="library-label" id="libraryTitle">最近目录</div>
+        <div class="library-actions">
+          <button class="icon-add" id="pickBtn" type="button" title="打开文件夹" aria-label="打开文件夹" data-i18n-title="pickFolder" data-i18n-aria="pickFolder">
+            <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M8 3.25v9.5M3.25 8h9.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            </svg>
+          </button>
+          <button class="icon-add icon-add-quiet" id="pickFallbackBtn" type="button" hidden title="兼容模式选文件夹" aria-label="兼容模式选文件夹" data-i18n-title="pickCompatTitle" data-i18n-aria="pickCompat">
+            <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M2.6 5.4h4.1l1.1 1.4h5.6v6.2H2.6z" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/>
+              <path d="M4.2 4.2h3.2l.8 1.2" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
       <div class="folder-meta" id="folderMeta"></div>
       <div class="file-list" id="fileList">
         <div class="empty-side">
           <span class="glyph">卷</span>
-          <p data-i18n="emptyHint">用上方「选择文件夹」打开目录，可写回原文件。</p>
+          <p data-i18n="emptyHint">点右侧 + 打开本地目录。</p>
         </div>
       </div>
     </aside>
