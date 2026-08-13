@@ -386,13 +386,18 @@
       background: linear-gradient(180deg, rgba(250,247,241,0.95), rgba(244,239,230,0.7));
       backdrop-filter: blur(8px);
       display: flex;
+      flex-wrap: nowrap;
       align-items: flex-end;
       justify-content: space-between;
-      gap: 16px;
+      gap: 12px;
       min-height: 68px;
     }
 
-    .reader-title { min-width: 0; }
+    .reader-title {
+      min-width: 0;
+      flex: 1 1 auto;
+      overflow: hidden;
+    }
 
     .reader-title .eyebrow {
       font-size: 0.72rem;
@@ -411,14 +416,16 @@
       font-weight: 400;
       color: var(--ink);
       line-height: 1.15;
-      word-break: break-word;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .reader-actions {
       display: flex;
       gap: 8px;
-      flex-shrink: 0;
-      flex-wrap: wrap;
+      flex: 0 0 auto;
+      flex-wrap: nowrap;
       justify-content: flex-end;
     }
 
@@ -1267,9 +1274,7 @@
       .welcome { padding-left: 22px; padding-right: 22px; }
       .feature-grid { grid-template-columns: 1fr; }
       .reader-header {
-        padding: 18px 22px 14px;
-        flex-direction: column;
-        align-items: flex-start;
+        padding: 14px 18px 10px;
       }
       .reader-body { min-height: 52vh; }
       .vditor-ir pre.vditor-reset,
@@ -1304,12 +1309,20 @@
     }
 
     body.molan-host-vscode .reader-header {
-      min-height: 56px;
-      padding: 10px 20px 8px;
+      min-height: 48px;
+      padding: 8px 16px;
+      flex-direction: row;
+      flex-wrap: nowrap;
+      align-items: flex-end;
     }
 
     body.molan-host-vscode .reader-title h2 {
-      font-size: 1.35rem;
+      font-size: 1.2rem;
+    }
+
+    body.molan-host-vscode .reader-actions {
+      position: relative;
+      z-index: 1;
     }
 
     body.molan-host-vscode .editor-wrap {
