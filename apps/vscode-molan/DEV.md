@@ -22,9 +22,9 @@ pnpm --filter molan-markdown package
 会在 `apps/vscode-molan/` 生成 `.vsix`：
 
 ```bash
-code --install-extension apps/vscode-molan/molan-markdown-0.1.5.vsix
+code --install-extension apps/vscode-molan/molan-markdown-0.1.6.vsix
 # Cursor：
-cursor --install-extension apps/vscode-molan/molan-markdown-0.1.5.vsix
+cursor --install-extension apps/vscode-molan/molan-markdown-0.1.6.vsix
 ```
 
 ## 实现要点
