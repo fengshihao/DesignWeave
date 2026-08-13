@@ -626,9 +626,11 @@
     .vditor-wysiwyg > .vditor-reset,
     .vditor-sv .vditor-reset,
     .vditor-preview .vditor-reset {
-      max-width: 1100px;
+      max-width: none !important;
+      width: 100%;
+      box-sizing: border-box;
       margin: 0 auto !important;
-      padding: 22px 36px 48px !important;
+      padding: 22px 40px 56px !important;
       font-family: var(--font-ui) !important;
       font-size: 0.98rem !important;
       line-height: 1.58 !important;
