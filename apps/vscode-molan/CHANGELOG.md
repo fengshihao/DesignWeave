@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.5
+
+- 去掉顶部「已同步 / 未保存」提示（VS Code 标题栏脏点已经够用）
+
 ## 0.1.4
 
 - 工具条图标：用带 nonce 的脚本加载 SVG 精灵图，避免 webview CSP 拦掉 Vditor 的内联注入
