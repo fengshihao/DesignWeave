@@ -36,3 +36,5 @@ cursor --install-extension apps/vscode-molan/molan-markdown-0.1.2.vsix
 - 打开默认预览；`setValue`/`getValue` 往返不标脏，只有真正编辑才询问保存
 
 填表与发布见 `MARKETPLACE.md`。
+
+商店截图依赖 GitHub 公开地址。打包脚本已带 `--baseImagesUrl`（指向 `apps/vscode-molan`）。仓库若保持 Private，市场页仍然看不到图，需要把仓库改为 Public。

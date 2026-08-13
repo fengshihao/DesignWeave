@@ -32,6 +32,8 @@
 
 完整介绍就是 `README.md`（面向普通用户，市场详情页会自动用它）。开发调试见 `DEV.md`。
 
+商店 README 里的截图**不会**从 vsix 里读，而是去拉 GitHub 上的公开 HTTPS 地址。本扩展在仓库子目录，打包时必须带 `--baseImagesUrl .../apps/vscode-molan`（已写进 `package.json` 脚本）。另外仓库目前是 **Private**，商店访客打不开 GitHub 图，需要把仓库设为 Public，截图才会出现。
+
 ## 发布命令
 
 1. 打开 https://marketplace.visualstudio.com/manage ，Publisher ID 为 `fengshihao`。
@@ -42,7 +44,7 @@
 cd apps/vscode-molan
 pnpm compile
 # 有令牌后：
-npx @vscode/vsce publish --no-dependencies -p "$VSCE_PAT"
+npx @vscode/vsce publish --no-dependencies --baseContentUrl https://github.com/fengshihao/DesignWeave/blob/main/apps/vscode-molan --baseImagesUrl https://github.com/fengshihao/DesignWeave/raw/main/apps/vscode-molan -p "$VSCE_PAT"
 ```
 
 只打包不发布：
