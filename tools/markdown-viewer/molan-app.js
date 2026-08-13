@@ -112,48 +112,6 @@
   let editorReady = null;
   let pendingOpenPath = null;
   let openSeq = 0;
-  let sampleMode = true;
-  const SAMPLE_TITLE = "墨览";
-  const SAMPLE_MD = `# 宣纸
-
-> 落墨成文。
-
-- [x] 磨墨
-- [ ] 润笔
-- [ ] 成篇
-
-## 用料
-
-| 项 | 品 | 注 |
-| --- | --- | --- |
-| 纸 | 净皮宣 | 生 |
-| 墨 | 松烟 | 浓 |
-| 笔 | 狼毫 | 中 |
-
-## 研磨
-
-\`\`\`js
-const ink = stone
-  .water(3)
-  .circle(40)
-  .until("漆黑");
-\`\`\`
-
-## 行笔
-
-\`\`\`mermaid
-flowchart LR
-  A[选纸] --> B[磨墨]
-  B --> C[润笔]
-  C --> D[落墨]
-  D --> E[成篇]
-\`\`\`
-
-$$
-e^{i\\pi} + 1 = 0
-$$
-`;
-  let sampleText = SAMPLE_MD;
 
   const DB_NAME = "molan-viewer";
   const DB_STORE = "folders";
@@ -538,6 +496,12 @@ $$
     }
   }
 
+  function syncOpenHint() {
+    const idle = !files.length && recentFolders.length === 0;
+    pickBtn.classList.toggle("is-hint", idle && !allowCompatPicker);
+    pickFallbackBtn.classList.toggle("is-hint", idle && allowCompatPicker && !pickFallbackBtn.hidden);
+  }
+
   function renderRecentSection(q) {
     const matched = recentFolders.filter((r) => !q || (r.name || "").toLowerCase().includes(q));
     if (!matched.length) return "";
@@ -565,6 +529,7 @@ $$
 
   function renderSidebarList() {
     syncLibraryTitle();
+    syncOpenHint();
     const q = searchInput.value.trim().toLowerCase();
     const recentHtml = renderRecentSection(q);
     const filtered = files.filter((f) => !q || f.path.toLowerCase().includes(q) || f.name.toLowerCase().includes(q));
@@ -614,21 +579,17 @@ $$
   }
 
   function showWelcome() {
-    sampleMode = true;
     if (welcome) welcome.hidden = false;
-    readerBody?.classList.add("is-sample");
-    editorWrap.classList.add("visible");
+    readerBody?.classList.remove("is-editing");
+    editorWrap.classList.remove("visible");
     saveBtn.hidden = true;
     copyBtn.hidden = true;
-    readerTitle.textContent = SAMPLE_TITLE;
+    readerTitle.textContent = "墨览";
     activePath = null;
     dirty = false;
     baselineText = "";
     clearTimeout(editorIdleTimer);
-    ensureVditor().then((api) => {
-      if (!sampleMode || activePath) return;
-      try { api.setValue(sampleText, true); } catch (_) { /* ignore */ }
-    }).catch((err) => console.warn(err));
+    syncOpenHint();
   }
 
   function confirmDiscardIfDirty() {
@@ -672,12 +633,8 @@ $$
 
     const seq = ++openSeq;
     clearTimeout(editorIdleTimer);
-    if (sampleMode && editorApi) {
-      try { sampleText = editorApi.getValue(); } catch (_) { /* ignore */ }
-    }
-    sampleMode = false;
     if (welcome) welcome.hidden = true;
-    readerBody?.classList.remove("is-sample");
+    readerBody?.classList.add("is-editing");
     editorWrap.classList.add("visible");
     saveBtn.hidden = false;
     copyBtn.hidden = false;
@@ -872,7 +829,7 @@ $$
   function refreshUiCopy() {
     window.MolanI18n?.applyDom();
     if (!activePath) {
-      readerTitle.textContent = SAMPLE_TITLE;
+      readerTitle.textContent = "墨览";
     } else {
       const file = files.find((f) => f.path === activePath);
       if (file) {
