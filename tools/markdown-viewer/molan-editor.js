@@ -5,6 +5,31 @@
 (function (global) {
   const DEFAULT_CDN = "https://cdn.jsdelivr.net/npm/vditor@3.10.9";
 
+  function t(key, vars) {
+    if (global.MolanI18n && typeof global.MolanI18n.t === "function") {
+      return global.MolanI18n.t(key, vars);
+    }
+    const fallback = {
+      diagramNotReady: "流程图尚未渲染完成",
+      copiedDiagramImage: "已复制流程图图片",
+      copyImageFallback: "当前环境不支持复制图片，已改为下载",
+      copyImageFail: "复制图片失败",
+      cannotEdit: "无法进入编辑",
+      enteredEdit: "已进入源码编辑，点空白处退出",
+      editSource: "编辑源码",
+      viewDiagram: "观看流程图",
+      copyCode: "复制代码",
+      copyImage: "复制图片",
+      noMermaidSource: "未找到流程图源码",
+      copiedMermaidCode: "已复制流程图代码",
+      copyFail: "复制失败",
+      placeholder: "开始编辑 Markdown…",
+    };
+    let s = fallback[key] || key;
+    if (vars) s = s.replace(/\{(\w+)\}/g, (_, k) => (vars[k] == null ? "" : String(vars[k])));
+    return s;
+  }
+
   function cssVar(name, fallback) {
     try {
       const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -153,7 +178,7 @@
     const lightboxCopyImage = document.getElementById("lightboxCopyImage");
     if (!lightbox || !lightboxStage || !lightboxCanvas) {
       return {
-        openFromSvg() { toast("流程图尚未渲染完成"); },
+        openFromSvg() { toast(t("diagramNotReady")); },
         close() {},
         isOpen() { return false; },
         copySvgAsPng,
@@ -193,7 +218,7 @@
 
     function openLightboxFromSvg(svg) {
       if (!svg) {
-        toast("流程图尚未渲染完成");
+        toast(t("diagramNotReady"));
         return;
       }
       lightboxCanvas.innerHTML = "";
@@ -287,7 +312,7 @@
 
   async function copySvgAsPng(svg) {
     if (!svg) {
-      toast("流程图尚未渲染完成");
+      toast(t("diagramNotReady"));
       return;
     }
     const xml = new XMLSerializer().serializeToString(svg);
@@ -314,17 +339,17 @@
       if (!blob) throw new Error("toBlob failed");
       if (navigator.clipboard && global.ClipboardItem) {
         await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-        toast("已复制流程图图片");
+        toast(t("copiedDiagramImage"));
       } else {
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
         a.download = "diagram.png";
         a.click();
-        toast("当前环境不支持复制图片，已改为下载");
+        toast(t("copyImageFallback"));
       }
     } catch (err) {
       console.warn(err);
-      toast("复制图片失败");
+      toast(t("copyImageFail"));
     } finally {
       URL.revokeObjectURL(url);
     }
@@ -425,7 +450,7 @@
     const code = node?.querySelector?.(".vditor-ir__marker--pre code.language-mermaid");
     const editable = document.querySelector(".vditor-ir pre.vditor-reset");
     if (!code || !editable) {
-      toast("无法进入编辑");
+      toast(t("cannotEdit"));
       return;
     }
     try {
@@ -444,10 +469,10 @@
       sel.addRange(range);
       node.classList.add("vditor-ir__node--expand");
       node.classList.remove("vditor-ir__node--hidden");
-      toast("已进入源码编辑，点空白处退出");
+      toast(t("enteredEdit"));
     } catch (err) {
       console.warn(err);
-      toast("无法进入编辑");
+      toast(t("cannotEdit"));
     }
   }
 
@@ -464,16 +489,16 @@
       const bar = document.createElement("div");
       bar.className = "molan-diagram-toolbar";
       bar.innerHTML = `
-        <button type="button" class="icon-btn" data-molan-action="edit" title="编辑源码" aria-label="编辑源码">
+        <button type="button" class="icon-btn" data-molan-action="edit" title="${t("editSource")}" aria-label="${t("editSource")}">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg>
         </button>
-        <button type="button" class="icon-btn" data-molan-action="zoom" title="观看（拖动/缩放）" aria-label="观看流程图">
+        <button type="button" class="icon-btn" data-molan-action="zoom" title="${t("viewDiagram")}" aria-label="${t("viewDiagram")}">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3H5a2 2 0 0 0-2 2v4"/><path d="M15 3h4a2 2 0 0 1 2 2v4"/><path d="M9 21H5a2 2 0 0 1-2-2v-4"/><path d="M15 21h4a2 2 0 0 0 2-2v-4"/></svg>
         </button>
-        <button type="button" class="icon-btn" data-molan-action="copy-code" title="复制代码" aria-label="复制代码">
+        <button type="button" class="icon-btn" data-molan-action="copy-code" title="${t("copyCode")}" aria-label="${t("copyCode")}">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2"/><rect x="4" y="8" width="12" height="12" rx="2"/></svg>
         </button>
-        <button type="button" class="icon-btn" data-molan-action="copy-image" title="复制图片" aria-label="复制图片">
+        <button type="button" class="icon-btn" data-molan-action="copy-image" title="${t("copyImage")}" aria-label="${t("copyImage")}">
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="M3 16l5-4 4 3 3-2 6 5"/></svg>
         </button>
       `;
@@ -664,17 +689,33 @@
           text = m ? m[1].trim() : "";
         }
         if (!text) {
-          toast("未找到流程图源码");
+          toast(t("noMermaidSource"));
           return;
         }
         try {
           await navigator.clipboard.writeText(text);
-          toast("已复制流程图代码");
+          toast(t("copiedMermaidCode"));
         } catch {
-          toast("复制失败");
+          toast(t("copyFail"));
         }
       }
     }, true);
+  }
+
+  function refreshI18n(root = document) {
+    const actionKeys = {
+      edit: "editSource",
+      zoom: "viewDiagram",
+      "copy-code": "copyCode",
+      "copy-image": "copyImage",
+    };
+    root.querySelectorAll("[data-molan-action]").forEach((btn) => {
+      const key = actionKeys[btn.getAttribute("data-molan-action")];
+      if (!key) return;
+      const label = t(key);
+      btn.title = label;
+      btn.setAttribute("aria-label", label);
+    });
   }
 
   function revealVditorIcons() {
@@ -690,7 +731,7 @@
   function create(options = {}) {
     const elementId = options.elementId || "vditor";
     const cdn = options.cdn || DEFAULT_CDN;
-    const placeholder = options.placeholder || "开始编辑 Markdown…";
+    const placeholder = options.placeholder || t("placeholder");
     toastEl = document.getElementById("toast");
     patchMermaidLoader();
     scheduleMermaidWarmup(cdn);
@@ -715,6 +756,7 @@
         mode: "ir",
         theme: "classic",
         icon: "ant",
+        lang: options.lang || (global.MolanI18n && global.MolanI18n.vditorLang()) || "zh_CN",
         placeholder,
         cache: { enable: false },
         undoDelay: 200,
@@ -833,6 +875,7 @@
     countWords,
     applyMermaidTheme,
     refreshMermaidDiagrams,
+    refreshI18n,
     enhanceMermaidPreviews,
     watchMermaidPreviews,
   };

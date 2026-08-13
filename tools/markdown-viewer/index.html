@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>墨览 · Markdown Studio</title>
+  <link rel="icon" type="image/png" href="./favicon.png" />
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
   <script>
     (function () {
       try {
@@ -11,6 +13,11 @@
         if (t === "night" || t === "hack" || t === "rose" || t === "xuan") {
           document.documentElement.setAttribute("data-theme", t);
         }
+        var l = localStorage.getItem("molan-lang");
+        if (l === "ar") document.documentElement.setAttribute("dir", "rtl");
+        if (l === "zh") document.documentElement.lang = "zh-CN";
+        else if (l === "zh-Hant") document.documentElement.lang = "zh-TW";
+        else if (l) document.documentElement.lang = l;
       } catch (e) {}
     })();
   </script>
@@ -31,24 +38,31 @@
         <div class="brand-mark">
           <h1>墨<span>览</span></h1>
         </div>
-        <p>本地 Markdown 工作室 · 所见即所得 · 写回原文件</p>
-        <div class="theme-switch" id="themeSwitch" role="radiogroup" aria-label="界面样式">
-          <button type="button" role="radio" data-theme="xuan" title="宣纸 · 暖色纸面" aria-label="宣纸" aria-checked="true"></button>
-          <button type="button" role="radio" data-theme="night" title="墨夜 · 暗色夜读" aria-label="墨夜" aria-checked="false"></button>
-          <button type="button" role="radio" data-theme="hack" title="终端 · 程序员" aria-label="终端" aria-checked="false"></button>
-          <button type="button" role="radio" data-theme="rose" title="胭脂 · 柔粉纸面" aria-label="胭脂" aria-checked="false"></button>
+        <p data-i18n="brandTagline">本地 Markdown 工作室 · 所见即所得 · 写回原文件</p>
+        <div class="prefs">
+          <div class="prefs-row theme-switch" id="themeSwitch" role="radiogroup" aria-label="界面样式" data-i18n-aria="themeAria">
+            <span class="prefs-label" data-i18n="themeLabel">样式</span>
+            <button type="button" role="radio" data-theme="xuan" title="宣纸 · 暖色纸面" aria-label="宣纸" data-i18n-title="themeXuanTitle" data-i18n-aria="themeXuan" aria-checked="true"></button>
+            <button type="button" role="radio" data-theme="night" title="墨夜 · 暗色夜读" aria-label="墨夜" data-i18n-title="themeNightTitle" data-i18n-aria="themeNight" aria-checked="false"></button>
+            <button type="button" role="radio" data-theme="hack" title="终端 · 程序员" aria-label="终端" data-i18n-title="themeHackTitle" data-i18n-aria="themeHack" aria-checked="false"></button>
+            <button type="button" role="radio" data-theme="rose" title="胭脂 · 柔粉纸面" aria-label="胭脂" data-i18n-title="themeRoseTitle" data-i18n-aria="themeRose" aria-checked="false"></button>
+          </div>
+          <label class="prefs-row lang-switch">
+            <span class="prefs-label" data-i18n="langLabel">语言</span>
+            <select id="langSelect" aria-label="界面语言" data-i18n-aria="langAria"></select>
+          </label>
         </div>
       </div>
 
       <div class="toolbar">
-        <button class="btn btn-primary" id="pickBtn" type="button">选择文件夹</button>
-        <button class="btn btn-ghost" id="pickFallbackBtn" type="button" hidden title="传统文件选择 API；Cursor 内置浏览器可用">兼容模式选文件夹</button>
+        <button class="btn btn-primary" id="pickBtn" type="button" data-i18n="pickFolder">选择文件夹</button>
+        <button class="btn btn-ghost" id="pickFallbackBtn" type="button" hidden title="传统文件选择 API；Cursor 内置浏览器可用" data-i18n="pickCompat" data-i18n-title="pickCompatTitle">兼容模式选文件夹</button>
         <div class="search-wrap">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
             <path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
           </svg>
-          <input class="search" id="searchInput" type="search" placeholder="搜索文档或最近目录…" />
+          <input class="search" id="searchInput" type="search" placeholder="搜索文档或最近目录…" data-i18n-placeholder="searchPlaceholder" />
         </div>
       </div>
 
@@ -56,7 +70,7 @@
       <div class="file-list" id="fileList">
         <div class="empty-side">
           <span class="glyph">卷</span>
-          <p>用上方「选择文件夹」打开目录，可写回原文件。</p>
+          <p data-i18n="emptyHint">用上方「选择文件夹」打开目录，可写回原文件。</p>
         </div>
       </div>
     </aside>
@@ -64,27 +78,27 @@
     <main class="main">
       <header class="reader-header">
         <div class="reader-title">
-          <div class="eyebrow" id="readerEyebrow">准备就绪</div>
-          <h2 id="readerTitle">打开文件夹，开始编辑</h2>
+          <div class="eyebrow" id="readerEyebrow" data-i18n="ready">准备就绪</div>
+          <h2 id="readerTitle" data-i18n="openFolderToEdit">打开文件夹，开始编辑</h2>
         </div>
         <div class="reader-actions">
-          <button class="chip chip-primary" id="saveBtn" type="button" hidden disabled>保存</button>
-          <button class="chip" id="copyBtn" type="button" hidden>复制原文</button>
+          <button class="chip chip-primary" id="saveBtn" type="button" hidden disabled data-i18n="save">保存</button>
+          <button class="chip" id="copyBtn" type="button" hidden data-i18n="copySource">复制原文</button>
         </div>
       </header>
 
       <div class="reader-body" id="readerBody">
         <section class="welcome" id="welcome">
           <div class="hero-glyph">墨</div>
-          <h2>本地文档<br />在<em>同一张纸</em>上改写</h2>
-          <p>选择任意文件夹，自动扫描 Markdown。用 Vditor 即时渲染（类 Typora）编辑；Chrome / Edge 可直接写回原文件。文件不会离开本机。</p>
-          <p class="welcome-compat-only" hidden>「选择文件夹」用目录授权 API（可写回）；「兼容模式选文件夹」用传统文件选择（Cursor 内置浏览器可用，保存将下载）。</p>
-          <p class="welcome-note" id="welcomeSaveHint">快捷键 <strong>Cmd/Ctrl+S</strong> 保存。Chrome / Edge 可直接写回原文件。</p>
+          <h2 data-i18n-html="welcomeTitle">本地文档<br />在<em>同一张纸</em>上改写</h2>
+          <p data-i18n="welcomeBody">选择任意文件夹，自动扫描 Markdown。用 Vditor 即时渲染（类 Typora）编辑；Chrome / Edge 可直接写回原文件。文件不会离开本机。</p>
+          <p class="welcome-compat-only" hidden data-i18n="welcomeCompat">「选择文件夹」用目录授权 API（可写回）；「兼容模式选文件夹」用传统文件选择（Cursor 内置浏览器可用，保存将下载）。</p>
+          <p class="welcome-note" id="welcomeSaveHint" data-i18n-html="welcomeSave">快捷键 <strong>Cmd/Ctrl+S</strong> 保存。Chrome / Edge 可直接写回原文件。</p>
           <div class="feature-grid">
-            <div class="feature"><strong>所见即所得</strong><span>IR / WYSIWYG / 分屏，工具栏可切换</span></div>
-            <div class="feature"><strong>写回本地</strong><span>File System Access 直接改原文件</span></div>
-            <div class="feature"><strong>公式与图表</strong><span>KaTeX、Mermaid 等由 Vditor 内置</span></div>
-            <div class="feature"><strong>不上云</strong><span>全部在浏览器本地完成</span></div>
+            <div class="feature"><strong data-i18n="featWysiwyg">所见即所得</strong><span data-i18n="featWysiwygDesc">IR / WYSIWYG / 分屏，工具栏可切换</span></div>
+            <div class="feature"><strong data-i18n="featWriteback">写回本地</strong><span data-i18n="featWritebackDesc">File System Access 直接改原文件</span></div>
+            <div class="feature"><strong data-i18n="featMath">公式与图表</strong><span data-i18n="featMathDesc">KaTeX、Mermaid 等由 Vditor 内置</span></div>
+            <div class="feature"><strong data-i18n="featLocal">不上云</strong><span data-i18n="featLocalDesc">全部在浏览器本地完成</span></div>
           </div>
         </section>
         <div class="editor-wrap" id="editorWrap">
@@ -93,8 +107,8 @@
       </div>
 
       <footer class="status-bar">
-        <span id="statusLeft">等待选择文件夹</span>
-        <span id="statusRight">本地 · 不上云</span>
+        <span id="statusLeft" data-i18n="waitingFolder">等待选择文件夹</span>
+        <span id="statusRight" data-i18n="localOffline">本地 · 不上云</span>
       </footer>
     </main>
   </div>
@@ -103,26 +117,26 @@
   <input class="hidden-input" id="dirInput" type="file" webkitdirectory directory multiple tabindex="-1" aria-hidden="true" />
 
   <div class="lightbox" id="lightbox" aria-hidden="true">
-    <div class="lightbox-panel" role="dialog" aria-modal="true" aria-label="流程图观看">
+    <div class="lightbox-panel" role="dialog" aria-modal="true" aria-label="流程图观看" data-i18n-aria="lightboxTitle">
       <div class="lightbox-bar">
         <div>
-          <strong>流程图观看</strong>
-          <span class="hint">拖动平移 · 滚轮缩放 · Esc 关闭</span>
+          <strong data-i18n="lightboxTitle">流程图观看</strong>
+          <span class="hint" data-i18n="lightboxHint">拖动平移 · 滚轮缩放 · Esc 关闭</span>
         </div>
         <div class="lightbox-actions">
-          <button class="icon-btn" type="button" id="lightboxZoomOut" title="缩小" aria-label="缩小">
+          <button class="icon-btn" type="button" id="lightboxZoomOut" title="缩小" aria-label="缩小" data-i18n-title="zoomOut" data-i18n-aria="zoomOut">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M8 11h6M21 21l-4.3-4.3"/></svg>
           </button>
-          <button class="icon-btn" type="button" id="lightboxZoomIn" title="放大" aria-label="放大">
+          <button class="icon-btn" type="button" id="lightboxZoomIn" title="放大" aria-label="放大" data-i18n-title="zoomIn" data-i18n-aria="zoomIn">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M11 8v6M8 11h6M21 21l-4.3-4.3"/></svg>
           </button>
-          <button class="icon-btn" type="button" id="lightboxReset" title="复位" aria-label="复位">
+          <button class="icon-btn" type="button" id="lightboxReset" title="复位" aria-label="复位" data-i18n-title="resetView" data-i18n-aria="resetView">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
           </button>
-          <button class="icon-btn" type="button" id="lightboxCopyImage" title="复制图片" aria-label="复制图片">
+          <button class="icon-btn" type="button" id="lightboxCopyImage" title="复制图片" aria-label="复制图片" data-i18n-title="copyImage" data-i18n-aria="copyImage">
             <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="M3 16l5-4 4 3 3-2 6 5"/></svg>
           </button>
-          <button class="icon-btn" type="button" id="lightboxClose" title="关闭" aria-label="关闭">
+          <button class="icon-btn" type="button" id="lightboxClose" title="关闭" aria-label="关闭" data-i18n-title="close" data-i18n-aria="close">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
           </button>
         </div>
@@ -134,6 +148,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/vditor@3.10.9/dist/index.min.js"></script>
+  <script src="./molan-i18n.js"></script>
   <script src="./molan-editor.js"></script>
   <script src="./molan-app.js"></script>
 </body>

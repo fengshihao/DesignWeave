@@ -6,6 +6,8 @@
 
 侧栏可切换四种纸面：**宣纸**（默认暖色）、**墨夜**（暗色夜读）、**终端**（磷光绿，程序员）、**胭脂**（柔粉衬线）。选择会记在本机。
 
+界面语言按浏览器自动选择，也可在侧栏手动切换：简体中文、繁體中文、English、日本語、한국어、Español、Français、Deutsch、Português、Русский、العربية。
+
 ```bash
 pnpm molan            # 停旧后启动 http://127.0.0.1:5500/ 并打开浏览器
 pnpm molan:stop       # 仅停止
@@ -15,6 +17,7 @@ MOLAN_PORT=5600 pnpm molan   # 自定义端口
 ```text
 index.html        页面结构
 molan.css         纸面样式与 Vditor 主题（浏览器与 VS Code 共用）
+molan-i18n.js     界面多语言
 molan-editor.js   编辑器核心：Vditor / Mermaid / 灯箱（共用）
 molan-app.js      仅浏览器：选文件夹、侧栏、写回本地
 ```

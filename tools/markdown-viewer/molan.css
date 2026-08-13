@@ -352,20 +352,38 @@
       line-height: 1.45;
     }
 
+    .prefs {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .prefs-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .prefs-label {
+      font-size: 0.68rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--sidebar-fg-mute);
+      flex: 0 0 3.2em;
+    }
+
+    html[lang^="zh"] .prefs-label,
+    html[lang="ja"] .prefs-label,
+    html[lang="ko"] .prefs-label,
+    html[lang="ar"] .prefs-label {
+      letter-spacing: 0.08em;
+    }
+
     .theme-switch {
       display: flex;
       align-items: center;
       gap: 8px;
-      margin-top: 14px;
-    }
-
-    .theme-switch::before {
-      content: "样式";
-      font-size: 0.68rem;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      color: var(--sidebar-fg-mute);
-      margin-right: 2px;
     }
 
     .theme-switch button {
@@ -397,6 +415,36 @@
     }
     .theme-switch [data-theme="rose"] {
       background: linear-gradient(135deg, #fdecef 48%, #c45b6a 48%);
+    }
+
+    .lang-switch { min-width: 0; }
+
+    .lang-switch select {
+      flex: 1;
+      min-width: 0;
+      appearance: none;
+      background: var(--sidebar-search-bg);
+      color: var(--sidebar-fg);
+      border: 1px solid var(--sidebar-line);
+      border-radius: 8px;
+      padding: 5px 8px;
+      font-family: var(--font-ui);
+      font-size: 0.78rem;
+      outline: none;
+    }
+
+    .lang-switch select:focus {
+      border-color: var(--accent-soft);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    html[dir="rtl"] .search {
+      padding: 11px 38px 11px 12px;
+    }
+
+    html[dir="rtl"] .search-wrap svg {
+      left: auto;
+      right: 12px;
     }
 
     .toolbar {
