@@ -38,17 +38,22 @@
         <div class="brand-mark">
           <h1>墨<span>览</span></h1>
         </div>
-        <p data-i18n="brandTagline">本地 Markdown 工作室 · 所见即所得 · 写回原文件</p>
         <div class="prefs">
-          <div class="prefs-row theme-switch" id="themeSwitch" role="radiogroup" aria-label="界面样式" data-i18n-aria="themeAria">
-            <span class="prefs-label" data-i18n="themeLabel">样式</span>
-            <button type="button" role="radio" data-theme="xuan" title="宣纸 · 暖色纸面" aria-label="宣纸" data-i18n-title="themeXuanTitle" data-i18n-aria="themeXuan" aria-checked="true"></button>
-            <button type="button" role="radio" data-theme="night" title="墨夜 · 暗色夜读" aria-label="墨夜" data-i18n-title="themeNightTitle" data-i18n-aria="themeNight" aria-checked="false"></button>
-            <button type="button" role="radio" data-theme="hack" title="终端 · 程序员" aria-label="终端" data-i18n-title="themeHackTitle" data-i18n-aria="themeHack" aria-checked="false"></button>
-            <button type="button" role="radio" data-theme="rose" title="胭脂 · 柔粉纸面" aria-label="胭脂" data-i18n-title="themeRoseTitle" data-i18n-aria="themeRose" aria-checked="false"></button>
+          <div class="theme-switch" id="themeSwitch" role="radiogroup" aria-label="界面样式" data-i18n-aria="themeAria">
+            <button type="button" role="radio" data-theme="xuan" title="宣纸 · 暖色纸面" aria-label="宣纸" data-i18n-title="themeXuanTitle" data-i18n-aria="themeXuan" aria-checked="true">
+              <svg viewBox="0 0 32 32" aria-hidden="true"><circle class="theme-ring" cx="16" cy="16" r="14.25"/><circle class="theme-fill" cx="16" cy="16" r="10"/></svg>
+            </button>
+            <button type="button" role="radio" data-theme="night" title="墨夜 · 暗色夜读" aria-label="墨夜" data-i18n-title="themeNightTitle" data-i18n-aria="themeNight" aria-checked="false">
+              <svg viewBox="0 0 32 32" aria-hidden="true"><circle class="theme-ring" cx="16" cy="16" r="14.25"/><circle class="theme-fill" cx="16" cy="16" r="10"/></svg>
+            </button>
+            <button type="button" role="radio" data-theme="hack" title="终端 · 程序员" aria-label="终端" data-i18n-title="themeHackTitle" data-i18n-aria="themeHack" aria-checked="false">
+              <svg viewBox="0 0 32 32" aria-hidden="true"><circle class="theme-ring" cx="16" cy="16" r="14.25"/><circle class="theme-fill" cx="16" cy="16" r="10"/></svg>
+            </button>
+            <button type="button" role="radio" data-theme="rose" title="胭脂 · 柔粉纸面" aria-label="胭脂" data-i18n-title="themeRoseTitle" data-i18n-aria="themeRose" aria-checked="false">
+              <svg viewBox="0 0 32 32" aria-hidden="true"><circle class="theme-ring" cx="16" cy="16" r="14.25"/><circle class="theme-fill" cx="16" cy="16" r="10"/></svg>
+            </button>
           </div>
-          <label class="prefs-row lang-switch">
-            <span class="prefs-label" data-i18n="langLabel">语言</span>
+          <label class="lang-switch">
             <select id="langSelect" aria-label="界面语言" data-i18n-aria="langAria"></select>
           </label>
         </div>

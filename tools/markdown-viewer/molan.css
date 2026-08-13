@@ -330,7 +330,6 @@
       display: flex;
       align-items: baseline;
       gap: 10px;
-      margin-bottom: 8px;
     }
 
     .brand h1 {
@@ -346,81 +345,74 @@
       font-style: italic;
     }
 
-    .brand p {
-      color: var(--sidebar-fg-dim);
-      font-size: 0.82rem;
-      line-height: 1.45;
-    }
-
     .prefs {
       display: flex;
-      flex-direction: column;
-      gap: 10px;
-      margin-top: 14px;
-    }
-
-    .prefs-row {
-      display: flex;
       align-items: center;
-      gap: 8px;
-    }
-
-    .prefs-label {
-      font-size: 0.68rem;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: var(--sidebar-fg-mute);
-      flex: 0 0 3.2em;
-    }
-
-    html[lang^="zh"] .prefs-label,
-    html[lang="ja"] .prefs-label,
-    html[lang="ko"] .prefs-label,
-    html[lang="ar"] .prefs-label {
-      letter-spacing: 0.08em;
+      gap: 12px;
+      margin-top: 14px;
     }
 
     .theme-switch {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 2px;
     }
 
     .theme-switch button {
       appearance: none;
-      width: 18px;
-      height: 18px;
-      border-radius: 999px;
-      border: 1px solid rgba(255, 255, 255, 0.28);
+      width: 28px;
+      height: 28px;
       padding: 0;
+      border: 0;
+      background: transparent;
       cursor: pointer;
-      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18);
-      transition: transform 0.18s var(--ease), box-shadow 0.18s ease;
+      color: var(--accent-soft);
     }
 
-    .theme-switch button:hover { transform: scale(1.12); }
-
-    .theme-switch button[aria-checked="true"] {
-      box-shadow: 0 0 0 2px var(--sidebar-lift), 0 0 0 4px var(--accent-soft);
+    .theme-switch button svg {
+      display: block;
+      width: 28px;
+      height: 28px;
+      overflow: visible;
     }
 
-    .theme-switch [data-theme="xuan"] {
-      background: linear-gradient(135deg, #f4efe6 48%, #1e2a24 48%);
-    }
-    .theme-switch [data-theme="night"] {
-      background: linear-gradient(135deg, #e0a054 48%, #161410 48%);
-    }
-    .theme-switch [data-theme="hack"] {
-      background: linear-gradient(135deg, #3dd68c 48%, #0d1411 48%);
-    }
-    .theme-switch [data-theme="rose"] {
-      background: linear-gradient(135deg, #fdecef 48%, #c45b6a 48%);
+    .theme-switch .theme-ring {
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.5;
+      stroke-opacity: 0;
+      transition: stroke-opacity 0.18s ease;
     }
 
-    .lang-switch { min-width: 0; }
+    .theme-switch button:hover .theme-ring {
+      stroke-opacity: 0.38;
+    }
+
+    .theme-switch button[aria-checked="true"] .theme-ring {
+      stroke-opacity: 1;
+    }
+
+    .theme-switch button:focus-visible {
+      outline: none;
+    }
+
+    .theme-switch button:focus-visible .theme-ring {
+      stroke-opacity: 1;
+    }
+
+    .theme-switch [data-theme="xuan"] .theme-fill { fill: #f4efe6; }
+    .theme-switch [data-theme="night"] .theme-fill { fill: #c9a06a; }
+    .theme-switch [data-theme="hack"] .theme-fill { fill: #3aa874; }
+    .theme-switch [data-theme="rose"] .theme-fill { fill: #e8b4bc; }
+
+    .lang-switch {
+      min-width: 0;
+      flex: 1;
+    }
 
     .lang-switch select {
-      flex: 1;
+      width: 100%;
+      max-width: 11.5em;
       min-width: 0;
       appearance: none;
       background: var(--sidebar-search-bg);
