@@ -26,7 +26,7 @@
 |------|------|------|
 | 扩展图标（必填） | `icon.png` | 128×128 PNG |
 | 高清原图（备用） | `media/icon-1024.png` | 1024×1024，市场网页若要更大图用这个 |
-| 商店截图 | `media/screenshot.png` | 已写进 README，会随 VSIX 上传 |
+| 商店截图 | `media/screenshot.jpg` | 已压缩 JPEG，写入 README |
 | 许可证 | `LICENSE` | MIT |
 | 更新日志 | `CHANGELOG.md` | 0.1.0 |
 
