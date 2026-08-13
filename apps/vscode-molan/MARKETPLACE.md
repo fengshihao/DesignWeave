@@ -9,7 +9,7 @@
 | Publisher ID | `fengshihao` |
 | Extension ID / name | `molan-markdown` |
 | Display name / 显示名称 | 墨览 Markdown |
-| Short description / 简短说明 | 用墨览所见即所得编辑器打开 Markdown。点击 .md 即可编辑，Cmd/Ctrl+S 写回原文件。 |
+| Short description / 简短说明 | 用墨览打开 Markdown：默认预览，随时编辑，保存写回原文件。 |
 | Categories / 分类 | Other |
 | Tags / 标签 | markdown, vditor, wysiwyg, 墨览, mermaid, typora |
 | Version | 0.1.1 |
@@ -30,7 +30,7 @@
 | 许可证 | `LICENSE` | MIT |
 | 更新日志 | `CHANGELOG.md` | 0.1.1 |
 
-完整介绍就是 README，市场详情页会自动用它，不用再抄一遍。
+完整介绍就是 `README.md`（面向普通用户，市场详情页会自动用它）。开发调试见 `DEV.md`。
 
 ## 发布命令
 

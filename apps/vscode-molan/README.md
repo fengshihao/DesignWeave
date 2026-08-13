@@ -1,47 +1,27 @@
-# 墨览 · VS Code / Cursor 扩展
+# 墨览 Markdown
 
-把 `tools/markdown-viewer` 里的墨览所见即所得编辑器，注册成 Markdown 的**自定义编辑器**。安装后点击 `.md` / `.markdown` / `.mdown` / `.mdx` 会直接用墨览打开，`Cmd/Ctrl+S` 写回原文件。
+用墨览打开 Markdown：默认预览，随时编辑，保存写回原文件。
 
 ![墨览编辑器](media/screenshot.jpg)
 
-侧栏文件树仍用 VS Code 自带的资源管理器；扩展里只嵌入编辑器、流程图灯箱和墨览样式。
+安装后，点击 `.md` 文件就会进入墨览，不必先面对一屏源码。
 
-## 本机调试
+## 怎么用
 
-在仓库根目录：
+1. 打开任意 Markdown 文件，默认是**预览**。
+2. 要改内容时，点顶栏 **编辑**。
+3. `Ctrl+S`（Mac 为 `Cmd+S`）保存，直接写回当前文件。
+4. 只看不改就关掉即可，不会弹出「是否保存」。
 
-```bash
-pnpm install
-pnpm --filter molan-markdown compile
-```
+文中的流程图可以点进去放大观看（拖动、滚轮缩放），也可以复制代码或图片。公式和代码块会按阅读样式渲染。
 
-然后用 VS Code / Cursor 打开本仓库，按 `F5`（启动配置「运行墨览扩展」），在 Extension Development Host 里点任意 Markdown 文件。
+## 和 VS Code 一起用
 
-## 安装到本机 VS Code
+- 左侧文件树仍是 VS Code 自带的资源管理器。
+- 想看原始源码：点编辑器标题栏 **用文本编辑器打开**，或在文件上右键 → Open With → Text Editor。
+- 某个文件仍被文本编辑器打开时：命令面板运行 **墨览: 用墨览打开**。
+- 希望所有 Markdown 都用墨览：命令面板运行 **墨览: 将墨览设为 Markdown 默认编辑器**。
 
-```bash
-pnpm --filter molan-markdown package
-```
+## 支持的文件
 
-会在 `apps/vscode-molan/` 生成 `.vsix`，然后：
-
-```bash
-code --install-extension apps/vscode-molan/molan-markdown-0.1.1.vsix
-# Cursor：
-cursor --install-extension apps/vscode-molan/molan-markdown-0.1.1.vsix
-```
-
-## 使用
-
-- 点击 Markdown 文件 → 默认预览；顶栏「编辑」进入编辑（类 Typora 的 IR 模式，可切 WYSIWYG / 分屏）
-- 没有改过内容时关闭文件不会询问保存
-- `Cmd/Ctrl+S` 保存；VS Code 标题栏的脏点与撤销热退出可用
-- 流程图：点击进入观看（拖动 / 滚轮缩放），工具条可编辑源码、复制代码或图片
-- 若某次仍打开了文本编辑器：命令面板运行 **「墨览: 用墨览打开」**，或 **「墨览: 将墨览设为 Markdown 默认编辑器」**
-- 需要看源码时：编辑器标题栏 **「用文本编辑器打开」**，或右键文件 → Open With → Text Editor
-
-## 实现说明
-
-- 自定义编辑器 viewType：`molan.markdownEditor`，`priority: default`
-- 与浏览器工作室共用 `molan.css` + `molan-editor.js`；编译时拷贝进扩展，并内置裁剪后的 Vditor 3.10.9（Lute + Mermaid + KaTeX + highlight，不依赖外网 CDN）
-- 撤销由 Vditor 处理；VS Code 负责脏状态、保存、热退出备份
+`.md`　`.markdown`　`.mdown`　`.mdx`
