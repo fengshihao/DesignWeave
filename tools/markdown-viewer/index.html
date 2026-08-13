@@ -7,7 +7,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+  <noscript>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  </noscript>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vditor@3.10.9/dist/index.css" />
   <style>
     :root {
@@ -66,8 +69,11 @@
       position: fixed;
       inset: 0;
       pointer-events: none;
-      opacity: 0.35;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
+      opacity: 0.28;
+      /* 1 octave + 独立合成层，避免 feTurbulence 拖累编辑器重绘 */
+      contain: strict;
+      transform: translateZ(0);
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 128 128' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='1' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
       mix-blend-mode: multiply;
       z-index: 0;
     }
@@ -287,6 +293,7 @@
       padding: 4px 8px 14px;
       scrollbar-width: thin;
       scrollbar-color: rgba(255,255,255,0.15) transparent;
+      contain: layout style;
     }
 
     .file-group-title {
@@ -313,6 +320,8 @@
       align-items: center;
       transition: background 0.15s ease, border-color 0.15s ease;
       font-family: var(--font-ui);
+      content-visibility: auto;
+      contain-intrinsic-size: auto 44px;
     }
 
     .file-item:hover {
@@ -563,6 +572,7 @@
       display: none;
       padding: 0;
       background: var(--paper-lift);
+      contain: layout;
     }
 
     .editor-wrap.visible { display: flex; flex-direction: column; }
@@ -1430,7 +1440,8 @@
           applyMermaidTheme();
           return Promise.resolve();
         }
-        return new Promise((resolve) => {
+        if (preloadMermaid._p) return preloadMermaid._p;
+        preloadMermaid._p = new Promise((resolve) => {
           const s = document.createElement("script");
           s.src = `${VDITOR_CDN}/dist/js/mermaid/mermaid.min.js`;
           s.async = true;
@@ -1454,9 +1465,20 @@
           s.onerror = () => resolve();
           document.head.appendChild(s);
         });
+        return preloadMermaid._p;
+      }
+
+      function scheduleMermaidWarmup() {
+        const run = () => { preloadMermaid(); };
+        if (typeof requestIdleCallback === "function") {
+          requestIdleCallback(run, { timeout: 2500 });
+        } else {
+          setTimeout(run, 700);
+        }
       }
 
       patchMermaidLoader();
+      scheduleMermaidWarmup();
 
       const pickBtn = document.getElementById("pickBtn");
       const pickFallbackBtn = document.getElementById("pickFallbackBtn");
@@ -1855,15 +1877,11 @@
       }
 
       function enhanceMermaidPreviews(root = document) {
-        const hosts = root.querySelectorAll(
-          ".vditor-ir__preview:has(.language-mermaid), .vditor-preview .language-mermaid, .vditor-wysiwyg .language-mermaid"
-        );
-        hosts.forEach((host) => {
-          const shell = host.classList.contains("vditor-ir__preview")
-            ? host
-            : host.closest("pre") || host;
+        const codes = root.querySelectorAll(".language-mermaid");
+        codes.forEach((code) => {
+          const shell = code.closest(".vditor-ir__preview") || code.closest("pre") || code;
           if (!shell || shell.querySelector(":scope > .molan-diagram-toolbar")) return;
-          if (!shell.querySelector("svg") && !shell.querySelector(".language-mermaid svg")) return;
+          if (!shell.querySelector("svg")) return;
           if (getComputedStyle(shell).position === "static") shell.style.position = "relative";
           shell.classList.add("molan-mermaid-shell");
           const bar = document.createElement("div");
@@ -1890,13 +1908,23 @@
         const root = document.getElementById("vditor");
         if (!root) return;
         enhanceMermaidPreviews(root);
-        if (diagramObserver) {
-          enhanceMermaidPreviews(root);
-          return;
-        }
-        diagramObserver = new MutationObserver(() => {
-          clearTimeout(watchMermaidPreviews._t);
-          watchMermaidPreviews._t = setTimeout(() => enhanceMermaidPreviews(root), 80);
+        if (diagramObserver) return;
+        let raf = 0;
+        diagramObserver = new MutationObserver((mutations) => {
+          let added = false;
+          for (const m of mutations) {
+            if (m.addedNodes.length) {
+              added = true;
+              break;
+            }
+          }
+          if (!added) return;
+          if (raf) return;
+          raf = requestAnimationFrame(() => {
+            raf = 0;
+            clearTimeout(watchMermaidPreviews._t);
+            watchMermaidPreviews._t = setTimeout(() => enhanceMermaidPreviews(root), 120);
+          });
         });
         diagramObserver.observe(root, { childList: true, subtree: true });
       }
@@ -2027,6 +2055,17 @@
         return !!(file && file.handle);
       }
 
+      function syncActiveDirtyMark() {
+        if (!activePath) return;
+        const btn = fileList.querySelector(`.file-item[data-path="${CSS.escape(activePath)}"]`);
+        const nameEl = btn?.querySelector(".file-name");
+        if (!nameEl) return;
+        const file = files.find((f) => f.path === activePath);
+        if (!file) return;
+        const next = dirty ? `${file.name} ·` : file.name;
+        if (nameEl.textContent !== next) nameEl.textContent = next;
+      }
+
       function setDirty(next) {
         dirty = !!next;
         readerEyebrow.classList.toggle("dirty", dirty);
@@ -2045,7 +2084,12 @@
             : "兼容模式：将下载 Markdown 文件 (Cmd/Ctrl+S)";
           saveBtn.textContent = canWriteActive() ? "保存" : "下载保存";
         }
-        updateStatusRight();
+        syncActiveDirtyMark();
+      }
+
+      function paintStatus(text) {
+        const modeHint = folderSource === "legacy" ? "下载落盘" : (dirty ? "未保存" : "已同步");
+        statusRight.textContent = `${countWords(text)} 字 · ${modeHint}`;
       }
 
       function updateStatusRight() {
@@ -2056,12 +2100,30 @@
           return;
         }
         try {
-          const text = vditor.getValue();
-          const modeHint = folderSource === "legacy" ? "下载落盘" : (dirty ? "未保存" : "已同步");
-          statusRight.textContent = `${countWords(text)} 字 · ${modeHint}`;
+          paintStatus(vditor.getValue());
         } catch (_) {
           statusRight.textContent = dirty ? "未保存" : "本地 · 不上云";
         }
+      }
+
+      let editorIdleTimer = 0;
+      function scheduleEditorIdleWork() {
+        clearTimeout(editorIdleTimer);
+        editorIdleTimer = setTimeout(() => {
+          if (!vditor || !activePath) return;
+          try {
+            const text = vditor.getValue();
+            const nextDirty = text !== baselineText;
+            if (nextDirty !== dirty) setDirty(nextDirty);
+            paintStatus(text);
+          } catch (_) { /* ignore */ }
+        }, 180);
+      }
+
+      function onEditorInput() {
+        if (!activePath) return;
+        if (!dirty) setDirty(true);
+        scheduleEditorIdleWork();
       }
 
       async function ensureFileText(entry) {
@@ -2086,8 +2148,7 @@
             if (name === "node_modules" || name === ".git" || name === ".pnpm-store" || name === "dist" || name === "build") continue;
             out.push(...(await collectFromDirectoryHandle(handle, path)));
           } else if (handle.kind === "file" && isMarkdown(name)) {
-            const file = await handle.getFile();
-            out.push({ path, name, dir: base || ".", size: file.size, handle });
+            out.push({ path, name, dir: base || ".", size: 0, handle });
           }
         }
         return out;
@@ -2254,6 +2315,7 @@
         activePath = null;
         dirty = false;
         baselineText = "";
+        clearTimeout(editorIdleTimer);
         if (vditor) {
           try { vditor.setValue("", true); } catch (_) { /* ignore */ }
         }
@@ -2268,60 +2330,62 @@
         if (vditor) return Promise.resolve(vditor);
         if (vditorReady) return vditorReady;
 
-        vditorReady = preloadMermaid().then(
-          () =>
-            new Promise((resolve) => {
-              vditor = new Vditor("vditor", {
-                cdn: VDITOR_CDN,
-                height: "100%",
-                mode: "ir",
-                theme: "classic",
-                icon: "ant",
-                placeholder: "开始编辑 Markdown…",
-                cache: { enable: false },
-                toolbar: [
-                  "headings", "bold", "italic", "strike", "|",
-                  "line", "quote", "list", "ordered-list", "check", "outdent", "indent", "|",
-                  "code", "inline-code", "link", "table", "|",
-                  "undo", "redo", "|",
-                  "edit-mode", "outline", "preview", "fullscreen",
-                ],
-                toolbarConfig: { pin: true },
-                preview: {
-                  theme: { current: "light" },
-                  hljs: { style: "kimbie-dark", lineNumber: false },
-                  math: { engine: "KaTeX", inlineDigit: true },
-                },
-                counter: {
-                  enable: true,
-                  type: "text",
-                  after: () => updateStatusRight(),
-                },
-                input: () => {
-                  if (!activePath) return;
-                  let nextDirty = true;
-                  try {
-                    nextDirty = vditor.getValue() !== baselineText;
-                  } catch (_) { /* ignore */ }
-                  setDirty(nextDirty);
-                  renderSidebarList();
-                },
-                ctrlEnter: () => {
-                  saveActiveFile();
-                },
-                after: () => {
-                  applyMermaidTheme();
-                  watchMermaidPreviews();
-                  if (pendingOpenPath) {
-                    const path = pendingOpenPath;
-                    pendingOpenPath = null;
-                    openFile(path, { force: true });
-                  }
-                  resolve(vditor);
-                },
-              });
-            })
-        );
+        vditorReady = new Promise((resolve) => {
+          vditor = new Vditor("vditor", {
+            cdn: VDITOR_CDN,
+            height: "100%",
+            mode: "ir",
+            theme: "classic",
+            icon: "ant",
+            placeholder: "开始编辑 Markdown…",
+            cache: { enable: false },
+            undoDelay: 200,
+            hint: { delay: 400 },
+            toolbar: [
+              "headings", "bold", "italic", "strike", "|",
+              "line", "quote", "list", "ordered-list", "check", "outdent", "indent", "|",
+              "code", "inline-code", "link", "table", "|",
+              "undo", "redo", "|",
+              "edit-mode", "outline", "preview", "fullscreen",
+            ],
+            toolbarConfig: { pin: true },
+            preview: {
+              delay: 800,
+              theme: { current: "light" },
+              hljs: { style: "kimbie-dark", lineNumber: false },
+              math: { engine: "KaTeX", inlineDigit: true },
+              markdown: {
+                toc: false,
+                fixTermTypo: false,
+                autoSpace: false,
+                paragraphBeginningSpace: false,
+                listStyle: false,
+                sanitize: true,
+                codeBlockPreview: true,
+                mathBlockPreview: true,
+              },
+            },
+            counter: {
+              enable: true,
+              type: "text",
+              after: () => scheduleEditorIdleWork(),
+            },
+            input: () => onEditorInput(),
+            ctrlEnter: () => {
+              saveActiveFile();
+            },
+            after: () => {
+              applyMermaidTheme();
+              watchMermaidPreviews();
+              if (pendingOpenPath) {
+                const path = pendingOpenPath;
+                pendingOpenPath = null;
+                openFile(path, { force: true });
+              }
+              resolve(vditor);
+            },
+          });
+        });
 
         return vditorReady;
       }
@@ -2333,6 +2397,7 @@
         if (!opts.force && !confirmDiscardIfDirty()) return;
 
         const seq = ++openSeq;
+        clearTimeout(editorIdleTimer);
         welcome.hidden = true;
         editorWrap.classList.add("visible");
         saveBtn.hidden = false;
@@ -2399,6 +2464,7 @@
               baselineText = text;
               file.text = text;
               setDirty(false);
+              updateStatusRight();
               statusLeft.textContent = `${file.name} · 已下载`;
               return;
             }
@@ -2409,6 +2475,7 @@
             file.size = new Blob([text]).size;
             baselineText = text;
             setDirty(false);
+            updateStatusRight();
             statusLeft.textContent = `${file.name} · 已保存`;
             toast("已写回本地文件");
             renderSidebarList();
@@ -2419,6 +2486,7 @@
           file.text = text;
           baselineText = text;
           setDirty(false);
+          updateStatusRight();
           statusLeft.textContent = `${file.name} · 已下载`;
           toast("兼容模式：已下载 Markdown");
           renderSidebarList();
