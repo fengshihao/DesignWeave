@@ -265,7 +265,7 @@
     .reader-title h2,
     .welcome h2,
     .welcome-seal-ink,
-    .welcome-sheet h3,
+    .folio-quote,
     .vditor-reset h1,
     .vditor-reset h2,
     .vditor-reset h3 {
@@ -818,18 +818,18 @@
     }
 
     .empty-side {
-      padding: 36px 22px;
+      padding: 28px 22px;
       text-align: center;
       color: var(--sidebar-fg-dim);
     }
 
     .empty-side .glyph {
       font-family: var(--font-display);
-      font-size: 2.6rem;
+      font-size: 1.8rem;
       color: var(--accent-soft);
-      margin-bottom: 10px;
+      margin-bottom: 8px;
       display: block;
-      opacity: 0.85;
+      opacity: 0.55;
     }
 
     .empty-side p { font-size: 0.88rem; line-height: 1.55; }
@@ -958,18 +958,18 @@
       overflow: auto;
       display: grid;
       place-items: center;
-      padding: 28px 36px 36px;
+      padding: 28px 40px 36px;
       position: relative;
     }
 
     .welcome::before {
       content: "";
       position: absolute;
-      inset: auto auto 12% 6%;
-      width: min(42vw, 380px);
-      height: min(42vw, 380px);
+      inset: 18% auto auto 12%;
+      width: min(48vw, 420px);
+      height: min(48vw, 420px);
       border-radius: 50%;
-      background: radial-gradient(circle, var(--page-glow-1) 0%, transparent 68%);
+      background: radial-gradient(circle, var(--page-glow-1) 0%, transparent 70%);
       pointer-events: none;
       z-index: 0;
     }
@@ -982,61 +982,87 @@
       display: none !important;
     }
 
-    .welcome-stage {
+    .welcome-folio {
       position: relative;
       z-index: 1;
-      width: min(1080px, 100%);
-      display: grid;
-      grid-template-columns: minmax(220px, 0.86fr) minmax(0, 1.24fr);
-      gap: 28px 48px;
-      align-items: center;
+      width: min(760px, 100%);
+      background:
+        linear-gradient(168deg, color-mix(in srgb, var(--paper-lift) 88%, var(--surface-solid)) 0%, var(--paper) 72%, var(--paper-deep) 100%);
+      border: 1px solid var(--hairline);
+      border-radius: 2px 22px 12px 6px;
+      padding: 36px 40px 32px 44px;
+      box-shadow:
+        inset 0 1px 0 color-mix(in srgb, var(--surface-solid) 75%, transparent),
+        0 28px 64px rgba(28, 25, 20, 0.12),
+        14px 22px 40px rgba(28, 25, 20, 0.06);
+      transform: rotate(-0.35deg);
+      animation: molan-sheet-in 0.8s var(--ease) both;
     }
 
-    .welcome-copy {
+    .welcome-folio::before {
+      content: "";
+      position: absolute;
+      inset-inline-start: 18px;
+      top: 24px;
+      bottom: 24px;
+      width: 1px;
+      background: color-mix(in srgb, var(--accent) 48%, transparent);
+      opacity: 0.55;
+    }
+
+    .folio-head {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 8px 28px;
+      align-items: end;
       animation: molan-welcome-in 0.7s var(--ease) both;
     }
 
     .welcome-seal {
       position: relative;
-      width: 7.2rem;
-      height: 6.4rem;
-      margin-bottom: 22px;
+      width: 6.6rem;
+      height: 7.1rem;
       direction: ltr;
+      flex-shrink: 0;
     }
 
     .welcome-seal-ink {
       display: block;
       font-family: var(--font-display);
-      font-size: 6.4rem;
+      font-size: 6.8rem;
       font-weight: 400;
-      line-height: 0.82;
-      letter-spacing: -0.06em;
+      line-height: 0.9;
+      letter-spacing: -0.08em;
       color: var(--ink);
-      text-shadow: 1px 2px 0 color-mix(in srgb, var(--ink) 12%, transparent);
     }
 
     .welcome-chop {
       position: absolute;
-      right: -4px;
-      bottom: 6px;
-      width: 34px;
-      height: 34px;
+      right: -2px;
+      bottom: 10px;
+      width: 32px;
+      height: 32px;
       display: grid;
       place-items: center;
       background: #b23a32;
       color: #f6e4d6;
       font-family: var(--font-display);
-      font-size: 1.05rem;
+      font-size: 1rem;
       line-height: 1;
-      transform: rotate(-9deg);
-      box-shadow: 0 8px 18px rgba(140, 40, 32, 0.28);
-      animation: molan-chop-in 0.6s 0.35s var(--ease) both;
+      transform: rotate(-8deg);
+      box-shadow: 0 8px 16px rgba(140, 40, 32, 0.28);
+      animation: molan-chop-in 0.55s 0.28s var(--ease) both;
+    }
+
+    .folio-copy {
+      min-width: 0;
+      padding-bottom: 6px;
     }
 
     .welcome-kicker {
-      margin: 0 0 8px;
-      font-size: 0.72rem;
-      letter-spacing: 0.18em;
+      margin: 0 0 6px;
+      font-size: 0.68rem;
+      letter-spacing: 0.2em;
       text-transform: uppercase;
       color: var(--ink-muted);
       font-weight: 600;
@@ -1044,27 +1070,27 @@
 
     .welcome h2 {
       font-family: var(--font-display);
-      font-size: clamp(2.15rem, 4.2vw, 3.15rem);
+      font-size: clamp(2.05rem, 3.6vw, 2.85rem);
       font-weight: 400;
       line-height: 1.08;
       letter-spacing: -0.02em;
-      margin: 0 0 14px;
+      margin: 0 0 10px;
     }
 
     .welcome-lead {
       margin: 0;
-      max-width: 22rem;
+      max-width: 28rem;
       color: var(--ink-soft);
-      font-size: 1.05rem;
-      line-height: 1.65;
+      font-size: 0.98rem;
+      line-height: 1.6;
     }
 
     .welcome-actions {
       display: flex;
       align-items: center;
       flex-wrap: wrap;
-      gap: 14px 18px;
-      margin-top: 26px;
+      gap: 12px 16px;
+      margin-top: 18px;
     }
 
     .welcome-cta {
@@ -1073,8 +1099,8 @@
       cursor: pointer;
       font-family: var(--font-ui);
       font-weight: 600;
-      font-size: 0.92rem;
-      padding: 12px 22px;
+      font-size: 0.9rem;
+      padding: 11px 20px;
       border-radius: 999px;
       background: linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%);
       color: var(--on-accent);
@@ -1095,103 +1121,44 @@
     }
 
     .welcome-note {
-      font-size: 0.82rem;
+      font-size: 0.8rem;
       color: var(--ink-muted);
       letter-spacing: 0.04em;
     }
 
-    .welcome-sheet {
-      position: relative;
-      min-width: 0;
-      background:
-        linear-gradient(165deg, color-mix(in srgb, var(--paper-lift) 80%, var(--surface-solid)) 0%, var(--paper) 100%);
-      border: 1px solid var(--hairline);
-      border-radius: 3px 20px 14px 8px;
-      padding: 26px 26px 22px 32px;
-      box-shadow:
-        inset 0 1px 0 color-mix(in srgb, var(--surface-solid) 70%, transparent),
-        0 22px 48px rgba(28, 25, 20, 0.1),
-        10px 18px 36px rgba(28, 25, 20, 0.06);
-      transform: rotate(-0.45deg);
-      animation: molan-sheet-in 0.8s 0.08s var(--ease) both;
-    }
-
-    .welcome-sheet::before {
-      content: "";
-      position: absolute;
-      inset-inline-start: 16px;
-      top: 20px;
-      bottom: 20px;
-      width: 1px;
-      background: color-mix(in srgb, var(--accent) 42%, transparent);
-      opacity: 0.55;
-    }
-
-    .sheet-kicker {
-      margin: 0 0 6px;
-      font-size: 0.66rem;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      color: var(--ink-muted);
-      font-weight: 600;
-    }
-
-    .welcome-sheet h3 {
-      font-family: var(--font-display);
-      font-size: clamp(1.35rem, 2.2vw, 1.7rem);
-      font-weight: 400;
-      line-height: 1.2;
-      margin: 0 0 12px;
-    }
-
-    .welcome-sheet blockquote {
-      margin: 0 0 18px;
-      padding: 0 0 0 12px;
+    .folio-quote {
+      margin: 22px 0 20px;
+      padding: 0 0 0 14px;
       border-inline-start: 2px solid var(--accent);
       color: var(--ink-soft);
-      font-size: 0.92rem;
-      line-height: 1.6;
+      font-family: var(--font-display);
+      font-size: 1.05rem;
+      font-style: italic;
+      line-height: 1.55;
     }
 
-    .sheet-body {
+    .folio-body {
       display: grid;
-      grid-template-columns: 1.15fr 0.85fr;
+      grid-template-columns: 1.2fr 0.9fr;
       grid-template-areas:
         "flow table"
         "code math";
-      gap: 12px;
+      gap: 14px 18px;
+      align-items: stretch;
     }
 
-    .sheet-flow { grid-area: flow; }
-    .sheet-table { grid-area: table; }
-    .sheet-code { grid-area: code; }
-    .sheet-math { grid-area: math; }
-
-    .sheet-body figure {
-      margin: 0;
-      min-width: 0;
-      border: 1px solid var(--hairline);
-      border-radius: 10px;
-      background: color-mix(in srgb, var(--paper-lift) 70%, var(--table-bg));
-      overflow: hidden;
-    }
-
-    .sheet-body figcaption {
-      padding: 8px 10px 0;
-      font-size: 0.62rem;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: var(--ink-muted);
-      font-weight: 600;
-    }
+    .folio-body .shot-mermaid { grid-area: flow; }
+    .folio-body .shot-table { grid-area: table; }
+    .folio-body .shot-code { grid-area: code; }
+    .folio-body .shot-math { grid-area: math; }
 
     .shot-mermaid {
       display: block;
       width: 100%;
       height: auto;
-      padding: 2px 8px 10px;
       color: var(--ink);
       overflow: visible;
+      align-self: center;
     }
 
     .shot-mermaid .shot-node {
@@ -1220,17 +1187,18 @@
     }
 
     .shot-table {
-      width: calc(100% - 16px);
-      margin: 8px;
+      width: 100%;
+      margin: 0;
       border-collapse: collapse;
-      font-size: 0.72rem;
+      font-size: 0.78rem;
       background: var(--table-bg);
+      align-self: center;
     }
 
     .shot-table th,
     .shot-table td {
       border: 1px solid var(--table-line);
-      padding: 5px 7px;
+      padding: 6px 8px;
       text-align: start;
     }
 
@@ -1244,25 +1212,27 @@
     }
 
     .shot-code {
-      margin: 6px 8px 10px;
-      padding: 10px 12px;
+      margin: 0;
+      padding: 12px 14px;
       border-radius: 8px;
       background: var(--code-bg);
       color: var(--code-fg);
       font-family: var(--font-mono, "IBM Plex Mono", "JetBrains Mono", ui-monospace, monospace);
-      font-size: 0.72rem;
+      font-size: 0.74rem;
       line-height: 1.5;
       overflow: auto;
+      align-self: center;
     }
 
     .shot-code .k { color: var(--accent-soft); }
     .shot-code .n { color: var(--accent); }
 
     .shot-math {
-      margin: 18px 10px 16px;
-      text-align: center;
+      margin: 0;
+      display: grid;
+      place-items: center;
       font-family: var(--font-display);
-      font-size: 1.35rem;
+      font-size: 1.45rem;
       color: var(--ink);
       letter-spacing: 0.04em;
     }
@@ -1291,7 +1261,7 @@
       animation-name: molan-welcome-in;
     }
 
-    html[data-theme="hack"] .welcome-sheet {
+    html[data-theme="hack"] .welcome-folio {
       transform: none;
       border-radius: 6px;
       animation-name: molan-welcome-in;
@@ -1304,23 +1274,23 @@
     }
 
     @keyframes molan-welcome-in {
-      from { opacity: 0; transform: translateY(12px); }
+      from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
     }
 
     @keyframes molan-sheet-in {
-      from { opacity: 0; transform: translateY(18px) rotate(-0.45deg); }
-      to { opacity: 1; transform: translateY(0) rotate(-0.45deg); }
+      from { opacity: 0; transform: translateY(16px) rotate(-0.35deg); }
+      to { opacity: 1; transform: translateY(0) rotate(-0.35deg); }
     }
 
     @keyframes molan-chop-in {
-      from { opacity: 0; transform: rotate(-9deg) scale(0.72); }
-      to { opacity: 1; transform: rotate(-9deg) scale(1); }
+      from { opacity: 0; transform: rotate(-8deg) scale(0.72); }
+      to { opacity: 1; transform: rotate(-8deg) scale(1); }
     }
 
     @media (prefers-reduced-motion: reduce) {
-      .welcome-copy,
-      .welcome-sheet,
+      .folio-head,
+      .welcome-folio,
       .welcome-chop {
         animation: none;
       }
@@ -2099,16 +2069,17 @@
       }
       .sidebar { min-height: 42vh; max-height: 48vh; }
       .main { min-height: 70vh; }
-      .welcome { padding: 22px 18px 28px; }
-      .welcome-stage {
-        grid-template-columns: 1fr;
-        gap: 22px;
-      }
-      .welcome-sheet {
+      .welcome { padding: 22px 16px 28px; }
+      .welcome-folio {
+        padding: 26px 22px 22px 26px;
         transform: none;
         animation-name: molan-welcome-in;
       }
-      .sheet-body {
+      .folio-head {
+        grid-template-columns: 1fr;
+        gap: 4px;
+      }
+      .folio-body {
         grid-template-columns: 1fr;
         grid-template-areas:
           "flow"
@@ -2175,8 +2146,7 @@
 
     html[data-theme="hack"] .brand h1,
     html[data-theme="hack"] .reader-title h2,
-    html[data-theme="hack"] .welcome h2,
-    html[data-theme="hack"] .welcome-sheet h3 {
+    html[data-theme="hack"] .welcome h2 {
       font-weight: 500;
       letter-spacing: -0.04em;
     }
@@ -2196,7 +2166,6 @@
 
     html[data-theme="rose"] .brand h1,
     html[data-theme="rose"] .welcome h2,
-    html[data-theme="rose"] .welcome-sheet h3,
     html[data-theme="rose"] .vditor-reset h1,
     html[data-theme="rose"] .vditor-reset h2 {
       font-weight: 600;
