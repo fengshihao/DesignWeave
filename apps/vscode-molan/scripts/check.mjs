@@ -32,23 +32,25 @@ assert(js.includes("molan.markdownEditor"), "compiled viewType");
 assert(js.includes("molan-host-vscode"), "webview host class");
 assert(js.includes("__MOLAN_VDITOR_CDN__"), "vditor cdn injection");
 
-const viewerHtml = join(repoRoot, "tools", "markdown-viewer", "index.html");
-const html = readFileSync(viewerHtml, "utf8");
-assert(html.includes('id="molan-css"'), "single-file html has molan-css");
-assert(html.includes('id="molan-editor"'), "single-file html has molan-editor");
-assert(html.includes('id="molan-app"'), "single-file html has molan-app");
-assert(!html.includes("./molan-editor.js"), "html must not depend on sibling js files");
-assert(!existsSync(join(repoRoot, "tools/markdown-viewer/molan.css")), "viewer css is inlined");
-assert(!existsSync(join(repoRoot, "tools/markdown-viewer/molan-editor.js")), "viewer editor js is inlined");
-assert(!existsSync(join(repoRoot, "tools/markdown-viewer/molan-app.js")), "viewer app js is inlined");
+const viewer = join(repoRoot, "tools", "markdown-viewer");
+const html = readFileSync(join(viewer, "index.html"), "utf8");
+assert(html.includes("./molan.css"), "html links molan.css");
+assert(html.includes("./molan-editor.js"), "html loads editor core");
+assert(html.includes("./molan-app.js"), "html loads browser app");
+assert(existsSync(join(viewer, "molan.css")), "viewer molan.css");
+assert(existsSync(join(viewer, "molan-editor.js")), "viewer molan-editor.js");
+assert(existsSync(join(viewer, "molan-app.js")), "viewer molan-app.js");
 
-const extractedEditor = join(root, "media/molan-editor.js");
-for (const path of [extractedEditor, join(root, "media/vscode-bridge.js")]) {
+for (const path of [
+  join(viewer, "molan-editor.js"),
+  join(viewer, "molan-app.js"),
+  join(root, "media/vscode-bridge.js"),
+]) {
   const result = spawnSync(process.execPath, ["--check", path], { encoding: "utf8" });
   assert(result.status === 0, `syntax ${path}: ${result.stderr}`);
 }
 
-const editorSource = readFileSync(extractedEditor, "utf8");
+const editorSource = readFileSync(join(viewer, "molan-editor.js"), "utf8");
 assert(editorSource.includes("global.MolanEditor"), "exports MolanEditor");
 assert(editorSource.includes("create("), "has create()");
 
