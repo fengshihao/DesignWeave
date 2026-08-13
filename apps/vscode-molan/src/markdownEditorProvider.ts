@@ -258,7 +258,7 @@ export class MolanEditorProvider implements vscode.CustomEditorProvider<MolanDoc
           <h2 id="readerTitle">墨览</h2>
         </div>
         <div class="reader-actions">
-          <button class="chip" id="modeBtn" type="button">编辑</button>
+          <button class="chip" id="modeBtn" type="button">预览</button>
           <button class="chip" id="copyBtn" type="button">复制原文</button>
         </div>
       </header>
