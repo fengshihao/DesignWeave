@@ -19,7 +19,8 @@ assert(
   editor.selector.some((s) => s.filenamePattern === "*.md"),
   "selector includes *.md",
 );
-assert(existsSync(join(root, "media/vscode-bridge.js")), "vscode-bridge.js");
+assert(existsSync(join(root, "icon.png")), "marketplace icon.png");
+assert(existsSync(join(root, "LICENSE")), "LICENSE");
 assert(existsSync(join(root, "media/molan.css")), "synced molan.css");
 assert(existsSync(join(root, "media/molan-editor.js")), "synced molan-editor.js");
 assert(existsSync(join(root, "media/vditor/dist/index.min.js")), "vendored vditor");

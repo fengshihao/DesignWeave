@@ -8,3 +8,5 @@ tsconfig.json
 node_modules/**
 out/**/*.map
 *.vsix
+media/icon-1024.png
+MARKETPLACE.md

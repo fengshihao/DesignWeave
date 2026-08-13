@@ -2,6 +2,8 @@
 
 把 `tools/markdown-viewer` 里的墨览所见即所得编辑器，注册成 Markdown 的**自定义编辑器**。安装后点击 `.md` / `.markdown` / `.mdown` / `.mdx` 会直接用墨览打开，`Cmd/Ctrl+S` 写回原文件。
 
+![墨览编辑器](media/screenshot.png)
+
 侧栏文件树仍用 VS Code 自带的资源管理器；扩展里只嵌入编辑器、流程图灯箱和墨览样式。
 
 ## 本机调试
