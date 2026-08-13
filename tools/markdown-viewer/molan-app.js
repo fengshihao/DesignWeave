@@ -21,6 +21,49 @@
   const toast = (msg) => window.MolanEditor.toast(msg);
   const countWords = (text) => window.MolanEditor.countWords(text);
 
+  const THEMES = ["xuan", "night", "hack", "rose"];
+  const THEME_LABELS = { xuan: "宣纸", night: "墨夜", hack: "终端", rose: "胭脂" };
+  const THEME_KEY = "molan-theme";
+
+  function readStoredTheme() {
+    try {
+      const t = localStorage.getItem(THEME_KEY);
+      if (THEMES.includes(t)) return t;
+    } catch (_) { /* ignore */ }
+    return "xuan";
+  }
+
+  function applyTheme(theme, persist) {
+    const next = THEMES.includes(theme) ? theme : "xuan";
+    document.documentElement.setAttribute("data-theme", next);
+    if (persist !== false) {
+      try { localStorage.setItem(THEME_KEY, next); } catch (_) { /* ignore */ }
+    }
+    document.querySelectorAll("#themeSwitch [data-theme]").forEach((btn) => {
+      btn.setAttribute("aria-checked", btn.getAttribute("data-theme") === next ? "true" : "false");
+    });
+    try {
+      const root = document.getElementById("vditor") || document;
+      if (window.MolanEditor.refreshMermaidDiagrams) {
+        window.MolanEditor.refreshMermaidDiagrams(root);
+      } else {
+        window.MolanEditor.applyMermaidTheme();
+      }
+    } catch (_) { /* ignore */ }
+  }
+
+  applyTheme(readStoredTheme(), false);
+  const themeSwitch = document.getElementById("themeSwitch");
+  if (themeSwitch) {
+    themeSwitch.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-theme]");
+      if (!btn) return;
+      const id = btn.getAttribute("data-theme");
+      applyTheme(id);
+      toast("已切换为「" + (THEME_LABELS[id] || id) + "」");
+    });
+  }
+
   function isCursorBrowser() {
     const ua = navigator.userAgent || "";
     if (/Cursor\//i.test(ua) || /\bElectron\b/i.test(ua)) return true;

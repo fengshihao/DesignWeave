@@ -4,12 +4,22 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>墨览 · Markdown Studio</title>
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("molan-theme");
+        if (t === "night" || t === "hack" || t === "rose" || t === "xuan") {
+          document.documentElement.setAttribute("data-theme", t);
+        }
+      } catch (e) {}
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
   <noscript>
-    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   </noscript>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vditor@3.10.9/dist/index.css" />
   <link rel="stylesheet" href="./molan.css" />
@@ -22,6 +32,12 @@
           <h1>墨<span>览</span></h1>
         </div>
         <p>本地 Markdown 工作室 · 所见即所得 · 写回原文件</p>
+        <div class="theme-switch" id="themeSwitch" role="radiogroup" aria-label="界面样式">
+          <button type="button" role="radio" data-theme="xuan" title="宣纸 · 暖色纸面" aria-label="宣纸" aria-checked="true"></button>
+          <button type="button" role="radio" data-theme="night" title="墨夜 · 暗色夜读" aria-label="墨夜" aria-checked="false"></button>
+          <button type="button" role="radio" data-theme="hack" title="终端 · 程序员" aria-label="终端" aria-checked="false"></button>
+          <button type="button" role="radio" data-theme="rose" title="胭脂 · 柔粉纸面" aria-label="胭脂" aria-checked="false"></button>
+        </div>
       </div>
 
       <div class="toolbar">
@@ -62,8 +78,8 @@
           <div class="hero-glyph">墨</div>
           <h2>本地文档<br />在<em>同一张纸</em>上改写</h2>
           <p>选择任意文件夹，自动扫描 Markdown。用 Vditor 即时渲染（类 Typora）编辑；Chrome / Edge 可直接写回原文件。文件不会离开本机。</p>
-          <p class="welcome-compat-only" hidden style="color:var(--ink-muted);font-size:0.92rem;margin-top:-12px;margin-bottom:12px;line-height:1.6;">「选择文件夹」用目录授权 API（可写回）；「兼容模式选文件夹」用传统文件选择（Cursor 内置浏览器可用，保存将下载）。</p>
-          <p id="welcomeSaveHint" style="color:var(--ink-muted);font-size:0.88rem;margin-bottom:28px;line-height:1.55;padding:12px 14px;border-radius:12px;background:rgba(212,119,59,0.08);border:1px solid rgba(212,119,59,0.18);">快捷键 <strong>Cmd/Ctrl+S</strong> 保存。Chrome / Edge 可直接写回原文件。</p>
+          <p class="welcome-compat-only" hidden>「选择文件夹」用目录授权 API（可写回）；「兼容模式选文件夹」用传统文件选择（Cursor 内置浏览器可用，保存将下载）。</p>
+          <p class="welcome-note" id="welcomeSaveHint">快捷键 <strong>Cmd/Ctrl+S</strong> 保存。Chrome / Edge 可直接写回原文件。</p>
           <div class="feature-grid">
             <div class="feature"><strong>所见即所得</strong><span>IR / WYSIWYG / 分屏，工具栏可切换</span></div>
             <div class="feature"><strong>写回本地</strong><span>File System Access 直接改原文件</span></div>
