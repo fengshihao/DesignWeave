@@ -514,6 +514,7 @@
         toolbarConfig: { pin: true },
         preview: {
           delay: 800,
+          actions: options.previewActions || [],
           theme: { current: "light" },
           hljs: { style: "kimbie-dark", lineNumber: false },
           math: { engine: "KaTeX", inlineDigit: true },
@@ -545,11 +546,27 @@
         after: () => {
           applyMermaidTheme();
           watchMermaidPreviews(elementId);
+          const previewBtn = () =>
+            vditor?.vditor?.toolbar?.elements?.preview?.querySelector?.('[data-type="preview"]') || null;
+          const isPreview = () => previewBtn()?.classList.contains("vditor-menu--current") ?? false;
+          const setPreview = (on) => {
+            const btn = previewBtn();
+            if (!btn) return isPreview();
+            const active = btn.classList.contains("vditor-menu--current");
+            if (Boolean(on) !== active) btn.click();
+            else if (on) {
+              try { vditor.renderPreview(); } catch (_) { /* ignore */ }
+            }
+            return Boolean(on);
+          };
           const api = {
             setValue(text, clearStack = true) {
               vditor.setValue(text ?? "", clearStack);
               applyMermaidTheme();
               watchMermaidPreviews(elementId);
+              if (isPreview()) {
+                try { vditor.renderPreview(); } catch (_) { /* ignore */ }
+              }
               setTimeout(() => enhanceMermaidPreviews(document.getElementById(elementId)), 400);
             },
             getValue() {
@@ -557,6 +574,15 @@
             },
             focus() {
               try { vditor.focus(); } catch (_) { /* ignore */ }
+            },
+            isPreview,
+            setPreview,
+            onPreviewChange(cb) {
+              const btn = previewBtn();
+              if (!btn || typeof cb !== "function") return () => {};
+              const obs = new MutationObserver(() => cb(isPreview()));
+              obs.observe(btn, { attributes: true, attributeFilter: ["class"] });
+              return () => obs.disconnect();
             },
             getVditor() {
               return vditor;

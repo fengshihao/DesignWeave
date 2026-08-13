@@ -26,14 +26,15 @@ pnpm --filter molan-markdown package
 会在 `apps/vscode-molan/` 生成 `.vsix`，然后：
 
 ```bash
-code --install-extension apps/vscode-molan/molan-markdown-0.1.0.vsix
+code --install-extension apps/vscode-molan/molan-markdown-0.1.1.vsix
 # Cursor：
-cursor --install-extension apps/vscode-molan/molan-markdown-0.1.0.vsix
+cursor --install-extension apps/vscode-molan/molan-markdown-0.1.1.vsix
 ```
 
 ## 使用
 
-- 点击 Markdown 文件 → 墨览打开（类 Typora 的 IR 模式，可切 WYSIWYG / 分屏）
+- 点击 Markdown 文件 → 默认预览；顶栏「编辑」进入编辑（类 Typora 的 IR 模式，可切 WYSIWYG / 分屏）
+- 没有改过内容时关闭文件不会询问保存
 - `Cmd/Ctrl+S` 保存；VS Code 标题栏的脏点与撤销热退出可用
 - 流程图：点击进入观看（拖动 / 滚轮缩放），工具条可编辑源码、复制代码或图片
 - 若某次仍打开了文本编辑器：命令面板运行 **「墨览: 用墨览打开」**，或 **「墨览: 将墨览设为 Markdown 默认编辑器」**
@@ -42,5 +43,5 @@ cursor --install-extension apps/vscode-molan/molan-markdown-0.1.0.vsix
 ## 实现说明
 
 - 自定义编辑器 viewType：`molan.markdownEditor`，`priority: default`
-- 与浏览器工作室共用 `molan.css` + `molan-editor.js`；编译时拷贝进扩展，并内置 Vditor 3.10.9（不依赖外网 CDN）
+- 与浏览器工作室共用 `molan.css` + `molan-editor.js`；编译时拷贝进扩展，并内置裁剪后的 Vditor 3.10.9（Lute + Mermaid + KaTeX + highlight，不依赖外网 CDN）
 - 撤销由 Vditor 处理；VS Code 负责脏状态、保存、热退出备份

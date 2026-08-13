@@ -25,6 +25,14 @@ assert(existsSync(join(root, "media/molan.css")), "synced molan.css");
 assert(existsSync(join(root, "media/molan-editor.js")), "synced molan-editor.js");
 assert(existsSync(join(root, "media/vditor/dist/index.min.js")), "vendored vditor");
 assert(existsSync(join(root, "media/vditor/dist/js/mermaid/mermaid.min.js")), "vendored mermaid");
+assert(existsSync(join(root, "media/vditor/dist/js/lute/lute.min.js")), "vendored lute");
+assert(existsSync(join(root, "media/vditor/dist/js/katex/katex.min.js")), "vendored katex");
+assert(existsSync(join(root, "media/vditor/dist/js/highlight.js/highlight.min.js")), "vendored highlight");
+assert(!existsSync(join(root, "media/vditor/dist/js/mathjax")), "mathjax must be stripped");
+assert(!existsSync(join(root, "media/vditor/dist/js/echarts")), "echarts must be stripped");
+assert(!existsSync(join(root, "media/vditor/dist/js/graphviz")), "graphviz must be stripped");
+assert(!existsSync(join(root, "media/vditor/dist/js/abcjs")), "abcjs must be stripped");
+assert(!existsSync(join(root, "media/vditor/dist/js/markmap")), "markmap must be stripped");
 assert(existsSync(join(root, "out/extension.js")), "compiled extension.js");
 assert(existsSync(join(root, "out/markdownEditorProvider.js")), "compiled provider");
 
@@ -32,6 +40,7 @@ const js = readFileSync(join(root, "out/markdownEditorProvider.js"), "utf8");
 assert(js.includes("molan.markdownEditor"), "compiled viewType");
 assert(js.includes("molan-host-vscode"), "webview host class");
 assert(js.includes("__MOLAN_VDITOR_CDN__"), "vditor cdn injection");
+assert(js.includes("modeBtn"), "preview/edit toggle");
 
 const viewer = join(repoRoot, "tools", "markdown-viewer");
 const html = readFileSync(join(viewer, "index.html"), "utf8");
@@ -54,5 +63,10 @@ for (const path of [
 const editorSource = readFileSync(join(viewer, "molan-editor.js"), "utf8");
 assert(editorSource.includes("global.MolanEditor"), "exports MolanEditor");
 assert(editorSource.includes("create("), "has create()");
+assert(editorSource.includes("setPreview"), "preview mode API");
+
+const bridge = readFileSync(join(root, "media/vscode-bridge.js"), "utf8");
+assert(bridge.includes("setPreview(true)"), "opens in preview");
+assert(bridge.includes("value !== baseline"), "ignores Vditor setValue round-trip");
 
 console.log("molan-markdown extension check ok");

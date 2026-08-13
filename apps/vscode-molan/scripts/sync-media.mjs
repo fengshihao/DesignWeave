@@ -1,5 +1,5 @@
 import { createRequire } from "node:module";
-import { cpSync, mkdirSync } from "node:fs";
+import { cpSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -16,6 +16,44 @@ for (const file of ["molan.css", "molan-editor.js"]) {
 }
 
 const vditorPkg = dirname(require.resolve("vditor/package.json"));
-cpSync(join(vditorPkg, "dist"), join(media, "vditor", "dist"), { recursive: true });
+const srcDist = join(vditorPkg, "dist");
+const destDist = join(media, "vditor", "dist");
+rmSync(destDist, { recursive: true, force: true });
 
-console.log("copied molan.css, molan-editor.js; vendored vditor/dist");
+function copyRel(rel) {
+  const src = join(srcDist, rel);
+  const dest = join(destDist, rel);
+  mkdirSync(dirname(dest), { recursive: true });
+  cpSync(src, dest, { recursive: true });
+}
+
+// 墨览只用 Lute 解析、Mermaid 流程图、KaTeX 公式、highlight 代码高亮。
+for (const rel of [
+  "index.min.js",
+  "index.css",
+  "js/lute",
+  "js/mermaid",
+  "js/katex/katex.min.js",
+  "js/katex/katex.min.css",
+  "js/katex/mhchem.min.js",
+  "js/highlight.js/highlight.min.js",
+  "js/highlight.js/third-languages.js",
+  "js/highlight.js/styles/kimbie-dark.min.css",
+  "js/i18n/zh_CN.js",
+  "js/icons/ant.js",
+  "css/content-theme/light.css",
+  "images/img-loading.svg",
+]) {
+  copyRel(rel);
+}
+
+const fontsSrc = join(srcDist, "js/katex/fonts");
+const fontsDest = join(destDist, "js/katex/fonts");
+mkdirSync(fontsDest, { recursive: true });
+for (const name of readdirSync(fontsSrc)) {
+  if (name.endsWith(".woff2")) {
+    cpSync(join(fontsSrc, name), join(fontsDest, name));
+  }
+}
+
+console.log("copied molan.css, molan-editor.js; vendored trimmed vditor/dist (lute+mermaid+katex+highlight)");
