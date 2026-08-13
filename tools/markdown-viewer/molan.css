@@ -54,8 +54,10 @@
       --noise-opacity: 0.28;
       --noise-blend: multiply;
       --table-bg: #f6f0e6;
+      --table-line: rgba(28, 25, 20, 0.16);
+      --table-stripe: rgba(28, 25, 20, 0.05);
       --blockquote-tint: rgba(212, 119, 59, 0.07);
-      --row-hover: rgba(212, 119, 59, 0.04);
+      --row-hover: rgba(212, 119, 59, 0.1);
       --diagram-card: #f6f0e6;
       --code-border: rgba(28, 25, 20, 0.2);
       --lightbox-dim: rgba(20, 18, 14, 0.72);
@@ -106,8 +108,10 @@
       --noise-opacity: 0.22;
       --noise-blend: overlay;
       --table-bg: #1a1713;
+      --table-line: rgba(232, 226, 214, 0.16);
+      --table-stripe: rgba(232, 226, 214, 0.05);
       --blockquote-tint: rgba(224, 160, 84, 0.1);
-      --row-hover: rgba(224, 160, 84, 0.08);
+      --row-hover: rgba(224, 160, 84, 0.12);
       --diagram-card: #1a1713;
       --code-border: rgba(232, 226, 214, 0.12);
       --lightbox-dim: rgba(6, 5, 4, 0.78);
@@ -169,8 +173,10 @@
       --noise-opacity: 0.16;
       --noise-blend: overlay;
       --table-bg: #0f1814;
+      --table-line: rgba(61, 214, 140, 0.22);
+      --table-stripe: rgba(61, 214, 140, 0.07);
       --blockquote-tint: rgba(61, 214, 140, 0.1);
-      --row-hover: rgba(61, 214, 140, 0.08);
+      --row-hover: rgba(61, 214, 140, 0.14);
       --diagram-card: #0f1814;
       --code-border: rgba(61, 214, 140, 0.18);
       --lightbox-dim: rgba(2, 8, 5, 0.82);
@@ -229,8 +235,10 @@
       --page-wash-end: #f3e0e4;
       --noise-opacity: 0.2;
       --table-bg: #f6e8ea;
+      --table-line: rgba(92, 54, 66, 0.16);
+      --table-stripe: rgba(92, 54, 66, 0.06);
       --blockquote-tint: rgba(196, 91, 106, 0.08);
-      --row-hover: rgba(196, 91, 106, 0.05);
+      --row-hover: rgba(196, 91, 106, 0.1);
       --diagram-card: #f6e8ea;
       --code-border: rgba(92, 54, 66, 0.18);
       --lightbox-dim: rgba(45, 24, 32, 0.7);
@@ -1082,8 +1090,10 @@
     .vditor-reset table th {
       padding: 10px 14px !important;
       text-align: left;
-      border: none !important;
-      border-bottom: 1px solid var(--hairline) !important;
+      border-top: none !important;
+      border-left: none !important;
+      border-right: 1px solid var(--table-line) !important;
+      border-bottom: 1px solid var(--table-line) !important;
       background: transparent !important;
       background-color: transparent !important;
       color: var(--ink) !important;
@@ -1091,6 +1101,10 @@
       white-space: normal !important;
       overflow-wrap: anywhere !important;
       word-break: break-word !important;
+    }
+
+    .vditor-reset table tr > :last-child {
+      border-right: none !important;
     }
 
     .vditor-reset table.molan-table--wide tr > :nth-child(1) { width: var(--molan-col-1) !important; }
@@ -1116,6 +1130,13 @@
     }
 
     .vditor-reset tr:last-child td { border-bottom: none !important; }
+    .vditor-reset table tbody tr:nth-child(even) td,
+    .vditor-reset table > tr:nth-child(even) td {
+      background: var(--table-stripe) !important;
+      background-color: var(--table-stripe) !important;
+    }
+    .vditor-reset table tbody tr:hover td,
+    .vditor-reset table > tr:hover td,
     .vditor-reset tr:hover td {
       background: var(--row-hover) !important;
       background-color: var(--row-hover) !important;
