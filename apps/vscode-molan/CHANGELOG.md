@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.4
+
+- 工具条图标：用带 nonce 的脚本加载 SVG 精灵图，避免 webview CSP 拦掉 Vditor 的内联注入
+
 ## 0.1.3
 
 - 打开 Markdown 默认进入编辑，不再先闪一下再切到预览

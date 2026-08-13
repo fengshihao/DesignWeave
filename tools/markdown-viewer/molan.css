@@ -598,13 +598,17 @@
     }
 
     .vditor-toolbar__item .vditor-tooltipped {
-      color: var(--ink-soft) !important;
+      color: #4a4036 !important;
     }
 
     .vditor-toolbar__item svg {
-      width: 15px;
-      height: 15px;
-      fill: currentColor;
+      display: block !important;
+      width: 15px !important;
+      height: 15px !important;
+      fill: currentColor !important;
+      stroke: currentColor;
+      opacity: 1 !important;
+      visibility: visible !important;
     }
 
     .vditor-content {
