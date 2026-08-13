@@ -26,7 +26,7 @@
 
       <div class="toolbar">
         <button class="btn btn-primary" id="pickBtn" type="button">选择文件夹</button>
-        <button class="btn btn-ghost" id="pickFallbackBtn" type="button" title="传统文件选择 API；Cursor 内置浏览器可用">兼容模式选文件夹</button>
+        <button class="btn btn-ghost" id="pickFallbackBtn" type="button" hidden title="传统文件选择 API；Cursor 内置浏览器可用">兼容模式选文件夹</button>
         <div class="search-wrap">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
@@ -40,7 +40,7 @@
       <div class="file-list" id="fileList">
         <div class="empty-side">
           <span class="glyph">卷</span>
-          <p>Cursor 请用「兼容模式选文件夹」；Chrome 可用上方「选择文件夹」写回。</p>
+          <p>用上方「选择文件夹」打开目录，可写回原文件。</p>
         </div>
       </div>
     </aside>
@@ -62,8 +62,8 @@
           <div class="hero-glyph">墨</div>
           <h2>本地文档<br />在<em>同一张纸</em>上改写</h2>
           <p>选择任意文件夹，自动扫描 Markdown。用 Vditor 即时渲染（类 Typora）编辑；Chrome / Edge 可直接写回原文件。文件不会离开本机。</p>
-          <p style="color:var(--ink-muted);font-size:0.92rem;margin-top:-12px;margin-bottom:12px;line-height:1.6;">「选择文件夹」用目录授权 API（可写回）；「兼容模式选文件夹」用传统文件选择（Cursor 内置浏览器可用，保存将下载）。</p>
-          <p style="color:var(--ink-muted);font-size:0.88rem;margin-bottom:28px;line-height:1.55;padding:12px 14px;border-radius:12px;background:rgba(212,119,59,0.08);border:1px solid rgba(212,119,59,0.18);">快捷键 <strong>Cmd/Ctrl+S</strong> 保存。在 Cursor 里请用<strong>兼容模式选文件夹</strong>。</p>
+          <p class="welcome-compat-only" hidden style="color:var(--ink-muted);font-size:0.92rem;margin-top:-12px;margin-bottom:12px;line-height:1.6;">「选择文件夹」用目录授权 API（可写回）；「兼容模式选文件夹」用传统文件选择（Cursor 内置浏览器可用，保存将下载）。</p>
+          <p id="welcomeSaveHint" style="color:var(--ink-muted);font-size:0.88rem;margin-bottom:28px;line-height:1.55;padding:12px 14px;border-radius:12px;background:rgba(212,119,59,0.08);border:1px solid rgba(212,119,59,0.18);">快捷键 <strong>Cmd/Ctrl+S</strong> 保存。Chrome / Edge 可直接写回原文件。</p>
           <div class="feature-grid">
             <div class="feature"><strong>所见即所得</strong><span>IR / WYSIWYG / 分屏，工具栏可切换</span></div>
             <div class="feature"><strong>写回本地</strong><span>File System Access 直接改原文件</span></div>
