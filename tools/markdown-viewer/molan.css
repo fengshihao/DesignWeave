@@ -748,31 +748,64 @@
       margin: 1em 0;
     }
 
+    /*
+     * Vditor 默认：table { display:block; width:100%; word-break:keep-all }
+     *             td/th { white-space:nowrap }
+     * display:block + 100% 会让窄表右边铺一块白底；nowrap 会让宽表撑破纸面。
+     * 改回真正的 table，按内容收缩；超出纸面时由 JS 加上 .molan-table--wide。
+     */
     .vditor-reset table {
-      width: min(100%, max-content);
+      display: table !important;
+      width: max-content !important;
       max-width: 100%;
       table-layout: auto;
+      word-break: break-word !important;
+      box-sizing: border-box;
       border-collapse: separate !important;
       border-spacing: 0;
       margin: 1.4em 0 !important;
       font-size: 0.92rem;
-      overflow: visible;
+      overflow: hidden;
       border-radius: 12px;
       border: 1px solid rgba(28, 25, 20, 0.1) !important;
       background: #fff;
     }
 
-    .vditor-reset th,
-    .vditor-reset td {
+    .vditor-reset table.molan-table--wide {
+      width: 100% !important;
+      max-width: 100% !important;
+      /*
+       * 宽表列宽由 JS 按各列的自然内容宽度分配；不能用浏览器的等分结果，
+       * 否则英文会被压得过窄、中文列却可能占去不成比例的空间。
+       */
+      table-layout: fixed !important;
+    }
+
+    .vditor-reset table td,
+    .vditor-reset table th {
       padding: 10px 14px !important;
       text-align: left;
       border: none !important;
       border-bottom: 1px solid rgba(28, 25, 20, 0.08) !important;
       background: transparent !important;
-      white-space: normal;
-      overflow-wrap: anywhere;
-      word-break: break-word;
+      min-width: 0;
+      white-space: normal !important;
+      overflow-wrap: anywhere !important;
+      word-break: break-word !important;
     }
+
+    .vditor-reset table.molan-table--wide tr > :nth-child(1) { width: var(--molan-col-1) !important; }
+    .vditor-reset table.molan-table--wide tr > :nth-child(2) { width: var(--molan-col-2) !important; }
+    .vditor-reset table.molan-table--wide tr > :nth-child(3) { width: var(--molan-col-3) !important; }
+    .vditor-reset table.molan-table--wide tr > :nth-child(4) { width: var(--molan-col-4) !important; }
+    .vditor-reset table.molan-table--wide tr > :nth-child(5) { width: var(--molan-col-5) !important; }
+    .vditor-reset table.molan-table--wide tr > :nth-child(6) { width: var(--molan-col-6) !important; }
+    .vditor-reset table.molan-table--wide tr > :nth-child(7) { width: var(--molan-col-7) !important; }
+    .vditor-reset table.molan-table--wide tr > :nth-child(8) { width: var(--molan-col-8) !important; }
+    .vditor-reset table.molan-table--wide tr > :nth-child(9) { width: var(--molan-col-9) !important; }
+    .vditor-reset table.molan-table--wide tr > :nth-child(10) { width: var(--molan-col-10) !important; }
+    .vditor-reset table.molan-table--wide tr > :nth-child(11) { width: var(--molan-col-11) !important; }
+    .vditor-reset table.molan-table--wide tr > :nth-child(12) { width: var(--molan-col-12) !important; }
 
     .vditor-reset th {
       background: var(--paper-deep) !important;

@@ -390,6 +390,117 @@
     });
   }
 
+  function contentBoxWidth(el) {
+    if (!el) return 0;
+    const cs = getComputedStyle(el);
+    return el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  }
+
+  function naturalTableMetrics(table) {
+    const source = table.closest(".vditor-reset");
+    const probe = document.createElement("div");
+    probe.className = source?.className || "vditor-reset";
+    const clone = table.cloneNode(true);
+    clone.classList.remove("molan-table--wide");
+    clone.setAttribute("aria-hidden", "true");
+    Object.assign(probe.style, {
+      position: "fixed",
+      visibility: "hidden",
+      pointerEvents: "none",
+      left: "-100000px",
+      top: "0",
+    });
+    Object.assign(clone.style, { width: "max-content", maxWidth: "none" });
+    probe.appendChild(clone);
+    document.body.appendChild(probe);
+    const columns = [];
+    Array.from(clone.rows).forEach((row) => {
+      Array.from(row.cells).forEach((cell, index) => {
+        const tokens = (cell.textContent || "").match(/[A-Za-z0-9_./\\:$@#%-]+/g) || [];
+        const longestToken = tokens.reduce((length, token) => Math.max(length, token.length), 0);
+        const preferredMin = cell.querySelector("code") || longestToken >= 18
+          ? 168
+          : longestToken >= 12
+            ? 144
+            : 0;
+        const current = columns[index] || { natural: 0, preferredMin: 0 };
+        columns[index] = {
+          natural: Math.max(current.natural, cell.getBoundingClientRect().width),
+          preferredMin: Math.max(current.preferredMin, preferredMin),
+        };
+      });
+    });
+    const metrics = { width: clone.getBoundingClientRect().width, columns };
+    probe.remove();
+    return metrics;
+  }
+
+  function distributeColumnWidths(naturalColumns, availableWidth) {
+    const count = naturalColumns.length;
+    if (!count) return [];
+    const hardMin = Math.max(64, Math.min(96, availableWidth / count * 0.6));
+    const defaultMin = Math.max(80, Math.min(112, availableWidth / count * 0.72));
+    let minimums = naturalColumns.map((column) =>
+      Math.max(defaultMin, Math.min(column.preferredMin || 0, availableWidth * 0.42)));
+    const minimumTotal = minimums.reduce((total, width) => total + width, 0);
+    if (minimumTotal > availableWidth) {
+      const extraRoom = Math.max(0, availableWidth - hardMin * count);
+      const requestedExtra = minimums.map((width) => Math.max(0, width - hardMin));
+      const requestedTotal = requestedExtra.reduce((total, width) => total + width, 0);
+      minimums = requestedExtra.map((extra) =>
+        hardMin + (requestedTotal ? extraRoom * extra / requestedTotal : extraRoom / count));
+    }
+    const max = Math.max(...minimums, availableWidth * 0.52);
+    const ideal = naturalColumns.map((column, index) =>
+      Math.max(minimums[index], Math.min(max, column.natural)));
+    const idealExtra = ideal.map((width, index) => width - minimums[index]);
+    const extraTotal = idealExtra.reduce((total, width) => total + width, 0);
+    const remaining = Math.max(0, availableWidth - minimums.reduce((total, width) => total + width, 0));
+    if (!extraTotal) return minimums.map((width) => width + remaining / count);
+    return idealExtra.map((extra, index) => minimums[index] + remaining * extra / extraTotal);
+  }
+
+  function clearMolanTableLayout(root) {
+    root?.querySelectorAll(".molan-table--wide").forEach((table) => {
+      table.classList.remove("molan-table--wide");
+      for (let index = 1; index <= 12; index += 1) {
+        table.style.removeProperty(`--molan-col-${index}`);
+      }
+    });
+  }
+
+  function fitMolanTables(root) {
+    if (!root) return;
+    root.querySelectorAll(".vditor-reset table").forEach((table) => {
+      const host = table.closest(".vditor-reset") || table.parentElement;
+      const cap = contentBoxWidth(host);
+      if (cap <= 0) return;
+      const metrics = naturalTableMetrics(table);
+      const isWide = metrics.width > cap + 2;
+      table.classList.toggle("molan-table--wide", isWide);
+      if (!isWide) return;
+      distributeColumnWidths(metrics.columns.slice(0, 12), cap).forEach((width, index) => {
+        table.style.setProperty(`--molan-col-${index + 1}`, `${width}px`);
+      });
+    });
+  }
+
+  function scheduleFitTables(root) {
+    if (!root) return;
+    cancelAnimationFrame(scheduleFitTables._raf);
+    scheduleFitTables._raf = requestAnimationFrame(() => fitMolanTables(root));
+  }
+
+  function watchTables(root) {
+    if (!root) return;
+    scheduleFitTables(root);
+    if (watchTables._obs) return;
+    watchTables._obs = new ResizeObserver(() => scheduleFitTables(root));
+    watchTables._obs.observe(root);
+    const reset = root.querySelector(".vditor-reset");
+    if (reset) watchTables._obs.observe(reset);
+  }
+
   function watchMermaidPreviews(rootId = "vditor") {
     const root = document.getElementById(rootId);
     if (!root) return;
@@ -409,7 +520,10 @@
       raf = requestAnimationFrame(() => {
         raf = 0;
         clearTimeout(watchMermaidPreviews._t);
-        watchMermaidPreviews._t = setTimeout(() => enhanceMermaidPreviews(root), 120);
+        watchMermaidPreviews._t = setTimeout(() => {
+          enhanceMermaidPreviews(root);
+          scheduleFitTables(root);
+        }, 120);
       });
     });
     diagramObserver.observe(root, { childList: true, subtree: true });
@@ -547,6 +661,7 @@
           after: () => options.onCounter?.(),
         },
         input: () => {
+          scheduleFitTables(vditorRoot);
           try {
             options.onInput?.();
           } catch (_) { /* ignore */ }
@@ -557,6 +672,7 @@
         after: () => {
           applyMermaidTheme();
           watchMermaidPreviews(elementId);
+          watchTables(vditorRoot);
           revealVditorIcons();
           const previewBtn = () =>
             vditor?.vditor?.toolbar?.elements?.preview?.querySelector?.('[data-type="preview"]') || null;
@@ -569,6 +685,7 @@
             else if (on) {
               try { vditor.renderPreview(); } catch (_) { /* ignore */ }
             }
+            setTimeout(() => scheduleFitTables(vditorRoot), 80);
             return Boolean(on);
           };
           const api = {
@@ -579,10 +696,18 @@
               if (isPreview()) {
                 try { vditor.renderPreview(); } catch (_) { /* ignore */ }
               }
-              setTimeout(() => enhanceMermaidPreviews(document.getElementById(elementId)), 400);
+              setTimeout(() => {
+                const root = document.getElementById(elementId);
+                enhanceMermaidPreviews(root);
+                scheduleFitTables(root);
+              }, 400);
             },
             getValue() {
-              return vditor.getValue();
+              // 列宽只用于当前 webview 的呈现，不能把 class / style 写回 Markdown。
+              clearMolanTableLayout(vditorRoot);
+              const value = vditor.getValue();
+              scheduleFitTables(vditorRoot);
+              return value;
             },
             focus() {
               try { vditor.focus(); } catch (_) { /* ignore */ }
@@ -592,7 +717,10 @@
             onPreviewChange(cb) {
               const btn = previewBtn();
               if (!btn || typeof cb !== "function") return () => {};
-              const obs = new MutationObserver(() => cb(isPreview()));
+              const obs = new MutationObserver(() => {
+                scheduleFitTables(vditorRoot);
+                cb(isPreview());
+              });
               obs.observe(btn, { attributes: true, attributeFilter: ["class"] });
               return () => obs.disconnect();
             },
