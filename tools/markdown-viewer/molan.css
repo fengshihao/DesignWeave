@@ -742,8 +742,9 @@
     }
 
     .vditor-reset table {
-      width: max-content;
-      max-width: none;
+      width: min(100%, max-content);
+      max-width: 100%;
+      table-layout: auto;
       border-collapse: separate !important;
       border-spacing: 0;
       margin: 1.4em 0 !important;
@@ -761,6 +762,9 @@
       border: none !important;
       border-bottom: 1px solid rgba(28, 25, 20, 0.08) !important;
       background: transparent !important;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
 
     .vditor-reset th {
