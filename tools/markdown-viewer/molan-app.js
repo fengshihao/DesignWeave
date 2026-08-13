@@ -12,7 +12,6 @@
   const welcome = document.getElementById("welcome");
   const editorWrap = document.getElementById("editorWrap");
   const readerTitle = document.getElementById("readerTitle");
-  const readerEyebrow = document.getElementById("readerEyebrow");
   const statusLeft = document.getElementById("statusLeft");
   const statusRight = document.getElementById("statusRight");
   const saveBtn = document.getElementById("saveBtn");
@@ -334,15 +333,6 @@
 
   function setDirty(next) {
     dirty = !!next;
-    readerEyebrow.classList.toggle("dirty", dirty);
-    if (activePath) {
-      const file = files.find((f) => f.path === activePath);
-      if (file) {
-        readerEyebrow.textContent = dirty
-          ? t("unsaved")
-          : (file.dir === "." ? folderName || t("documentLabel") : file.dir);
-      }
-    }
     saveBtn.disabled = !dirty;
     if (activePath) {
       saveBtn.title = canWriteActive()
@@ -575,8 +565,6 @@
     editorWrap.classList.remove("visible");
     saveBtn.hidden = true;
     copyBtn.hidden = true;
-    readerEyebrow.classList.remove("dirty");
-    readerEyebrow.textContent = t("ready");
     readerTitle.textContent = t("openFolderToEdit");
     activePath = null;
     dirty = false;
@@ -823,7 +811,6 @@
   function refreshUiCopy() {
     window.MolanI18n?.applyDom();
     if (!activePath) {
-      readerEyebrow.textContent = t("ready");
       readerTitle.textContent = t("openFolderToEdit");
     } else {
       const file = files.find((f) => f.path === activePath);
