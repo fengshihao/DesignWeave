@@ -631,6 +631,7 @@
       box-sizing: border-box;
       margin: 0 auto !important;
       padding: 22px 40px 56px !important;
+      overflow-x: auto;
       font-family: var(--font-ui) !important;
       font-size: 0.98rem !important;
       line-height: 1.58 !important;
@@ -737,12 +738,13 @@
     }
 
     .vditor-reset table {
-      width: 100%;
+      width: max-content;
+      max-width: none;
       border-collapse: separate !important;
       border-spacing: 0;
       margin: 1.4em 0 !important;
       font-size: 0.92rem;
-      overflow: hidden;
+      overflow: visible;
       border-radius: 12px;
       border: 1px solid rgba(28, 25, 20, 0.1) !important;
       background: #fff;
