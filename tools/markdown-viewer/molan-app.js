@@ -12,6 +12,7 @@
   const libraryTitle = document.getElementById("libraryTitle");
   const welcome = document.getElementById("welcome");
   const editorWrap = document.getElementById("editorWrap");
+  const readerBody = document.getElementById("readerBody");
   const readerTitle = document.getElementById("readerTitle");
   const statusLeft = document.getElementById("statusLeft");
   const statusRight = document.getElementById("statusRight");
@@ -97,9 +98,6 @@
   if (allowCompatPicker) {
     pickFallbackBtn.hidden = false;
     document.body.classList.add("molan-show-compat");
-    document.querySelectorAll(".welcome-compat-only").forEach((el) => {
-      el.hidden = false;
-    });
   }
 
   let files = [];
@@ -114,6 +112,48 @@
   let editorReady = null;
   let pendingOpenPath = null;
   let openSeq = 0;
+  let sampleMode = true;
+  const SAMPLE_TITLE = "墨览";
+  const SAMPLE_MD = `# 宣纸
+
+> 落墨成文。
+
+- [x] 磨墨
+- [ ] 润笔
+- [ ] 成篇
+
+## 用料
+
+| 项 | 品 | 注 |
+| --- | --- | --- |
+| 纸 | 净皮宣 | 生 |
+| 墨 | 松烟 | 浓 |
+| 笔 | 狼毫 | 中 |
+
+## 研磨
+
+\`\`\`js
+const ink = stone
+  .water(3)
+  .circle(40)
+  .until("漆黑");
+\`\`\`
+
+## 行笔
+
+\`\`\`mermaid
+flowchart LR
+  A[选纸] --> B[磨墨]
+  B --> C[润笔]
+  C --> D[落墨]
+  D --> E[成篇]
+\`\`\`
+
+$$
+e^{i\\pi} + 1 = 0
+$$
+`;
+  let sampleText = SAMPLE_MD;
 
   const DB_NAME = "molan-viewer";
   const DB_STORE = "folders";
@@ -574,18 +614,21 @@
   }
 
   function showWelcome() {
-    welcome.hidden = false;
-    editorWrap.classList.remove("visible");
+    sampleMode = true;
+    if (welcome) welcome.hidden = false;
+    readerBody?.classList.add("is-sample");
+    editorWrap.classList.add("visible");
     saveBtn.hidden = true;
     copyBtn.hidden = true;
-    readerTitle.textContent = t("openFolderToEdit");
+    readerTitle.textContent = SAMPLE_TITLE;
     activePath = null;
     dirty = false;
     baselineText = "";
     clearTimeout(editorIdleTimer);
-    if (editorApi) {
-      try { editorApi.setValue("", true); } catch (_) { /* ignore */ }
-    }
+    ensureVditor().then((api) => {
+      if (!sampleMode || activePath) return;
+      try { api.setValue(sampleText, true); } catch (_) { /* ignore */ }
+    }).catch((err) => console.warn(err));
   }
 
   function confirmDiscardIfDirty() {
@@ -629,7 +672,12 @@
 
     const seq = ++openSeq;
     clearTimeout(editorIdleTimer);
-    welcome.hidden = true;
+    if (sampleMode && editorApi) {
+      try { sampleText = editorApi.getValue(); } catch (_) { /* ignore */ }
+    }
+    sampleMode = false;
+    if (welcome) welcome.hidden = true;
+    readerBody?.classList.remove("is-sample");
     editorWrap.classList.add("visible");
     saveBtn.hidden = false;
     copyBtn.hidden = false;
@@ -824,7 +872,7 @@
   function refreshUiCopy() {
     window.MolanI18n?.applyDom();
     if (!activePath) {
-      readerTitle.textContent = t("openFolderToEdit");
+      readerTitle.textContent = SAMPLE_TITLE;
     } else {
       const file = files.find((f) => f.path === activePath);
       if (file) {
@@ -846,6 +894,7 @@
 
   fillLangSelect();
   window.MolanI18n?.applyDom();
+  showWelcome();
   const langSelect = document.getElementById("langSelect");
   if (langSelect) {
     langSelect.addEventListener("change", () => {

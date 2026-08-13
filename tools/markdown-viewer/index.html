@@ -98,7 +98,7 @@
     <main class="main">
       <header class="reader-header">
         <div class="reader-title">
-          <h2 id="readerTitle" data-i18n="openFolderToEdit">打开文件夹，开始编辑</h2>
+          <h2 id="readerTitle">墨览</h2>
         </div>
         <div class="reader-actions">
           <button class="chip chip-primary" id="saveBtn" type="button" hidden disabled data-i18n="save">保存</button>
@@ -106,21 +106,11 @@
         </div>
       </header>
 
-      <div class="reader-body" id="readerBody">
+      <div class="reader-body is-sample" id="readerBody">
         <section class="welcome" id="welcome">
           <div class="hero-glyph">墨</div>
-          <h2 data-i18n-html="welcomeTitle">本地文档<br />在<em>同一张纸</em>上改写</h2>
-          <p data-i18n="welcomeBody">选择任意文件夹，自动扫描 Markdown。用 Vditor 即时渲染（类 Typora）编辑；Chrome / Edge 可直接写回原文件。文件不会离开本机。</p>
-          <p class="welcome-compat-only" hidden data-i18n="welcomeCompat">「选择文件夹」用目录授权 API（可写回）；「兼容模式选文件夹」用传统文件选择（Cursor 内置浏览器可用，保存将下载）。</p>
-          <p class="welcome-note" id="welcomeSaveHint" data-i18n-html="welcomeSave">快捷键 <strong>Cmd/Ctrl+S</strong> 保存。Chrome / Edge 可直接写回原文件。</p>
-          <div class="feature-grid">
-            <div class="feature"><strong data-i18n="featWysiwyg">所见即所得</strong><span data-i18n="featWysiwygDesc">IR / WYSIWYG / 分屏，工具栏可切换</span></div>
-            <div class="feature"><strong data-i18n="featWriteback">写回本地</strong><span data-i18n="featWritebackDesc">File System Access 直接改原文件</span></div>
-            <div class="feature"><strong data-i18n="featMath">公式与图表</strong><span data-i18n="featMathDesc">KaTeX、Mermaid 等由 Vditor 内置</span></div>
-            <div class="feature"><strong data-i18n="featLocal">不上云</strong><span data-i18n="featLocalDesc">全部在浏览器本地完成</span></div>
-          </div>
         </section>
-        <div class="editor-wrap" id="editorWrap">
+        <div class="editor-wrap visible" id="editorWrap">
           <div id="vditor"></div>
         </div>
       </div>
