@@ -2,7 +2,7 @@
   "name": "molan-markdown",
   "displayName": "墨览 Markdown",
   "description": "用墨览所见即所得编辑器打开 Markdown。点击 .md 即可编辑，Cmd/Ctrl+S 写回原文件。",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "fengshihao",
   "license": "MIT",
   "icon": "icon.png",

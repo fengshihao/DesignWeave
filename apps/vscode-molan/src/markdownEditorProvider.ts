@@ -98,6 +98,7 @@ export class MolanEditorProvider implements vscode.CustomEditorProvider<MolanDoc
         return;
       }
       if (msg.type === "change" && typeof msg.value === "string") {
+        // Vditor setValue/getValue 往返可能规范化 Markdown；webview 已过滤，这里再挡一层。
         if (msg.value === document.content) return;
         document.content = msg.value;
         this._onDidChangeCustomDocument.fire({ document });
@@ -257,6 +258,7 @@ export class MolanEditorProvider implements vscode.CustomEditorProvider<MolanDoc
           <h2 id="readerTitle">墨览</h2>
         </div>
         <div class="reader-actions">
+          <button class="chip" id="modeBtn" type="button">编辑</button>
           <button class="chip" id="copyBtn" type="button">复制原文</button>
         </div>
       </header>
