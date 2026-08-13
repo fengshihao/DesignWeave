@@ -1,0 +1,54 @@
+# VS Code Marketplace 填表用
+
+下面字段可直接粘贴。`package.json` 的 Publisher ID 已设为 `fengshihao`。
+
+## 市场网页表单
+
+| 字段 | 填写 |
+|------|------|
+| Publisher ID | `fengshihao` |
+| Extension ID / name | `molan-markdown` |
+| Display name / 显示名称 | 墨览 Markdown |
+| Short description / 简短说明 | 用墨览所见即所得编辑器打开 Markdown。点击 .md 即可编辑，Cmd/Ctrl+S 写回原文件。 |
+| Categories / 分类 | Other |
+| Tags / 标签 | markdown, vditor, wysiwyg, 墨览, mermaid, typora |
+| Version | 0.1.0 |
+| License | MIT |
+| Repository | https://github.com/fengshihao/DesignWeave.git |
+| Homepage | https://github.com/fengshihao/DesignWeave/tree/main/apps/vscode-molan |
+| Bugs / Issues | https://github.com/fengshihao/DesignWeave/issues |
+| Q&A | Marketplace（默认） |
+| Gallery banner color | `#1E2A24`（深苔绿，暗色） |
+
+## 资源文件（本目录）
+
+| 用途 | 文件 | 规格 |
+|------|------|------|
+| 扩展图标（必填） | `icon.png` | 128×128 PNG |
+| 高清原图（备用） | `media/icon-1024.png` | 1024×1024，市场网页若要更大图用这个 |
+| 商店截图 | `media/screenshot.jpg` | 已压缩 JPEG，写入 README |
+| 许可证 | `LICENSE` | MIT |
+| 更新日志 | `CHANGELOG.md` | 0.1.0 |
+
+完整介绍就是 README，市场详情页会自动用它，不用再抄一遍。
+
+## 发布命令
+
+1. 打开 https://marketplace.visualstudio.com/manage ，Publisher ID 为 `fengshihao`。
+2. 在 Azure DevOps 建 PAT：Organization 选 **All accessible organizations**，Scope 选 **Marketplace → Manage**。
+3. 本机或交给 Agent 发布：
+
+```bash
+cd apps/vscode-molan
+pnpm compile
+# 有令牌后：
+npx @vscode/vsce publish --no-dependencies -p "$VSCE_PAT"
+```
+
+只打包不发布：
+
+```bash
+pnpm --filter molan-markdown package
+```
+
+Cursor 用户走 Open VSX（另一套账号）：https://open-vsx.org/ ，用 `npx ovsx publish molan-markdown-0.1.0.vsix -p <token>`。

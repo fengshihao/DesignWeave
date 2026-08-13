@@ -3,14 +3,26 @@
   "displayName": "墨览 Markdown",
   "description": "用墨览所见即所得编辑器打开 Markdown。点击 .md 即可编辑，Cmd/Ctrl+S 写回原文件。",
   "version": "0.1.0",
-  "publisher": "designweave",
-  "private": true,
+  "publisher": "fengshihao",
   "license": "MIT",
+  "icon": "icon.png",
+  "galleryBanner": {
+    "color": "#1E2A24",
+    "theme": "dark"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fengshihao/DesignWeave.git"
+  },
+  "bugs": {
+    "url": "https://github.com/fengshihao/DesignWeave/issues"
+  },
+  "homepage": "https://github.com/fengshihao/DesignWeave/tree/main/apps/vscode-molan",
   "engines": {
     "vscode": "^1.74.0"
   },
   "categories": ["Other"],
-  "keywords": ["markdown", "vditor", "wysiwyg", "墨览", "mermaid"],
+  "keywords": ["markdown", "vditor", "wysiwyg", "墨览", "mermaid", "typora"],
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
@@ -81,7 +93,8 @@
     "watch": "tsc -watch -p ./",
     "typecheck": "tsc -p ./ --noEmit",
     "check": "pnpm compile && node ./scripts/check.mjs",
-    "package": "pnpm compile && npx --yes @vscode/vsce package --no-dependencies"
+    "package": "pnpm compile && npx --yes @vscode/vsce package --no-dependencies",
+    "publish": "pnpm compile && npx --yes @vscode/vsce publish --no-dependencies"
   },
   "dependencies": {
     "vditor": "3.10.9"
