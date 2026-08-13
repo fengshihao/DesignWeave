@@ -42,6 +42,7 @@ Windows 请在 **Git Bash** 里跑（仅 `scripts/dev.sh` 一个 bash 脚本，�
 `tools/markdown-viewer` 是本地所见即所得 Markdown 工作室（`index.html` + `molan.css` / `molan-editor.js` / `molan-app.js`）。同一套编辑器核心也包装为 **VS Code / Cursor 扩展**：安装后点击 `.md` 文件即用墨览打开，保存写回原文件。
 
 ```bash
+pnpm molan                             # 浏览器工作室：http://127.0.0.1:5500/
 pnpm --filter molan-markdown compile   # 或 pnpm vscode:molan
 pnpm --filter molan-markdown package   # 生成 .vsix
 ```
@@ -85,6 +86,8 @@ data/workspaces/<projectId>/
 ```bash
 pnpm dev          # 停旧进程后启动 web + agent（Windows 请用 Git Bash）
 pnpm stop         # 仅停止（同一脚本：scripts/dev.sh stop）
+pnpm molan        # 启动墨览 Markdown 工作室（:5500）
+pnpm molan:stop   # 仅停止墨览
 pnpm build        # 构建全部包
 pnpm typecheck    # 类型检查
 ```

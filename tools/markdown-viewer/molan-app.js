@@ -21,6 +21,46 @@
   const toast = (msg) => window.MolanEditor.toast(msg);
   const countWords = (text) => window.MolanEditor.countWords(text);
 
+  function isCursorBrowser() {
+    const ua = navigator.userAgent || "";
+    if (/Cursor\//i.test(ua) || /\bElectron\b/i.test(ua)) return true;
+    if (typeof window.acquireVsCodeApi === "function") return true;
+    try {
+      const origins = location.ancestorOrigins;
+      if (origins) {
+        for (let i = 0; i < origins.length; i++) {
+          if (/vscode|cursor/i.test(origins[i] || "")) return true;
+        }
+      }
+    } catch (_) { /* ignore */ }
+    return false;
+  }
+
+  function isDebugMode() {
+    try {
+      const q = new URLSearchParams(location.search);
+      if (q.has("debug") && q.get("debug") !== "0") return true;
+    } catch (_) { /* ignore */ }
+    try {
+      return localStorage.getItem("molan-debug") === "1";
+    } catch (_) {
+      return false;
+    }
+  }
+
+  const allowCompatPicker = isCursorBrowser() || isDebugMode();
+  if (allowCompatPicker) {
+    pickFallbackBtn.hidden = false;
+    document.body.classList.add("molan-show-compat");
+    document.querySelectorAll(".welcome-compat-only").forEach((el) => {
+      el.hidden = false;
+    });
+    const saveHint = document.getElementById("welcomeSaveHint");
+    if (saveHint) {
+      saveHint.innerHTML = "快捷键 <strong>Cmd/Ctrl+S</strong> 保存。在 Cursor 里请用<strong>兼容模式选文件夹</strong>。";
+    }
+  }
+
   let files = [];
   let activePath = null;
   let folderName = "";
@@ -450,7 +490,10 @@
         fileList.innerHTML = recentHtml;
         return;
       }
-      fileList.innerHTML = `<div class="empty-side"><span class="glyph">卷</span><p>Cursor 请用「兼容模式选文件夹」；Chrome 可用「选择文件夹」写回。</p></div>`;
+      const emptyHint = allowCompatPicker
+        ? "Cursor 请用「兼容模式选文件夹」；也可点「选择文件夹」尝试目录授权。"
+        : "用上方「选择文件夹」打开目录，可写回原文件。";
+      fileList.innerHTML = `<div class="empty-side"><span class="glyph">卷</span><p>${emptyHint}</p></div>`;
       return;
     }
 

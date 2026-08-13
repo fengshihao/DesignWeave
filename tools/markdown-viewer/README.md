@@ -2,7 +2,13 @@
 
 所见即所得（Vditor IR，类 Typora）编辑本地 Markdown。公式、Mermaid 流程图、表格与任务列表均可编辑；Chrome / Edge 可写回原文件。
 
-打开本目录下的 `index.html`（或用本地静态服务器）。Chrome 用「选择文件夹」可写回；Cursor 内置浏览器请用「兼容模式选文件夹」。样例：`sample.md`。
+打开本目录下的 `index.html`（或用本地静态服务器）。Chrome / Edge 用「选择文件夹」可写回。Cursor 内置浏览器会显示「兼容模式选文件夹」；普通浏览器可加 `?debug=1` 或 `localStorage.molan-debug = "1"` 显示该按钮。样例：`sample.md`。
+
+```bash
+pnpm molan            # 停旧后启动 http://127.0.0.1:5500/ 并打开浏览器
+pnpm molan:stop       # 仅停止
+MOLAN_PORT=5600 pnpm molan   # 自定义端口
+```
 
 ```text
 index.html        页面结构
