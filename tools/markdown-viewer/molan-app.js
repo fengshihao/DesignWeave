@@ -11,6 +11,7 @@
   const folderMeta = document.getElementById("folderMeta");
   const libraryTitle = document.getElementById("libraryTitle");
   const welcome = document.getElementById("welcome");
+  const welcomePickBtn = document.getElementById("welcomePickBtn");
   const editorWrap = document.getElementById("editorWrap");
   const readerBody = document.getElementById("readerBody");
   const readerTitle = document.getElementById("readerTitle");
@@ -580,6 +581,7 @@
 
   function showWelcome() {
     if (welcome) welcome.hidden = false;
+    document.querySelector(".main")?.classList.add("is-idle");
     readerBody?.classList.remove("is-editing");
     editorWrap.classList.remove("visible");
     saveBtn.hidden = true;
@@ -634,6 +636,7 @@
     const seq = ++openSeq;
     clearTimeout(editorIdleTimer);
     if (welcome) welcome.hidden = true;
+    document.querySelector(".main")?.classList.remove("is-idle");
     readerBody?.classList.add("is-editing");
     editorWrap.classList.add("visible");
     saveBtn.hidden = false;
@@ -753,6 +756,14 @@
     if (!confirmDiscardIfDirty()) return;
     toast(t("compatToast"));
     openCompatPicker();
+  });
+
+  welcomePickBtn?.addEventListener("click", () => {
+    if (allowCompatPicker && pickFallbackBtn && !pickFallbackBtn.hidden) {
+      pickFallbackBtn.click();
+    } else {
+      pickBtn.click();
+    }
   });
 
   dirInput.addEventListener("change", () => {
