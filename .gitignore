@@ -15,3 +15,8 @@ coverage
 *.db-shm
 *.db-wal
 *.tsbuildinfo
+*.vsix
+apps/vscode-molan/out
+apps/vscode-molan/media/molan.css
+apps/vscode-molan/media/molan-editor.js
+apps/vscode-molan/media/vditor

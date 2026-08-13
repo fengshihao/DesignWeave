@@ -1,0 +1,94 @@
+{
+  "name": "molan-markdown",
+  "displayName": "墨览 Markdown",
+  "description": "用墨览所见即所得编辑器打开 Markdown。点击 .md 即可编辑，Cmd/Ctrl+S 写回原文件。",
+  "version": "0.1.0",
+  "publisher": "designweave",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": ["Other"],
+  "keywords": ["markdown", "vditor", "wysiwyg", "墨览", "mermaid"],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "molan.markdownEditor",
+        "displayName": "墨览",
+        "selector": [
+          { "filenamePattern": "*.md" },
+          { "filenamePattern": "*.markdown" },
+          { "filenamePattern": "*.mdown" },
+          { "filenamePattern": "*.mdx" }
+        ],
+        "priority": "default"
+      }
+    ],
+    "configurationDefaults": {
+      "workbench.editorAssociations": {
+        "*.md": "molan.markdownEditor",
+        "*.markdown": "molan.markdownEditor",
+        "*.mdown": "molan.markdownEditor",
+        "*.mdx": "molan.markdownEditor"
+      }
+    },
+    "commands": [
+      {
+        "command": "molan.openWith",
+        "title": "用墨览打开",
+        "category": "墨览"
+      },
+      {
+        "command": "molan.setAsDefault",
+        "title": "将墨览设为 Markdown 默认编辑器",
+        "category": "墨览"
+      },
+      {
+        "command": "molan.reopenAsText",
+        "title": "用文本编辑器打开",
+        "category": "墨览"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "molan.openWith",
+          "when": "resourceExtname =~ /\\.(md|markdown|mdown|mdx)$/",
+          "group": "navigation@1"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "molan.reopenAsText",
+          "when": "activeCustomEditorId == 'molan.markdownEditor'",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "molan.openWith",
+          "when": "resourceExtname =~ /\\.(md|markdown|mdown|mdx)$/"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "sync-media": "node ./scripts/sync-media.mjs",
+    "compile": "node ./scripts/sync-media.mjs && tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "typecheck": "tsc -p ./ --noEmit",
+    "check": "pnpm compile && node ./scripts/check.mjs",
+    "package": "pnpm compile && npx --yes @vscode/vsce package --no-dependencies"
+  },
+  "dependencies": {
+    "vditor": "3.10.9"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@types/vscode": "^1.74.0",
+    "typescript": "^5.8.2"
+  }
+}

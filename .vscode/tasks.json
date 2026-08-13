@@ -1,0 +1,12 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "compile-molan-extension",
+      "type": "shell",
+      "command": "pnpm --filter molan-markdown compile",
+      "problemMatcher": "$tsc",
+      "group": "build"
+    }
+  ]
+}

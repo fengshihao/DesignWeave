@@ -1,0 +1,16 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "运行墨览扩展",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/apps/vscode-molan",
+        "${workspaceFolder}/tools/markdown-viewer/sample.md"
+      ],
+      "outFiles": ["${workspaceFolder}/apps/vscode-molan/out/**/*.js"],
+      "preLaunchTask": "compile-molan-extension"
+    }
+  ]
+}

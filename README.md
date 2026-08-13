@@ -37,6 +37,17 @@ Windows 请在 **Git Bash** 里跑（仅 `scripts/dev.sh` 一个 bash 脚本，�
 
 当前主路径：首页选 Claude 已知工程 → 新建需求（可粘贴导入 Markdown）→ 引导共创 / 文档 / 追问完善。文档落在主仓 `.designweave/requirements/` 或 `data/inbox/`。
 
+## 墨览 Markdown 编辑器
+
+`tools/markdown-viewer` 是本地所见即所得 Markdown 工作室（`index.html` + `molan.css` / `molan-editor.js` / `molan-app.js`）。同一套编辑器核心也包装为 **VS Code / Cursor 扩展**：安装后点击 `.md` 文件即用墨览打开，保存写回原文件。
+
+```bash
+pnpm --filter molan-markdown compile   # 或 pnpm vscode:molan
+pnpm --filter molan-markdown package   # 生成 .vsix
+```
+
+调试：仓库根目录按 `F5`（「运行墨览扩展」）。说明见 [`apps/vscode-molan/README.md`](apps/vscode-molan/README.md)。
+
 
 ## Docker（内网机器）
 
