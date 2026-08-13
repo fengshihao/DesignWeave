@@ -573,17 +573,43 @@
       border: none !important;
       border-radius: 0 !important;
       background: transparent !important;
+      display: flex !important;
+      flex-direction: column !important;
+      height: 100% !important;
     }
 
     .vditor-toolbar {
-      background: rgba(244, 239, 230, 0.92) !important;
+      display: flex !important;
+      flex-wrap: wrap;
+      align-items: center;
+      flex-shrink: 0;
+      min-height: 36px;
+      overflow: visible !important;
+      z-index: 3;
+      background: rgba(244, 239, 230, 0.96) !important;
       border-bottom: 1px solid rgba(28, 25, 20, 0.08) !important;
-      padding-left: 12px !important;
-      padding-right: 12px !important;
+      padding-left: 8px !important;
+      padding-right: 8px !important;
+    }
+
+    .vditor-toolbar__item,
+    .vditor-toolbar__divider {
+      float: none !important;
     }
 
     .vditor-toolbar__item .vditor-tooltipped {
       color: var(--ink-soft) !important;
+    }
+
+    .vditor-toolbar__item svg {
+      width: 15px;
+      height: 15px;
+      fill: currentColor;
+    }
+
+    .vditor-content {
+      flex: 1;
+      min-height: 0;
     }
 
     .vditor-content,

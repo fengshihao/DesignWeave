@@ -511,7 +511,7 @@
           "undo", "redo", "|",
           "edit-mode", "outline", "preview", "fullscreen",
         ],
-        toolbarConfig: { pin: true },
+        toolbarConfig: { pin: true, hide: false },
         preview: {
           delay: 800,
           actions: options.previewActions || [],

@@ -64,6 +64,7 @@ const editorSource = readFileSync(join(viewer, "molan-editor.js"), "utf8");
 assert(editorSource.includes("global.MolanEditor"), "exports MolanEditor");
 assert(editorSource.includes("create("), "has create()");
 assert(editorSource.includes("setPreview"), "preview mode API");
+assert(editorSource.includes("hide: false"), "toolbar stays visible");
 
 const bridge = readFileSync(join(root, "media/vscode-bridge.js"), "utf8");
 assert(bridge.includes('msg.type === "setContent" && api.isPreview()'), "only refreshes preview on external reload");
