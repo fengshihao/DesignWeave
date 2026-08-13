@@ -1,12 +1,12 @@
 # VS Code Marketplace 填表用
 
-下面字段可直接粘贴。发布前把 `package.json` 里的 `publisher` 改成你在市场注册的 **Publisher ID**（必须完全一致）。
+下面字段可直接粘贴。`package.json` 的 Publisher ID 已设为 `fengshihao`。
 
 ## 市场网页表单
 
 | 字段 | 填写 |
 |------|------|
-| Publisher ID | `designweave`（若已被占用，改成你的 ID，并同步改 `package.json`） |
+| Publisher ID | `fengshihao` |
 | Extension ID / name | `molan-markdown` |
 | Display name / 显示名称 | 墨览 Markdown |
 | Short description / 简短说明 | 用墨览所见即所得编辑器打开 Markdown。点击 .md 即可编辑，Cmd/Ctrl+S 写回原文件。 |
@@ -34,15 +34,15 @@
 
 ## 发布命令
 
-1. 打开 https://marketplace.visualstudio.com/manage 用 Microsoft 账号创建 Publisher（ID 与 `package.json` 的 `publisher` 一致）。
-2. 在 Azure DevOps 建 PAT，授权 **Marketplace → Manage**。
-3. 本机：
+1. 打开 https://marketplace.visualstudio.com/manage ，Publisher ID 为 `fengshihao`。
+2. 在 Azure DevOps 建 PAT：Organization 选 **All accessible organizations**，Scope 选 **Marketplace → Manage**。
+3. 本机或交给 Agent 发布：
 
 ```bash
 cd apps/vscode-molan
 pnpm compile
-npx @vscode/vsce login designweave
-npx @vscode/vsce publish
+# 有令牌后：
+npx @vscode/vsce publish --no-dependencies -p "$VSCE_PAT"
 ```
 
 只打包不发布：
