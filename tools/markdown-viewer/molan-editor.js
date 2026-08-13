@@ -472,6 +472,16 @@
     }, true);
   }
 
+  function revealVditorIcons() {
+    const xlink = "http://www.w3.org/1999/xlink";
+    document.querySelectorAll("use").forEach((use) => {
+      const ref = use.getAttribute("href")
+        || use.getAttributeNS(xlink, "href")
+        || use.getAttribute("xlink:href");
+      if (ref) use.setAttribute("href", ref);
+    });
+  }
+
   function create(options = {}) {
     const elementId = options.elementId || "vditor";
     const cdn = options.cdn || DEFAULT_CDN;
@@ -547,6 +557,7 @@
         after: () => {
           applyMermaidTheme();
           watchMermaidPreviews(elementId);
+          revealVditorIcons();
           const previewBtn = () =>
             vditor?.vditor?.toolbar?.elements?.preview?.querySelector?.('[data-type="preview"]') || null;
           const isPreview = () => previewBtn()?.classList.contains("vditor-menu--current") ?? false;

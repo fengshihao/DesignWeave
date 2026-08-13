@@ -224,6 +224,7 @@ export class MolanEditorProvider implements vscode.CustomEditorProvider<MolanDoc
     const molanCss = webview.asWebviewUri(vscode.Uri.joinPath(media, "molan.css"));
     const vditorCss = webview.asWebviewUri(vscode.Uri.joinPath(vditorRoot, "dist", "index.css"));
     const vditorJs = webview.asWebviewUri(vscode.Uri.joinPath(vditorRoot, "dist", "index.min.js"));
+    const vditorIconsJs = webview.asWebviewUri(vscode.Uri.joinPath(vditorRoot, "dist", "js", "icons", "ant.js"));
     const editorJs = webview.asWebviewUri(vscode.Uri.joinPath(media, "molan-editor.js"));
     const bridgeJs = webview.asWebviewUri(vscode.Uri.joinPath(media, "vscode-bridge.js"));
     const vditorCdn = webview.asWebviewUri(vditorRoot).toString();
@@ -308,6 +309,7 @@ export class MolanEditorProvider implements vscode.CustomEditorProvider<MolanDoc
     window.__MOLAN_VDITOR_CDN__ = ${JSON.stringify(vditorCdn)};
     window.__MOLAN_LINK_BASE__ = ${JSON.stringify(linkBase)};
   </script>
+  <script nonce="${nonce}" id="vditorIconScript" src="${vditorIconsJs}"></script>
   <script nonce="${nonce}" src="${vditorJs}"></script>
   <script nonce="${nonce}" src="${editorJs}"></script>
   <script nonce="${nonce}" src="${bridgeJs}"></script>

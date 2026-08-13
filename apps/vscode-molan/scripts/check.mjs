@@ -40,7 +40,8 @@ const js = readFileSync(join(root, "out/markdownEditorProvider.js"), "utf8");
 assert(js.includes("molan.markdownEditor"), "compiled viewType");
 assert(js.includes("molan-host-vscode"), "webview host class");
 assert(js.includes("__MOLAN_VDITOR_CDN__"), "vditor cdn injection");
-assert(js.includes("modeBtn"), "preview/edit toggle");
+assert(js.includes("vditorIconScript"), "icon sprite loaded with CSP nonce");
+assert(js.includes("ant.js"), "ant icon script in webview");
 
 const viewer = join(repoRoot, "tools", "markdown-viewer");
 const html = readFileSync(join(viewer, "index.html"), "utf8");
