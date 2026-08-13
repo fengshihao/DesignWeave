@@ -3,6 +3,7 @@
 ## 0.1.2
 
 - 商店介绍改为面向普通用户
+- 修正商店 README 截图地址（指向 `apps/vscode-molan/media/`）
 
 ## 0.1.1
 

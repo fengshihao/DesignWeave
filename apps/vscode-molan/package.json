@@ -12,7 +12,8 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/fengshihao/DesignWeave.git"
+    "url": "https://github.com/fengshihao/DesignWeave.git",
+    "directory": "apps/vscode-molan"
   },
   "bugs": {
     "url": "https://github.com/fengshihao/DesignWeave/issues"
@@ -93,8 +94,8 @@
     "watch": "tsc -watch -p ./",
     "typecheck": "tsc -p ./ --noEmit",
     "check": "pnpm compile && node ./scripts/check.mjs",
-    "package": "pnpm compile && npx --yes @vscode/vsce package --no-dependencies",
-    "publish": "pnpm compile && npx --yes @vscode/vsce publish --no-dependencies"
+    "package": "pnpm compile && npx --yes @vscode/vsce package --no-dependencies --baseContentUrl https://github.com/fengshihao/DesignWeave/blob/main/apps/vscode-molan --baseImagesUrl https://github.com/fengshihao/DesignWeave/raw/main/apps/vscode-molan",
+    "publish": "pnpm compile && npx --yes @vscode/vsce publish --no-dependencies --baseContentUrl https://github.com/fengshihao/DesignWeave/blob/main/apps/vscode-molan --baseImagesUrl https://github.com/fengshihao/DesignWeave/raw/main/apps/vscode-molan"
   },
   "dependencies": {
     "vditor": "3.10.9"
@@ -103,5 +104,10 @@
     "@types/node": "^22.13.10",
     "@types/vscode": "^1.74.0",
     "typescript": "^5.8.2"
+  },
+  "vsce": {
+    "dependencies": false,
+    "baseContentUrl": "https://github.com/fengshihao/DesignWeave/blob/main/apps/vscode-molan",
+    "baseImagesUrl": "https://github.com/fengshihao/DesignWeave/raw/main/apps/vscode-molan"
   }
 }

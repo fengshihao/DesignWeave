@@ -75,5 +75,9 @@ assert(readme.includes("默认是**预览**") || readme.includes("默认是预�
 assert(!readme.includes("pnpm --filter"), "README must not contain packaging commands");
 assert(!readme.includes("viewType"), "README must not contain implementation jargon");
 assert(existsSync(join(root, "DEV.md")), "developer docs live in DEV.md");
+assert(
+  pkg.vsce?.baseImagesUrl?.includes("apps/vscode-molan"),
+  "vsce baseImagesUrl must include apps/vscode-molan so Marketplace screenshots resolve",
+);
 
 console.log("molan-markdown extension check ok");
