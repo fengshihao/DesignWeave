@@ -69,4 +69,11 @@ const bridge = readFileSync(join(root, "media/vscode-bridge.js"), "utf8");
 assert(bridge.includes("setPreview(true)"), "opens in preview");
 assert(bridge.includes("value !== baseline"), "ignores Vditor setValue round-trip");
 
+const readme = readFileSync(join(root, "README.md"), "utf8");
+assert(readme.includes("![墨览编辑器](media/screenshot.jpg)"), "store screenshot");
+assert(readme.includes("默认是**预览**") || readme.includes("默认是预览"), "user-facing preview copy");
+assert(!readme.includes("pnpm --filter"), "README must not contain packaging commands");
+assert(!readme.includes("viewType"), "README must not contain implementation jargon");
+assert(existsSync(join(root, "DEV.md")), "developer docs live in DEV.md");
+
 console.log("molan-markdown extension check ok");

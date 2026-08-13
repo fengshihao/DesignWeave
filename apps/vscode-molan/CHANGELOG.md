@@ -2,9 +2,10 @@
 
 ## 0.1.1
 
-- 打开 Markdown 默认进入预览；点「编辑」再进入编辑
-- 未真正改过内容时关闭文件不再询问保存（忽略 Vditor setValue/getValue 往返）
-- 内置 Vditor 只保留 Lute、Mermaid、KaTeX、highlight，去掉 MathJax / ECharts 等未用引擎
+- 打开 Markdown 默认进入预览，点「编辑」再改
+- 只看不改时，关闭文件不再询问保存
+- 安装包更小
+- 商店介绍改为面向普通用户
 
 ## 0.1.0
 

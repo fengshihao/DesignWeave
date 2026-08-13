@@ -10,3 +10,4 @@ out/**/*.map
 *.vsix
 media/icon-1024.png
 MARKETPLACE.md
+DEV.md
