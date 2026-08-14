@@ -8,7 +8,7 @@
 
 ```bash
 pnpm install
-pnpm --filter molan-markdown compile
+pnpm vscode:molan
 ```
 
 用 VS Code / Cursor 打开本仓库，按 `F5`（启动配置「运行墨览扩展」），在 Extension Development Host 里点任意 Markdown 文件。
@@ -16,10 +16,11 @@ pnpm --filter molan-markdown compile
 ## 打包
 
 ```bash
-pnpm --filter molan-markdown package
+pnpm vscode:molan:package   # 生成 .vsix
+pnpm vscode:molan:install   # 打包后装到本机 Cursor / VS Code
 ```
 
-会在 `apps/vscode-molan/` 生成 `.vsix`：
+`.vsix` 落在 `apps/vscode-molan/`。也可手动安装：
 
 ```bash
 code --install-extension apps/vscode-molan/molan-markdown-0.1.6.vsix

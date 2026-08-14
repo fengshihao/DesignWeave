@@ -14,7 +14,9 @@
     "build": "pnpm --filter @designweave/schema build && pnpm --filter @designweave/prompts build && pnpm --filter @designweave/agent build && pnpm --filter @designweave/web build",
     "start": "pnpm -r --parallel --filter @designweave/agent --filter @designweave/web start",
     "typecheck": "pnpm -r typecheck",
-    "vscode:molan": "pnpm --filter molan-markdown compile"
+    "vscode:molan": "bash scripts/vscode-molan.sh",
+    "vscode:molan:package": "bash scripts/vscode-molan.sh package",
+    "vscode:molan:install": "bash scripts/vscode-molan.sh install"
   },
   "engines": {
     "node": ">=20"

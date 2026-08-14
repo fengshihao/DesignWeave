@@ -4,7 +4,7 @@
     {
       "label": "compile-molan-extension",
       "type": "shell",
-      "command": "pnpm --filter molan-markdown compile",
+      "command": "pnpm vscode:molan",
       "problemMatcher": "$tsc",
       "group": "build"
     }
