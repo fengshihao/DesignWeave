@@ -13,7 +13,6 @@
   const welcome = document.getElementById("welcome");
   const welcomePickBtn = document.getElementById("welcomePickBtn");
   const aphorismText = document.getElementById("aphorismText");
-  const aphorismNext = document.getElementById("aphorismNext");
   const editorWrap = document.getElementById("editorWrap");
   const readerBody = document.getElementById("readerBody");
   const readerTitle = document.getElementById("readerTitle");
@@ -594,6 +593,7 @@
     baselineText = "";
     clearTimeout(editorIdleTimer);
     syncOpenHint();
+    scheduleAphorismCycle();
   }
 
   function aphorismStorageKeys() {
@@ -603,7 +603,31 @@
       pos: "molan-aphorism-pos:" + lang,
     };
   }
+  const APHORISM_HOLD_MS = 10000;
   let aphorismTimer = 0;
+  let aphorismCycle = 0;
+  let inkSegmenter = null;
+  try {
+    inkSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+  } catch (_) { /* ignore */ }
+
+  function welcomeVisible() {
+    return !!(welcome && !welcome.hidden && !readerBody?.classList.contains("is-editing") && !document.hidden);
+  }
+
+  function stopAphorismCycle() {
+    window.clearTimeout(aphorismTimer);
+    window.clearTimeout(aphorismCycle);
+  }
+
+  function scheduleAphorismCycle() {
+    window.clearTimeout(aphorismCycle);
+    if (!welcomeVisible()) return;
+    aphorismCycle = window.setTimeout(() => {
+      if (!welcomeVisible()) return;
+      advanceAphorism(true);
+    }, APHORISM_HOLD_MS);
+  }
 
   function aphorismList() {
     const lang = window.MolanI18n ? window.MolanI18n.getLang() : "zh";
@@ -655,28 +679,196 @@
     return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   }
 
+  function isVerticalAphorism() {
+    const lang = document.documentElement.lang || "";
+    return lang === "zh-CN" || lang === "zh-TW" || lang === "ja";
+  }
+
+  function inkChars(text) {
+    if (inkSegmenter) {
+      return Array.from(inkSegmenter.segment(text), (s) => s.segment);
+    }
+    return Array.from(text);
+  }
+
+  function columnCount(n) {
+    if (n <= 5) return 1;
+    if (n <= 19) return 2;
+    if (n <= 32) return 3;
+    return 4;
+  }
+
+  function splitColumns(parts, cols) {
+    const sizes = [];
+    const base = Math.floor(parts.length / cols);
+    let extra = parts.length % cols;
+    for (let c = 0; c < cols; c++) {
+      sizes.push(base + (extra > 0 ? 1 : 0));
+      if (extra > 0) extra--;
+    }
+    const columns = [];
+    let i = 0;
+    for (const size of sizes) {
+      columns.push(parts.slice(i, i + size));
+      i += size;
+    }
+    return columns;
+  }
+
+  function columnStagger(cols, index, seed) {
+    const patterns = {
+      2: [0.12, 1.42],
+      3: [0.28, 1.58, 0.62],
+      4: [0.18, 1.48, 0.52, 1.12],
+    };
+    const row = patterns[cols] || [0.2, 1.2];
+    const wobble = ((seed + index * 19) % 9) * 0.07;
+    return `${((row[index] || 0.4) + wobble).toFixed(2)}em`;
+  }
+
+  function fillInkInline(el, parts) {
+    const frag = document.createDocumentFragment();
+    parts.forEach((ch, i) => {
+      const span = document.createElement("span");
+      span.className = "ink-ch";
+      span.style.setProperty("--i", String(Math.min(i, 40)));
+      span.textContent = ch === " " ? "\u00a0" : ch;
+      frag.appendChild(span);
+    });
+    el.replaceChildren(frag);
+  }
+
+  function fillInkColumns(el, parts) {
+    const cols = columnCount(parts.length);
+    if (cols === 1) {
+      fillInkInline(el, parts);
+      return;
+    }
+    const columns = splitColumns(parts, cols);
+    const seed = parts.reduce((s, ch) => s + ch.charCodeAt(0), 0);
+    const frag = document.createDocumentFragment();
+    let i = 0;
+    columns.forEach((col, c) => {
+      const wrap = document.createElement("span");
+      wrap.className = "ink-col";
+      wrap.style.setProperty("--stagger", columnStagger(cols, c, seed));
+      wrap.style.setProperty("--nudge", `${(((seed >> (c * 3)) & 7) - 3) * 0.06}em`);
+      col.forEach((ch) => {
+        const span = document.createElement("span");
+        span.className = "ink-ch";
+        span.style.setProperty("--i", String(Math.min(i, 40)));
+        span.textContent = ch === " " ? "\u00a0" : ch;
+        wrap.appendChild(span);
+        i += 1;
+      });
+      frag.appendChild(wrap);
+    });
+    el.replaceChildren(frag);
+  }
+
+  function wrapLatinLines(text) {
+    const words = text.trim().split(/\s+/).filter(Boolean);
+    if (!words.length) return [];
+    const n = words.reduce((s, w) => s + w.length, 0) + Math.max(0, words.length - 1);
+    let maxLen = 32;
+    if (n <= 26) maxLen = Math.max(n, 12);
+    else if (n <= 48) maxLen = 24;
+    else if (n <= 72) maxLen = 30;
+    const lines = [];
+    let cur = [];
+    let len = 0;
+    for (const word of words) {
+      const add = (cur.length ? 1 : 0) + word.length;
+      if (cur.length && len + add > maxLen) {
+        lines.push(cur);
+        cur = [word];
+        len = word.length;
+      } else {
+        cur.push(word);
+        len += add;
+      }
+    }
+    if (cur.length) lines.push(cur);
+    return lines;
+  }
+
+  function lineIndent(index, seed) {
+    const pattern = [0.08, 1.38, 0.42, 1.72, 0.78, 1.12];
+    const wobble = ((seed + index * 13) % 8) * 0.05;
+    return `${(pattern[index % pattern.length] + wobble).toFixed(2)}em`;
+  }
+
+  function fillInkLines(el, text) {
+    const lines = wrapLatinLines(text);
+    const seed = Array.from(text).reduce((s, ch) => s + ch.charCodeAt(0), 0);
+    const frag = document.createDocumentFragment();
+    let i = 0;
+    lines.forEach((words, li) => {
+      const line = document.createElement("span");
+      line.className = "ink-line";
+      line.style.setProperty("--indent", lineIndent(li, seed));
+      words.forEach((word, wi) => {
+        if (wi) {
+          const sp = document.createElement("span");
+          sp.className = "ink-ch ink-sp";
+          sp.style.setProperty("--i", String(Math.min(i, 40)));
+          sp.textContent = "\u00a0";
+          line.appendChild(sp);
+          i += 1;
+        }
+        inkChars(word).forEach((ch) => {
+          const span = document.createElement("span");
+          span.className = "ink-ch";
+          span.style.setProperty("--i", String(Math.min(i, 40)));
+          span.textContent = ch;
+          line.appendChild(span);
+          i += 1;
+        });
+      });
+      frag.appendChild(line);
+    });
+    el.replaceChildren(frag);
+  }
+
+  function fillInk(el, text) {
+    const parts = inkChars(text);
+    const vertical = isVerticalAphorism();
+    const stacked = vertical && columnCount(parts.length) > 1;
+    el.classList.toggle("is-vertical", stacked);
+    el.classList.toggle("is-lined", !vertical);
+    if (stacked) fillInkColumns(el, parts);
+    else if (vertical) fillInkInline(el, parts);
+    else fillInkLines(el, text);
+  }
+
+  function inkOutMs(el) {
+    const n = el.querySelectorAll(".ink-ch").length || 8;
+    return Math.min(3000, 1640 + Math.min(n, 28) * 56);
+  }
+
   function paintAphorism(animate) {
     const list = aphorismList();
     if (!aphorismText || !list.length) return;
     const { order, pos } = readAphorismState(list.length);
     const idx = order[pos] ?? 0;
     const text = list[idx] || list[0];
+    const motion = animate && !prefersReducedMotion();
     const apply = () => {
-      aphorismText.textContent = text;
+      fillInk(aphorismText, text);
       aphorismText.classList.remove("is-out");
-      if (animate && !prefersReducedMotion()) {
-        aphorismText.classList.remove("is-in");
+      aphorismText.classList.remove("is-in");
+      if (motion) {
         void aphorismText.offsetWidth;
         aphorismText.classList.add("is-in");
-      } else {
-        aphorismText.classList.remove("is-in");
       }
+      scheduleAphorismCycle();
     };
     window.clearTimeout(aphorismTimer);
-    if (animate && !prefersReducedMotion() && aphorismText.textContent && aphorismText.textContent !== text) {
+    const current = (aphorismText.textContent || "").replace(/\u00a0/g, " ");
+    if (motion && current && current !== text) {
       aphorismText.classList.remove("is-in");
       aphorismText.classList.add("is-out");
-      aphorismTimer = window.setTimeout(apply, 220);
+      aphorismTimer = window.setTimeout(apply, inkOutMs(aphorismText));
     } else {
       apply();
     }
@@ -749,6 +941,7 @@
 
     const seq = ++openSeq;
     clearTimeout(editorIdleTimer);
+    stopAphorismCycle();
     if (welcome) welcome.hidden = true;
     document.querySelector(".main")?.classList.remove("is-idle");
     readerBody?.classList.add("is-editing");
@@ -880,13 +1073,16 @@
     }
   });
 
-  aphorismNext?.addEventListener("click", () => advanceAphorism(true));
   aphorismText?.addEventListener("click", () => advanceAphorism(true));
   aphorismText?.addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       advanceAphorism(true);
     }
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) stopAphorismCycle();
+    else scheduleAphorismCycle();
   });
 
   dirInput.addEventListener("change", () => {
@@ -982,7 +1178,7 @@
       folderMeta.innerHTML = t("folderMeta", { name: escapeHtml(folderName), n: files.length, hint: writeHint });
       statusLeft.textContent = t("indexed", { n: files.length });
     } else if (!activePath) {
-      statusLeft.textContent = t("waitingFolder");
+      statusLeft.textContent = "";
     }
     updateStatusRight();
     renderSidebarList();

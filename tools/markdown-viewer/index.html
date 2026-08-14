@@ -109,11 +109,10 @@
       <div class="reader-body" id="readerBody">
         <section class="welcome" id="welcome">
           <article class="welcome-folio" id="aphorismFolio">
-            <span class="aphorism-chop" aria-hidden="true">览</span>
-            <blockquote class="aphorism" id="aphorismText" tabindex="0" aria-live="polite" data-i18n-title="welcomeNextTitle"></blockquote>
-            <div class="aphorism-bar">
+            <span class="folio-watermark" aria-hidden="true">墨</span>
+            <div class="folio-verse">
+              <blockquote class="aphorism" id="aphorismText" tabindex="0" aria-live="polite"></blockquote>
               <button class="welcome-cta" id="welcomePickBtn" type="button" data-i18n="welcomeCta">打开文件夹</button>
-              <button class="aphorism-next" id="aphorismNext" type="button" data-i18n="welcomeNext" data-i18n-title="welcomeNextTitle">换一句</button>
             </div>
           </article>
         </section>
@@ -123,7 +122,7 @@
       </div>
 
       <footer class="status-bar">
-        <span id="statusLeft" data-i18n="waitingFolder">等待选择文件夹</span>
+        <span id="statusLeft"></span>
         <span id="statusRight" data-i18n="localOffline">本地 · 不上云</span>
       </footer>
     </main>
