@@ -596,8 +596,13 @@
     syncOpenHint();
   }
 
-  const APHORISM_ORDER_KEY = "molan-aphorism-order";
-  const APHORISM_POS_KEY = "molan-aphorism-pos";
+  function aphorismStorageKeys() {
+    const lang = window.MolanI18n ? window.MolanI18n.getLang() : "zh";
+    return {
+      order: "molan-aphorism-order:" + lang,
+      pos: "molan-aphorism-pos:" + lang,
+    };
+  }
   let aphorismTimer = 0;
 
   function aphorismList() {
@@ -623,8 +628,9 @@
     let order = [];
     let pos = 0;
     try {
-      order = JSON.parse(localStorage.getItem(APHORISM_ORDER_KEY) || "[]");
-      pos = Number(localStorage.getItem(APHORISM_POS_KEY) || "0");
+      const keys = aphorismStorageKeys();
+      order = JSON.parse(localStorage.getItem(keys.order) || "[]");
+      pos = Number(localStorage.getItem(keys.pos) || "0");
     } catch (_) { /* ignore */ }
     const valid = Array.isArray(order) && order.length === n && order.every((i) => i >= 0 && i < n);
     if (!valid) {
@@ -639,8 +645,9 @@
 
   function writeAphorismState(order, pos) {
     try {
-      localStorage.setItem(APHORISM_ORDER_KEY, JSON.stringify(order));
-      localStorage.setItem(APHORISM_POS_KEY, String(pos));
+      const keys = aphorismStorageKeys();
+      localStorage.setItem(keys.order, JSON.stringify(order));
+      localStorage.setItem(keys.pos, String(pos));
     } catch (_) { /* ignore */ }
   }
 
@@ -693,7 +700,7 @@
     const list = aphorismList();
     if (!list.length) return;
     let hadPos = false;
-    try { hadPos = localStorage.getItem(APHORISM_POS_KEY) != null; } catch (_) { /* ignore */ }
+    try { hadPos = localStorage.getItem(aphorismStorageKeys().pos) != null; } catch (_) { /* ignore */ }
     if (hadPos) advanceAphorism(true);
     else {
       writeAphorismState(shuffleOrder(list.length), 0);
