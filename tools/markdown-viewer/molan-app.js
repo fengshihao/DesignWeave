@@ -34,11 +34,11 @@
       const t = localStorage.getItem(THEME_KEY);
       if (THEMES.includes(t)) return t;
     } catch (_) { /* ignore */ }
-    return "xuan";
+    return "night";
   }
 
   function applyTheme(theme, persist) {
-    const next = THEMES.includes(theme) ? theme : "xuan";
+    const next = THEMES.includes(theme) ? theme : "night";
     document.documentElement.setAttribute("data-theme", next);
     if (persist !== false) {
       try { localStorage.setItem(THEME_KEY, next); } catch (_) { /* ignore */ }

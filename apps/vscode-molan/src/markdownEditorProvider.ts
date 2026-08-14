@@ -255,7 +255,7 @@ export class MolanEditorProvider implements vscode.CustomEditorProvider<MolanDoc
     ].join("; ");
 
     return `<!DOCTYPE html>
-<html lang="zh-CN" class="molan-host-vscode">
+<html lang="zh-CN" class="molan-host-vscode" data-theme="night">
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy" content="${csp}" />

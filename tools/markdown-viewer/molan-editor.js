@@ -50,7 +50,7 @@
 
   function getMermaidOpts() {
     const font = cssVar("--font-ui", '"DM Sans", sans-serif').replace(/"/g, "");
-    const themeName = document.documentElement.getAttribute("data-theme") || "xuan";
+    const themeName = document.documentElement.getAttribute("data-theme") || "night";
     const dark = themeName === "night" || themeName === "hack";
     return {
       startOnLoad: false,

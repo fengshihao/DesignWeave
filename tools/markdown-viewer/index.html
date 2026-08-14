@@ -12,6 +12,8 @@
         var t = localStorage.getItem("molan-theme");
         if (t === "night" || t === "hack" || t === "rose" || t === "xuan") {
           document.documentElement.setAttribute("data-theme", t);
+        } else {
+          document.documentElement.setAttribute("data-theme", "night");
         }
         var l = localStorage.getItem("molan-lang");
         if (l === "ar") document.documentElement.setAttribute("dir", "rtl");
@@ -50,10 +52,10 @@
             <div class="prefs-section">
               <div class="prefs-label" id="prefsThemeLabel" data-i18n="prefsTheme">纸面</div>
               <div class="theme-switch" id="themeSwitch" role="radiogroup" aria-labelledby="prefsThemeLabel" data-i18n-aria="themeAria">
-                <button type="button" role="radio" data-theme="xuan" title="宣纸 · 暖色纸面" aria-label="宣纸" data-i18n-title="themeXuanTitle" data-i18n-aria="themeXuan" aria-checked="true">
+                <button type="button" role="radio" data-theme="xuan" title="宣纸 · 暖色纸面" aria-label="宣纸" data-i18n-title="themeXuanTitle" data-i18n-aria="themeXuan" aria-checked="false">
                   <svg viewBox="0 0 32 32" aria-hidden="true"><circle class="theme-ring" cx="16" cy="16" r="14.25"/><circle class="theme-fill" cx="16" cy="16" r="10"/></svg>
                 </button>
-                <button type="button" role="radio" data-theme="night" title="墨夜 · 暗色夜读" aria-label="墨夜" data-i18n-title="themeNightTitle" data-i18n-aria="themeNight" aria-checked="false">
+                <button type="button" role="radio" data-theme="night" title="墨夜 · 暗色夜读" aria-label="墨夜" data-i18n-title="themeNightTitle" data-i18n-aria="themeNight" aria-checked="true">
                   <svg viewBox="0 0 32 32" aria-hidden="true"><circle class="theme-ring" cx="16" cy="16" r="14.25"/><circle class="theme-fill" cx="16" cy="16" r="10"/></svg>
                 </button>
                 <button type="button" role="radio" data-theme="hack" title="终端 · 程序员" aria-label="终端" data-i18n-title="themeHackTitle" data-i18n-aria="themeHack" aria-checked="false">
