@@ -18,7 +18,7 @@ MOLAN_PORT=5600 pnpm molan   # 自定义端口
 index.html        页面结构
 molan.css         纸面样式与 Vditor 主题（浏览器与 VS Code 共用）
 molan-i18n.js     界面多语言
-molan-aphorisms.js 开卷一则：无署名短句（中文自撰/宋词/公版歌词；其他语言哲人句）
+molan-aphorisms.js 开卷一则：无署名短句（中文自撰 + 宋词 + 公版歌词；其他语言哲人句）
 molan-editor.js   编辑器核心：Vditor / Mermaid / 灯箱（共用）
 molan-app.js      仅浏览器：选文件夹、侧栏、写回本地
 ```

@@ -1057,11 +1057,21 @@
       box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
       border-radius: 6px;
     }
+
+    .aphorism.is-in {
       animation: molan-ink 0.85s var(--ease) both;
     }
 
     .aphorism.is-out {
       animation: molan-ink-out 0.28s ease both;
+    }
+
+    html[lang="zh-CN"] .aphorism,
+    html[lang="zh-TW"] .aphorism {
+      text-align: center;
+      max-width: 12.5em;
+      line-height: 1.72;
+      letter-spacing: 0.08em;
     }
 
     .aphorism-bar {
