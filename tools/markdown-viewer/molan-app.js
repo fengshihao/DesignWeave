@@ -4,7 +4,6 @@
  */
 (() => {
   const pickBtn = document.getElementById("pickBtn");
-  const pickFallbackBtn = document.getElementById("pickFallbackBtn");
   const dirInput = document.getElementById("dirInput");
   const searchInput = document.getElementById("searchInput");
   const fileList = document.getElementById("fileList");
@@ -69,6 +68,61 @@
     });
   }
 
+  const prefsToggle = document.getElementById("prefsToggle");
+  const prefsMenu = document.getElementById("prefsMenu");
+  let prefsToken = 0;
+
+  function prefsOpen() {
+    return !!(prefsMenu && !prefsMenu.hidden && prefsMenu.classList.contains("is-open"));
+  }
+
+  function openPrefs() {
+    if (!prefsToggle || !prefsMenu) return;
+    prefsToken += 1;
+    prefsMenu.hidden = false;
+    prefsMenu.classList.remove("is-out");
+    void prefsMenu.offsetWidth;
+    prefsMenu.classList.add("is-open");
+    prefsToggle.setAttribute("aria-expanded", "true");
+  }
+
+  function closePrefs() {
+    if (!prefsToggle || !prefsMenu || prefsMenu.hidden || prefsMenu.classList.contains("is-out")) return;
+    const token = prefsToken + 1;
+    prefsToken = token;
+    prefsMenu.classList.remove("is-open");
+    prefsMenu.classList.add("is-out");
+    prefsToggle.setAttribute("aria-expanded", "false");
+    const finish = () => {
+      if (token !== prefsToken) return;
+      prefsMenu.hidden = true;
+      prefsMenu.classList.remove("is-out");
+    };
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      finish();
+      return;
+    }
+    prefsMenu.addEventListener("animationend", (e) => {
+      if (e.target === prefsMenu) finish();
+    }, { once: true });
+    window.setTimeout(finish, 280);
+  }
+
+  function togglePrefs() {
+    if (prefsOpen()) closePrefs();
+    else openPrefs();
+  }
+
+  prefsToggle?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    togglePrefs();
+  });
+  prefsMenu?.addEventListener("click", (e) => e.stopPropagation());
+  document.addEventListener("click", () => closePrefs());
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closePrefs();
+  });
+
   function isCursorBrowser() {
     const ua = navigator.userAgent || "";
     if (/Cursor\//i.test(ua) || /\bElectron\b/i.test(ua)) return true;
@@ -97,10 +151,6 @@
   }
 
   const allowCompatPicker = isCursorBrowser() || isDebugMode();
-  if (allowCompatPicker) {
-    pickFallbackBtn.hidden = false;
-    document.body.classList.add("molan-show-compat");
-  }
 
   let files = [];
   let activePath = null;
@@ -498,10 +548,20 @@
     }
   }
 
+  const PICK_HINT_KEY = "molan-pick-hint-seen";
+
+  function pickHintSeen() {
+    try { return localStorage.getItem(PICK_HINT_KEY) === "1"; } catch (_) { return false; }
+  }
+
+  function markPickHintSeen() {
+    try { localStorage.setItem(PICK_HINT_KEY, "1"); } catch (_) { /* ignore */ }
+    pickBtn.classList.remove("is-hint");
+  }
+
   function syncOpenHint() {
-    const idle = !files.length && recentFolders.length === 0;
-    pickBtn.classList.toggle("is-hint", idle && !allowCompatPicker);
-    pickFallbackBtn.classList.toggle("is-hint", idle && allowCompatPicker && !pickFallbackBtn.hidden);
+    const idle = !files.length && recentFolders.length === 0 && !pickHintSeen();
+    pickBtn.classList.toggle("is-hint", idle);
   }
 
   function renderRecentSection(q) {
@@ -537,20 +597,13 @@
     const filtered = files.filter((f) => !q || f.path.toLowerCase().includes(q) || f.name.toLowerCase().includes(q));
 
     if (!files.length) {
-      if (recentHtml) {
-        fileList.innerHTML = recentHtml;
-        return;
-      }
-      const emptyHint = allowCompatPicker ? t("emptyHintCompat") : t("emptyHint");
-      fileList.innerHTML = `<div class="empty-side"><span class="glyph">卷</span><p>${emptyHint}</p></div>`;
+      fileList.innerHTML = recentHtml;
       return;
     }
 
     let html = recentHtml;
     if (!filtered.length) {
-      html += recentHtml
-        ? `<div class="empty-side" style="padding:18px 8px"><p>${t("noMatch", { q: escapeHtml(searchInput.value) })}</p></div>`
-        : `<div class="empty-side"><span class="glyph">空</span><p>${t("noMatch", { q: escapeHtml(searchInput.value) })}</p></div>`;
+      html += `<div class="empty-side"><p>${t("noMatch", { q: escapeHtml(searchInput.value) })}</p></div>`;
       fileList.innerHTML = html;
       return;
     }
@@ -1037,40 +1090,37 @@
     }
   }
 
-  pickBtn.addEventListener("click", async () => {
+  async function pickFolder() {
     if (!confirmDiscardIfDirty()) return;
     statusLeft.textContent = t("openingPicker");
-    if (typeof window.showDirectoryPicker === "function") {
-      try {
-        await loadFromDirectoryHandle(await showDirectoryPicker({ mode: "readwrite" }));
-      } catch (err) {
-        if (err && err.name === "AbortError") {
-          statusLeft.textContent = t("cancelled");
-          return;
-        }
-        console.warn(err);
-        statusLeft.textContent = t("useCompat");
-        toast(t("dirApiUnavailable"));
-        openCompatPicker();
+    const canUseDirectoryPicker = typeof window.showDirectoryPicker === "function";
+    if (allowCompatPicker || !canUseDirectoryPicker) {
+      if (!canUseDirectoryPicker) toast(t("browserCompat"));
+      openCompatPicker();
+      return;
+    }
+    try {
+      await loadFromDirectoryHandle(await showDirectoryPicker({ mode: "readwrite" }));
+    } catch (err) {
+      if (err && err.name === "AbortError") {
+        statusLeft.textContent = t("cancelled");
+        return;
       }
-    } else {
-      toast(t("browserCompat"));
+      console.warn(err);
+      statusLeft.textContent = t("useCompat");
+      toast(t("dirApiUnavailable"));
       openCompatPicker();
     }
-  });
+  }
 
-  pickFallbackBtn.addEventListener("click", () => {
-    if (!confirmDiscardIfDirty()) return;
-    toast(t("compatToast"));
-    openCompatPicker();
+  pickBtn.addEventListener("click", () => {
+    markPickHintSeen();
+    pickFolder();
   });
 
   welcomePickBtn?.addEventListener("click", () => {
-    if (allowCompatPicker && pickFallbackBtn && !pickFallbackBtn.hidden) {
-      pickFallbackBtn.click();
-    } else {
-      pickBtn.click();
-    }
+    markPickHintSeen();
+    pickFolder();
   });
 
   aphorismText?.addEventListener("click", () => advanceAphorism(true));

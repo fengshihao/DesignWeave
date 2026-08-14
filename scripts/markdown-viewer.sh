@@ -173,7 +173,7 @@ case "${ACTION}" in
     kill_port "${PORT}"
     sleep 0.3
     echo "==> 启动墨览 Markdown 工作室  ${URL}"
-    echo "    Chrome / Edge 可用「选择文件夹」写回；Cursor 内置浏览器请用「兼容模式选文件夹」。Ctrl+C 停止。"
+    echo "    侧栏「打开文件夹」打开本地目录；Chrome / Edge 可写回，Cursor 内置浏览器自动走兼容选择。Ctrl+C 停止。"
     (
       sleep 0.5
       open_browser
