@@ -313,6 +313,8 @@
     }
 
     .sidebar {
+      --rail: 14px;
+      --ctrl: 36px;
       display: flex;
       flex-direction: column;
       background: linear-gradient(180deg, var(--sidebar-lift) 0%, var(--sidebar) 100%);
@@ -328,7 +330,7 @@
       align-items: flex-start;
       justify-content: space-between;
       gap: 10px;
-      padding: 22px 14px 16px 22px;
+      padding: 22px var(--rail) 16px 22px;
       border-bottom: 1px solid var(--sidebar-line);
       position: relative;
       z-index: 6;
@@ -376,8 +378,8 @@
 
     .prefs-toggle {
       appearance: none;
-      width: 32px;
-      height: 32px;
+      width: var(--ctrl);
+      height: var(--ctrl);
       padding: 0;
       border: 1px solid var(--sidebar-line);
       border-radius: 8px;
@@ -479,6 +481,10 @@
       right: auto;
       left: 0;
       transform-origin: 12% 0%;
+    }
+
+    html[dir="rtl"] .brand {
+      padding: 22px 22px 16px var(--rail);
     }
 
     .prefs-section + .prefs-section {
@@ -585,11 +591,11 @@
     }
 
     html[dir="rtl"] .toolbar {
-      padding: 14px 18px 10px 14px;
+      padding: 14px 18px 10px var(--rail);
     }
 
     .toolbar {
-      padding: 14px 14px 10px 18px;
+      padding: 14px var(--rail) 10px 18px;
       display: flex;
       flex-direction: row;
       align-items: center;
@@ -603,8 +609,8 @@
       position: relative;
       z-index: 1;
       flex-shrink: 0;
-      width: 36px;
-      height: 36px;
+      width: var(--ctrl);
+      height: var(--ctrl);
       padding: 0;
       display: grid;
       place-items: center;
@@ -849,9 +855,9 @@
       background: transparent;
       color: var(--sidebar-fg-mute);
       cursor: pointer;
-      width: 36px;
-      min-width: 36px;
-      min-height: 36px;
+      width: var(--ctrl);
+      min-width: var(--ctrl);
+      min-height: var(--ctrl);
       padding: 0;
       border-radius: 8px;
       font-size: 1.05rem;
@@ -869,10 +875,14 @@
     .file-list {
       flex: 1;
       overflow: auto;
-      padding: 4px 8px 14px;
+      padding: 4px var(--rail) 14px 8px;
       scrollbar-width: thin;
       scrollbar-color: var(--scroll-thumb-side) transparent;
       contain: layout style;
+    }
+
+    html[dir="rtl"] .file-list {
+      padding: 4px 8px 14px var(--rail);
     }
 
     .file-group-title {
@@ -1057,6 +1067,152 @@
     .chip-primary:disabled {
       background: var(--hairline-strong);
       color: var(--ink-muted);
+    }
+
+    .main.is-idle .molan-find-btn { display: none; }
+
+    .reader-header.is-finding .reader-actions {
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .main.is-finding .reader-title {
+      padding-right: 21rem;
+    }
+
+    html[dir="rtl"] .main.is-finding .reader-title {
+      padding-right: 0;
+      padding-left: 21rem;
+    }
+
+    .molan-find-bar {
+      display: none;
+      position: absolute;
+      top: 14px;
+      right: 18px;
+      z-index: 12;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 6px 4px 10px;
+      border-radius: 999px;
+      background: var(--paper-lift);
+      border: 1px solid var(--hairline-strong);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+      color: var(--ink-soft);
+      flex-wrap: nowrap;
+      max-width: calc(100% - 28px);
+    }
+
+    .molan-find-bar.is-open {
+      display: flex;
+    }
+
+    html[dir="rtl"] .molan-find-bar {
+      right: auto;
+      left: 18px;
+    }
+
+    .molan-find-input {
+      width: 11.5rem;
+      min-width: 0;
+      border: 0;
+      outline: none;
+      background: transparent;
+      color: var(--ink);
+      font-family: var(--font-ui);
+      font-size: 0.82rem;
+      padding: 6px 4px;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+
+    .molan-find-input::placeholder { color: var(--ink-muted); }
+
+    .molan-find-input.is-empty {
+      color: var(--danger);
+    }
+
+    .molan-find-count {
+      min-width: 3.6rem;
+      text-align: center;
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      color: var(--ink-muted);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      padding: 0 2px;
+    }
+
+    .molan-find-case {
+      appearance: none;
+      width: 28px;
+      height: 28px;
+      border: 1px solid transparent;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--ink-muted);
+      font-family: var(--font-ui);
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      flex: 0 0 auto;
+    }
+
+    .molan-find-case:hover,
+    .molan-find-case.is-on {
+      color: var(--accent);
+      border-color: var(--accent);
+      background: var(--surface);
+    }
+
+    .molan-find-bar .icon-btn {
+      width: 26px;
+      height: 26px;
+    }
+
+    ::highlight(molan-find) {
+      background-color: rgba(212, 119, 59, 0.38);
+      color: inherit;
+    }
+
+    ::highlight(molan-find-current) {
+      background-color: #d4773b;
+      color: #fff8f1;
+    }
+
+    html[data-theme="night"] ::highlight(molan-find) {
+      background-color: rgba(224, 160, 84, 0.42);
+    }
+
+    html[data-theme="night"] ::highlight(molan-find-current) {
+      background-color: #e0a054;
+      color: #1a140c;
+    }
+
+    html[data-theme="hack"] ::highlight(molan-find) {
+      background-color: rgba(61, 214, 140, 0.38);
+    }
+
+    html[data-theme="hack"] ::highlight(molan-find-current) {
+      background-color: #3dd68c;
+      color: #04140c;
+    }
+
+    html[data-theme="rose"] ::highlight(molan-find) {
+      background-color: rgba(196, 91, 106, 0.36);
+    }
+
+    html[data-theme="rose"] ::highlight(molan-find-current) {
+      background-color: #c45b6a;
+      color: #fff8f6;
+    }
+
+    body.molan-host-vscode .molan-find-bar {
+      top: 8px;
+      right: 14px;
     }
 
     .reader-body {

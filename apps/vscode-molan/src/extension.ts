@@ -42,6 +42,12 @@ export function activate(context: vscode.ExtensionContext): void {
       await vscode.commands.executeCommand("vscode.openWith", target, "default");
     }),
   );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("molan.find", () => MolanEditorProvider.postToActive("find")),
+    vscode.commands.registerCommand("molan.findNext", () => MolanEditorProvider.postToActive("findNext")),
+    vscode.commands.registerCommand("molan.findPrev", () => MolanEditorProvider.postToActive("findPrev")),
+  );
 }
 
 function getActiveEditorUri(): vscode.Uri | undefined {

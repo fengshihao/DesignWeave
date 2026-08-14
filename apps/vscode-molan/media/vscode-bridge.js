@@ -116,6 +116,19 @@
       setChrome({ value: baseline, isDirty: false });
       toast("已保存");
     }
+
+    if (msg.type === "find") {
+      window.MolanEditor.find?.open();
+      return;
+    }
+    if (msg.type === "findNext") {
+      window.MolanEditor.find?.next();
+      return;
+    }
+    if (msg.type === "findPrev") {
+      window.MolanEditor.find?.prev();
+      return;
+    }
   });
 
   copyBtn?.addEventListener("click", async () => {

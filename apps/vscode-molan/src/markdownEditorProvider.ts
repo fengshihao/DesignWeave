@@ -32,6 +32,7 @@ export class MolanDocument implements vscode.CustomDocument {
 
 export class MolanEditorProvider implements vscode.CustomEditorProvider<MolanDocument> {
   static readonly viewType = "molan.markdownEditor";
+  private static instance: MolanEditorProvider | undefined;
 
   private readonly _onDidChangeCustomDocument =
     new vscode.EventEmitter<vscode.CustomDocumentContentChangeEvent<MolanDocument>>();
@@ -40,14 +41,27 @@ export class MolanEditorProvider implements vscode.CustomEditorProvider<MolanDoc
   private readonly panels = new Map<string, vscode.WebviewPanel>();
 
   static register(context: vscode.ExtensionContext): vscode.Disposable {
+    const provider = new MolanEditorProvider(context);
+    MolanEditorProvider.instance = provider;
     return vscode.window.registerCustomEditorProvider(
       MolanEditorProvider.viewType,
-      new MolanEditorProvider(context),
+      provider,
       {
         webviewOptions: { retainContextWhenHidden: true },
         supportsMultipleEditorsPerDocument: false,
       },
     );
+  }
+
+  static postToActive(type: "find" | "findNext" | "findPrev"): void {
+    const provider = MolanEditorProvider.instance;
+    if (!provider) return;
+    for (const panel of provider.panels.values()) {
+      if (panel.active) {
+        void panel.webview.postMessage({ type });
+        return;
+      }
+    }
   }
 
   constructor(private readonly context: vscode.ExtensionContext) {}

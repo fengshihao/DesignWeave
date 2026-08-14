@@ -2,7 +2,7 @@
   "name": "molan-markdown",
   "displayName": "墨览 Markdown",
   "description": "用墨览打开 Markdown：点开即可编辑，保存写回原文件。",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "publisher": "fengshihao",
   "license": "MIT",
   "icon": "icon.png",
@@ -63,6 +63,53 @@
         "command": "molan.reopenAsText",
         "title": "用文本编辑器打开",
         "category": "墨览"
+      },
+      {
+        "command": "molan.find",
+        "title": "查找",
+        "category": "墨览"
+      },
+      {
+        "command": "molan.findNext",
+        "title": "查找下一个",
+        "category": "墨览"
+      },
+      {
+        "command": "molan.findPrev",
+        "title": "查找上一个",
+        "category": "墨览"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "molan.find",
+        "key": "ctrl+f",
+        "mac": "cmd+f",
+        "when": "activeCustomEditorId == 'molan.markdownEditor'"
+      },
+      {
+        "command": "molan.findNext",
+        "key": "f3",
+        "mac": "f3",
+        "when": "activeCustomEditorId == 'molan.markdownEditor'"
+      },
+      {
+        "command": "molan.findNext",
+        "key": "ctrl+g",
+        "mac": "cmd+g",
+        "when": "activeCustomEditorId == 'molan.markdownEditor'"
+      },
+      {
+        "command": "molan.findPrev",
+        "key": "shift+f3",
+        "mac": "shift+f3",
+        "when": "activeCustomEditorId == 'molan.markdownEditor'"
+      },
+      {
+        "command": "molan.findPrev",
+        "key": "ctrl+shift+g",
+        "mac": "cmd+shift+g",
+        "when": "activeCustomEditorId == 'molan.markdownEditor'"
       }
     ],
     "menus": {
@@ -84,6 +131,18 @@
         {
           "command": "molan.openWith",
           "when": "resourceExtname =~ /\\.(md|markdown|mdown|mdx)$/"
+        },
+        {
+          "command": "molan.find",
+          "when": "activeCustomEditorId == 'molan.markdownEditor'"
+        },
+        {
+          "command": "molan.findNext",
+          "when": "false"
+        },
+        {
+          "command": "molan.findPrev",
+          "when": "false"
         }
       ]
     }
