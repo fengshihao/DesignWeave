@@ -12,6 +12,8 @@
   const libraryTitle = document.getElementById("libraryTitle");
   const welcome = document.getElementById("welcome");
   const welcomePickBtn = document.getElementById("welcomePickBtn");
+  const aphorismText = document.getElementById("aphorismText");
+  const aphorismNext = document.getElementById("aphorismNext");
   const editorWrap = document.getElementById("editorWrap");
   const readerBody = document.getElementById("readerBody");
   const readerTitle = document.getElementById("readerTitle");
@@ -594,6 +596,111 @@
     syncOpenHint();
   }
 
+  const APHORISM_ORDER_KEY = "molan-aphorism-order";
+  const APHORISM_POS_KEY = "molan-aphorism-pos";
+  let aphorismTimer = 0;
+
+  function aphorismList() {
+    const lang = window.MolanI18n ? window.MolanI18n.getLang() : "zh";
+    const list = window.MolanAphorisms ? window.MolanAphorisms.list(lang) : [];
+    return list.length ? list : [];
+  }
+
+  function shuffleOrder(n, avoidFirst) {
+    const arr = Array.from({ length: n }, (_, i) => i);
+    for (let i = n - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    if (n > 1 && avoidFirst != null && arr[0] === avoidFirst) {
+      const k = 1 + Math.floor(Math.random() * (n - 1));
+      [arr[0], arr[k]] = [arr[k], arr[0]];
+    }
+    return arr;
+  }
+
+  function readAphorismState(n) {
+    let order = [];
+    let pos = 0;
+    try {
+      order = JSON.parse(localStorage.getItem(APHORISM_ORDER_KEY) || "[]");
+      pos = Number(localStorage.getItem(APHORISM_POS_KEY) || "0");
+    } catch (_) { /* ignore */ }
+    const valid = Array.isArray(order) && order.length === n && order.every((i) => i >= 0 && i < n);
+    if (!valid) {
+      const last = Array.isArray(order) && order.length ? order[Math.min(Math.max(pos, 0), order.length - 1)] : null;
+      order = shuffleOrder(n, last);
+      pos = 0;
+    } else if (!Number.isFinite(pos) || pos < 0 || pos >= order.length) {
+      pos = 0;
+    }
+    return { order, pos };
+  }
+
+  function writeAphorismState(order, pos) {
+    try {
+      localStorage.setItem(APHORISM_ORDER_KEY, JSON.stringify(order));
+      localStorage.setItem(APHORISM_POS_KEY, String(pos));
+    } catch (_) { /* ignore */ }
+  }
+
+  function prefersReducedMotion() {
+    return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  function paintAphorism(animate) {
+    const list = aphorismList();
+    if (!aphorismText || !list.length) return;
+    const { order, pos } = readAphorismState(list.length);
+    const idx = order[pos] ?? 0;
+    const text = list[idx] || list[0];
+    const apply = () => {
+      aphorismText.textContent = text;
+      aphorismText.classList.remove("is-out");
+      if (animate && !prefersReducedMotion()) {
+        aphorismText.classList.remove("is-in");
+        void aphorismText.offsetWidth;
+        aphorismText.classList.add("is-in");
+      } else {
+        aphorismText.classList.remove("is-in");
+      }
+    };
+    window.clearTimeout(aphorismTimer);
+    if (animate && !prefersReducedMotion() && aphorismText.textContent && aphorismText.textContent !== text) {
+      aphorismText.classList.remove("is-in");
+      aphorismText.classList.add("is-out");
+      aphorismTimer = window.setTimeout(apply, 220);
+    } else {
+      apply();
+    }
+  }
+
+  function advanceAphorism(animate) {
+    const list = aphorismList();
+    if (!list.length) return;
+    let { order, pos } = readAphorismState(list.length);
+    const last = order[pos];
+    pos += 1;
+    if (pos >= order.length) {
+      order = shuffleOrder(list.length, last);
+      pos = 0;
+    }
+    writeAphorismState(order, pos);
+    paintAphorism(animate);
+  }
+
+  function initAphorism() {
+    const list = aphorismList();
+    if (!list.length) return;
+    let hadPos = false;
+    try { hadPos = localStorage.getItem(APHORISM_POS_KEY) != null; } catch (_) { /* ignore */ }
+    if (hadPos) advanceAphorism(true);
+    else {
+      writeAphorismState(shuffleOrder(list.length), 0);
+      paintAphorism(true);
+    }
+  }
+
   function confirmDiscardIfDirty() {
     if (!dirty) return true;
     return window.confirm(t("confirmDiscard"));
@@ -766,6 +873,15 @@
     }
   });
 
+  aphorismNext?.addEventListener("click", () => advanceAphorism(true));
+  aphorismText?.addEventListener("click", () => advanceAphorism(true));
+  aphorismText?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      advanceAphorism(true);
+    }
+  });
+
   dirInput.addEventListener("change", () => {
     if (!confirmDiscardIfDirty()) {
       dirInput.value = "";
@@ -816,6 +932,12 @@
       e.preventDefault();
       saveActiveFile();
     }
+    if (welcome && !welcome.hidden && e.key === "ArrowRight") {
+      const tag = (e.target && e.target.tagName) || "";
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(tag)) return;
+      e.preventDefault();
+      advanceAphorism(true);
+    }
   });
 
   window.addEventListener("beforeunload", (e) => {
@@ -857,12 +979,14 @@
     }
     updateStatusRight();
     renderSidebarList();
+    paintAphorism(false);
     try { window.MolanEditor.refreshI18n?.(); } catch (_) { /* ignore */ }
   }
 
   fillLangSelect();
   window.MolanI18n?.applyDom();
   showWelcome();
+  initAphorism();
   const langSelect = document.getElementById("langSelect");
   if (langSelect) {
     langSelect.addEventListener("change", () => {

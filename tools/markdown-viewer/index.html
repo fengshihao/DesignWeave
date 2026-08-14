@@ -108,69 +108,12 @@
 
       <div class="reader-body" id="readerBody">
         <section class="welcome" id="welcome">
-          <article class="welcome-folio">
-            <header class="folio-head">
-              <div class="welcome-seal" aria-hidden="true">
-                <span class="welcome-seal-ink">墨</span>
-                <span class="welcome-chop">览</span>
-              </div>
-              <div class="folio-copy">
-                <p class="welcome-kicker" data-i18n="welcomeKicker">本地 Markdown 工作室</p>
-                <h2 data-i18n="welcomeTitle">开卷即写</h2>
-                <p class="welcome-lead" data-i18n="welcomeLead">打开文件夹，在纸面上改 Markdown。保存写回原文件。</p>
-                <div class="welcome-actions">
-                  <button class="welcome-cta" id="welcomePickBtn" type="button" data-i18n="welcomeCta">打开文件夹</button>
-                  <span class="welcome-note" data-i18n="localOffline">本地 · 不上云</span>
-                </div>
-              </div>
-            </header>
-            <p class="folio-quote" data-i18n="welcomeSheetQuote">本地目录是真相源；编辑器只是打开它的窗口。</p>
-            <div class="folio-body" aria-hidden="true">
-              <svg class="shot-mermaid" viewBox="0 0 280 72">
-                <defs>
-                  <marker id="molanArr" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-                    <path d="M0 0l7 3-7 3z"/>
-                  </marker>
-                </defs>
-                <rect class="shot-node" x="6" y="18" width="72" height="34" rx="8"/>
-                <text x="42" y="40" text-anchor="middle" data-i18n="welcomeNodeDraft">草稿</text>
-                <rect class="shot-node" x="104" y="18" width="72" height="34" rx="8"/>
-                <text x="140" y="40" text-anchor="middle" data-i18n="welcomeNodeRender">渲染</text>
-                <rect class="shot-node shot-node-acc" x="202" y="18" width="72" height="34" rx="8"/>
-                <text x="238" y="40" text-anchor="middle" data-i18n="welcomeNodeWrite">写回</text>
-                <line x1="78" y1="35" x2="102" y2="35" marker-end="url(#molanArr)"/>
-                <line x1="176" y1="35" x2="200" y2="35" marker-end="url(#molanArr)"/>
-              </svg>
-              <table class="shot-table">
-                <thead>
-                  <tr>
-                    <th data-i18n="welcomeColLayer">层</th>
-                    <th data-i18n="welcomeColDuty">职责</th>
-                    <th data-i18n="welcomeColCraft">材料</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td data-i18n="welcomeRowPaper">纸</td>
-                    <td data-i18n="welcomeDutyCarry">承载</td>
-                    <td data-i18n="welcomeCraftXuan">宣纸</td>
-                  </tr>
-                  <tr>
-                    <td data-i18n="welcomeRowInk">墨</td>
-                    <td data-i18n="welcomeDutyColor">着色</td>
-                    <td data-i18n="welcomeCraftPine">松烟</td>
-                  </tr>
-                  <tr>
-                    <td data-i18n="welcomeRowBrush">笔</td>
-                    <td data-i18n="welcomeDutyWrite">书写</td>
-                    <td data-i18n="welcomeCraftWolf">狼毫</td>
-                  </tr>
-                </tbody>
-              </table>
-              <pre class="shot-code"><code><span class="k">function</span> grind(ink) {
-  <span class="k">return</span> ink.water(<span class="n">3</span>);
-}</code></pre>
-              <p class="shot-math"><em>e</em><sup>iπ</sup> + 1 = 0</p>
+          <article class="welcome-folio" id="aphorismFolio">
+            <span class="aphorism-chop" aria-hidden="true">览</span>
+            <blockquote class="aphorism" id="aphorismText" tabindex="0" aria-live="polite" data-i18n-title="welcomeNextTitle"></blockquote>
+            <div class="aphorism-bar">
+              <button class="welcome-cta" id="welcomePickBtn" type="button" data-i18n="welcomeCta">打开文件夹</button>
+              <button class="aphorism-next" id="aphorismNext" type="button" data-i18n="welcomeNext" data-i18n-title="welcomeNextTitle">换一句</button>
             </div>
           </article>
         </section>
@@ -222,6 +165,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/vditor@3.10.9/dist/index.min.js"></script>
   <script src="./molan-i18n.js"></script>
+  <script src="./molan-aphorisms.js"></script>
   <script src="./molan-editor.js"></script>
   <script src="./molan-app.js"></script>
 </body>
