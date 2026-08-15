@@ -12,6 +12,15 @@ import {
 import { config, workspacesRoot } from "./config.js";
 import { getDb } from "./db.js";
 import {
+  countUsers,
+  createDesignerUser,
+  handleAuthRequest,
+  listAuthUsers,
+  signUpFirstUser,
+} from "./auth.js";
+import { publicUser, requireArchitect, requireSession } from "./acl.js";
+import { ROLES } from "./roles.js";
+import {
   createProject,
   getProject,
   getProjectBundle,
@@ -53,17 +62,21 @@ getDb();
 ensureRequirementsTable();
 
 const app = express();
-app.use(cors());
-app.use(express.json({ limit: "4mb" }));
-
+app.use(
+  cors({
+    origin: [config.webOrigin, "http://localhost:3100", "http://127.0.0.1:3100"],
+    credentials: true,
+  })
+);
 app.use((req, res, next) => {
-  if (!config.appPassword) return next();
-  const header = req.header("x-app-password") || "";
-  const queryPwd = typeof req.query.password === "string" ? req.query.password : "";
-  if (header === config.appPassword || queryPwd === config.appPassword) return next();
-  if (req.path === "/health") return next();
-  res.status(401).json({ error: "未授权：请提供正确的访问口令" });
+  if (req.path.startsWith("/api/auth")) {
+    void handleAuthRequest(req, res);
+    return;
+  }
+  next();
 });
+app.use(express.json({ limit: "4mb" }));
+app.use(requireSession);
 
 app.get("/health", (_req, res) => {
   const claude = scanClaudeConfigInventory();
@@ -89,11 +102,126 @@ app.get("/health", (_req, res) => {
   });
 });
 
-app.get("/v1/claude/config", (_req, res) => {
+app.get("/v1/auth/status", (_req, res) => {
+  res.json({
+    needsSetup: countUsers() === 0,
+  });
+});
+
+app.post("/v1/setup", async (req, res) => {
+  if (countUsers() > 0) {
+    res.status(403).json({ error: "已经有账号了，请登录" });
+    return;
+  }
+  const name = String(req.body?.name || "").trim();
+  const email = String(req.body?.email || "").trim().toLowerCase();
+  const password = String(req.body?.password || "");
+  if (!name || !email || !password) {
+    res.status(400).json({ error: "请填写姓名、登录邮箱和密码" });
+    return;
+  }
+  if (password.length < 8) {
+    res.status(400).json({ error: "密码至少 8 位" });
+    return;
+  }
+  try {
+    const response = await signUpFirstUser({
+      name,
+      email,
+      password,
+      headers: req.headers,
+    });
+    await pipeAuthResponse(response, res);
+  } catch (err) {
+    res.status(400).json({
+      error: err instanceof Error ? err.message : "创建账号失败",
+    });
+  }
+});
+
+app.get("/v1/me", (req, res) => {
+  if (!req.user) {
+    res.status(401).json({ error: "请先登录" });
+    return;
+  }
+  res.json({ user: publicUser(req.user) });
+});
+
+app.get("/v1/users", requireArchitect, async (req, res) => {
+  try {
+    const result = await listAuthUsers(req.headers);
+    const users = (result?.users ?? []).map((u) => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      roleLabel: u.role === ROLES.architect ? "架构师" : "产品经理",
+      createdAt: u.createdAt,
+    }));
+    res.json({ users });
+  } catch (err) {
+    res.status(400).json({
+      error: err instanceof Error ? err.message : "无法列出用户",
+    });
+  }
+});
+
+app.post("/v1/users", requireArchitect, async (req, res) => {
+  const name = String(req.body?.name || "").trim();
+  const email = String(req.body?.email || "").trim().toLowerCase();
+  const password = String(req.body?.password || "");
+  if (!name || !email || !password) {
+    res.status(400).json({ error: "请填写姓名、登录邮箱和密码" });
+    return;
+  }
+  if (password.length < 8) {
+    res.status(400).json({ error: "密码至少 8 位" });
+    return;
+  }
+  try {
+    const created = await createDesignerUser({
+      name,
+      email,
+      password,
+      headers: req.headers,
+    });
+    const user = created.user;
+    res.status(201).json({
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        roleLabel: "产品经理",
+      },
+    });
+  } catch (err) {
+    res.status(400).json({
+      error: err instanceof Error ? err.message : "创建账号失败",
+    });
+  }
+});
+
+async function pipeAuthResponse(response: Response, res: express.Response): Promise<void> {
+  const cookies =
+    typeof response.headers.getSetCookie === "function"
+      ? response.headers.getSetCookie()
+      : [];
+  for (const cookie of cookies) {
+    res.append("Set-Cookie", cookie);
+  }
+  const contentType = response.headers.get("content-type");
+  if (contentType) res.type(contentType);
+  res.status(response.status);
+  const text = await response.text();
+  res.send(text);
+}
+
+app.get("/v1/claude/config", requireArchitect, (_req, res) => {
   res.json(scanClaudeConfigInventory());
 });
 
-app.get("/v1/claude/projects", (_req, res) => {
+app.get("/v1/claude/projects", requireArchitect, (_req, res) => {
   res.json(scanClaudeKnownProjects());
 });
 
@@ -101,7 +229,7 @@ app.get("/v1/requirements", (_req, res) => {
   res.json({ requirements: listRequirements() });
 });
 
-app.post("/v1/requirements", (req, res) => {
+app.post("/v1/requirements", requireArchitect, (req, res) => {
   try {
     const title = String(req.body?.title || "").trim();
     const summary = String(req.body?.summary || req.body?.idea || "").trim();
@@ -226,7 +354,7 @@ app.get("/v1/projects", (_req, res) => {
   res.json({ projects: listProjects() });
 });
 
-app.post("/v1/projects", (req, res) => {
+app.post("/v1/projects", requireArchitect, (req, res) => {
   const name = String(req.body?.name || "").trim();
   const description = String(req.body?.description || "").trim();
   const idea = String(req.body?.idea || "").trim();
@@ -251,7 +379,7 @@ app.get("/v1/projects/:id", (req, res) => {
   res.json(bundle);
 });
 
-app.patch("/v1/projects/:id", (req, res) => {
+app.patch("/v1/projects/:id", requireArchitect, (req, res) => {
   const phase = req.body?.phase
     ? ProjectPhaseSchema.parse(req.body.phase)
     : undefined;
@@ -317,7 +445,7 @@ app.patch("/v1/projects/:id/issues/:issueId", (req, res) => {
   res.json({ issue });
 });
 
-app.put("/v1/projects/:id/tech", (req, res) => {
+app.put("/v1/projects/:id/tech", requireArchitect, (req, res) => {
   if (!getProject(req.params.id)) {
     res.status(404).json({ error: "项目不存在" });
     return;
@@ -326,7 +454,7 @@ app.put("/v1/projects/:id/tech", (req, res) => {
   res.json({ tech: req.body });
 });
 
-app.put("/v1/projects/:id/test-plan", (req, res) => {
+app.put("/v1/projects/:id/test-plan", requireArchitect, (req, res) => {
   if (!getProject(req.params.id)) {
     res.status(404).json({ error: "项目不存在" });
     return;
@@ -472,4 +600,7 @@ app.listen(config.port, () => {
     );
   }
   console.log(`Claude Code 配置复用：${reuse}`);
+  console.log(
+    `登录：${config.webOrigin}（${countUsers() === 0 ? "待创建第一个架构师账号" : "已有账号"}）`
+  );
 });

@@ -3,7 +3,8 @@
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { api, type RequirementBundle } from "@/lib/api";
+import { api, type RequirementBundle, type SessionUser } from "@/lib/api";
+import { AppHeader } from "@/components/AppHeader";
 
 type Tab = "guide" | "document" | "gaps";
 
@@ -12,6 +13,7 @@ export default function RequirementPage() {
   const id = params.id;
 
   const [bundle, setBundle] = useState<RequirementBundle | null>(null);
+  const [user, setUser] = useState<SessionUser | null>(null);
   const [tab, setTab] = useState<Tab>("guide");
   const [prd, setPrd] = useState("");
   const [message, setMessage] = useState("");
@@ -24,6 +26,8 @@ export default function RequirementPage() {
   async function load() {
     setError("");
     try {
+      const me = await api.me();
+      setUser(me.user);
       const data = await api.getRequirement(id);
       setBundle(data);
       setPrd(data.prd);
@@ -125,10 +129,11 @@ export default function RequirementPage() {
 
   return (
     <main className="app-shell" style={{ maxWidth: 1600 }}>
+      {user ? <AppHeader user={user} /> : null}
       <header className="topbar">
         <div>
           <Link href="/" className="muted" style={{ fontSize: 13 }}>
-            ← 全部需求
+            ← 全部工程
           </Link>
           <div className="brand" style={{ fontSize: 22, marginTop: 4 }}>
             {r.title}

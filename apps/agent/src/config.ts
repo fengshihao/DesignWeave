@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -75,9 +76,39 @@ const anthropicApiKey =
   process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || "";
 const anthropicCredentialSource = resolveCredentialSource();
 
+function resolveWebOrigin(): string {
+  return (
+    process.env.WEB_ORIGIN ||
+    process.env.BETTER_AUTH_URL ||
+    "http://localhost:3100"
+  ).replace(/\/$/, "");
+}
+
+function resolveAuthSecret(): string {
+  if (process.env.BETTER_AUTH_SECRET && process.env.BETTER_AUTH_SECRET.length >= 32) {
+    return process.env.BETTER_AUTH_SECRET;
+  }
+  const dataDir = resolveDataDir();
+  fs.mkdirSync(dataDir, { recursive: true });
+  const secretPath = path.join(dataDir, "auth-secret");
+  if (fs.existsSync(secretPath)) {
+    const existing = fs.readFileSync(secretPath, "utf8").trim();
+    if (existing.length >= 32) return existing;
+  }
+  const generated = cryptoRandom(48);
+  fs.writeFileSync(secretPath, generated, { encoding: "utf8", mode: 0o600 });
+  return generated;
+}
+
+function cryptoRandom(bytes: number): string {
+  return crypto.randomBytes(bytes).toString("base64url");
+}
+
 export const config = {
   port: Number(process.env.AGENT_PORT || process.env.PORT || 8787),
   dataDir: resolveDataDir(),
+  webOrigin: resolveWebOrigin(),
+  authSecret: resolveAuthSecret(),
   appPassword: process.env.APP_PASSWORD || "",
   anthropicApiKey,
   anthropicBaseUrl: process.env.ANTHROPIC_BASE_URL || "",
