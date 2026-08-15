@@ -26,7 +26,7 @@
 |------|------|------|
 | 扩展图标（必填） | `icon.png` | 128×128 PNG |
 | 高清原图（备用） | `media/icon-1024.png` | 1024×1024，市场网页若要更大图用这个 |
-| 商店介绍动画 | `media/intro.gif` | 640×400，约 125KB，写入 README |
+| 商店介绍动画 | `media/intro.gif` | 1280×800，约 2MB，写入 README |
 | 商店截图 | `media/screenshot.jpg` | 已压缩 JPEG，备用静帧 |
 | 许可证 | `LICENSE` | MIT |
 | 更新日志 | `CHANGELOG.md` | 0.1.9 |
