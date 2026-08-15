@@ -336,6 +336,8 @@
       height: auto;
       max-height: 100%;
       align-self: start;
+      overflow: visible;
+      z-index: 4;
     }
 
     .brand {
@@ -615,8 +617,13 @@
       display: flex;
       flex-direction: row;
       align-items: center;
-      gap: 12px;
+      gap: 0;
       flex-shrink: 0;
+      transition: gap 0.56s var(--ease);
+    }
+
+    .toolbar.has-search {
+      gap: 12px;
     }
 
     .toolbar-pick {
@@ -629,9 +636,11 @@
       width: auto;
       min-width: var(--ctrl);
       height: var(--ctrl);
-      padding: 0;
-      display: grid;
-      place-items: center;
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
       color: var(--seal-ink);
       background: var(--seal);
       border: 0;
@@ -641,18 +650,54 @@
         0 0 18px 3px color-mix(in srgb, var(--seal) 58%, transparent),
         0 6px 14px color-mix(in srgb, var(--seal) 38%, transparent);
       cursor: pointer;
-      transition: transform 0.2s var(--ease), box-shadow 0.2s ease, filter 0.2s ease;
+      transition:
+        transform 0.2s var(--ease),
+        box-shadow 0.2s ease,
+        filter 0.2s ease,
+        padding 0.56s var(--ease),
+        gap 0.5s var(--ease),
+        flex-grow 0.68s var(--ease),
+        flex-basis 0.68s var(--ease),
+        width 0.68s var(--ease);
     }
 
     .toolbar.has-search .toolbar-pick {
       flex: 0 0 var(--ctrl);
       width: var(--ctrl);
+      padding: 0;
+      gap: 0;
+    }
+
+    .toolbar-pick-label {
+      min-width: 0;
+      max-width: 12em;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 0.86rem;
+      letter-spacing: 0.16em;
+      line-height: 1;
+      opacity: 1;
+      transition: opacity 0.36s ease, max-width 0.56s var(--ease);
+    }
+
+    .toolbar.has-search .toolbar-pick-label {
+      max-width: 0;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    html[dir="rtl"] .toolbar-pick-label {
+      letter-spacing: 0.08em;
     }
 
     .toolbar-pick svg {
       width: 15px;
       height: 15px;
       display: block;
+      flex-shrink: 0;
     }
 
     .toolbar-pick:hover {
@@ -705,8 +750,7 @@
       }
     }
 
-    .file-list[hidden],
-    .search-wrap[hidden] {
+    .file-list[hidden] {
       display: none !important;
     }
 
@@ -757,8 +801,35 @@
 
     .search-wrap {
       position: relative;
-      flex: 1;
+      flex: 0 1 0%;
+      width: 0;
       min-width: 0;
+      overflow: hidden;
+      opacity: 0;
+      transform: translateX(-6px);
+      pointer-events: none;
+      transition:
+        flex-grow 0.68s var(--ease),
+        flex-basis 0.68s var(--ease),
+        width 0.68s var(--ease),
+        opacity 0.44s ease,
+        transform 0.62s var(--ease);
+    }
+
+    .toolbar.has-search .search-wrap {
+      flex: 1 1 0%;
+      width: auto;
+      opacity: 1;
+      transform: none;
+      pointer-events: auto;
+    }
+
+    html[dir="rtl"] .search-wrap {
+      transform: translateX(6px);
+    }
+
+    html[dir="rtl"] .toolbar.has-search .search-wrap {
+      transform: none;
     }
 
     .search-wrap svg {
@@ -772,6 +843,7 @@
 
     .search {
       width: 100%;
+      min-width: 12rem;
       background: var(--sidebar-search-bg);
       border: 1px solid var(--sidebar-line);
       color: var(--sidebar-fg);
@@ -807,8 +879,29 @@
     .recent-row {
       display: grid;
       grid-template-columns: 1fr auto;
+      grid-template-rows: 1fr;
       gap: 2px;
       align-items: stretch;
+      transition:
+        grid-template-rows 0.54s var(--ease),
+        opacity 0.4s ease,
+        transform 0.54s var(--ease);
+    }
+
+    .recent-row > * {
+      min-height: 0;
+    }
+
+    .recent-row.is-leaving {
+      grid-template-rows: 0fr;
+      opacity: 0;
+      transform: translateX(-8px);
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    html[dir="rtl"] .recent-row.is-leaving {
+      transform: translateX(8px);
     }
 
     .recent-item {
@@ -905,6 +998,23 @@
 
     html[dir="rtl"] .file-list {
       padding: 4px 8px 14px var(--rail);
+    }
+
+    .doc-list {
+      display: grid;
+      grid-template-rows: 1fr;
+      transition: grid-template-rows 0.56s var(--ease), opacity 0.44s ease;
+    }
+
+    .doc-list.is-leaving {
+      grid-template-rows: 0fr;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .doc-list-body {
+      min-height: 0;
+      overflow: hidden;
     }
 
     .file-group-title {
@@ -1752,6 +1862,13 @@
       --mark-opacity: 0.1;
     }
 
+    html[data-theme="hack"] .toolbar-pick-label {
+      font-family: var(--font-mono);
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      font-size: 0.78rem;
+    }
+
     html[data-theme="rose"] .aphorism {
       font-weight: 600;
     }
@@ -1912,6 +2029,12 @@
       }
       .file-item,
       .recent-item,
+      .recent-row,
+      .doc-list,
+      .toolbar,
+      .search-wrap,
+      .toolbar-pick,
+      .toolbar-pick-label,
       .icon-btn,
       .reader-actions #saveBtn,
       .reader-actions .icon-btn svg.icon-edit,

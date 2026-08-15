@@ -356,15 +356,30 @@
     showWelcome();
   }
 
+  let removingFolder = false;
+
   async function removeRecentFolder(id, e) {
     e?.stopPropagation?.();
+    if (removingFolder) return;
     const closingCurrent = currentFolderId === id;
     if (closingCurrent && !confirmDiscardIfDirty()) return;
-    await idbDeleteFolder(id);
-    if (closingCurrent) unloadLibrary();
-    await refreshRecentFolders();
-    renderSidebarList();
-    toast(t("removedRecent"));
+    removingFolder = true;
+    const row = e?.target?.closest?.(".recent-row")
+      || fileList.querySelector(`[data-remove-recent="${CSS.escape(id)}"]`)?.closest(".recent-row");
+    const docs = closingCurrent ? fileList.querySelector(".doc-list") : null;
+    try {
+      await Promise.all([
+        idbDeleteFolder(id),
+        animateLeave(row),
+        animateLeave(docs),
+      ]);
+      if (closingCurrent) unloadLibrary();
+      await refreshRecentFolders();
+      renderSidebarList();
+      toast(t("removedRecent"));
+    } finally {
+      removingFolder = false;
+    }
   }
 
   function escapeHtml(s) {
@@ -511,6 +526,31 @@
     } catch (_) {
       return false;
     }
+  }
+
+  function animateLeave(el) {
+    if (!el) return Promise.resolve();
+    if (prefersReducedMotion()) {
+      el.classList.add("is-leaving");
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        el.removeEventListener("transitionend", onEnd);
+        resolve();
+      };
+      const onEnd = (ev) => {
+        if (ev.target !== el) return;
+        finish();
+      };
+      el.addEventListener("transitionend", onEnd);
+      void el.offsetHeight;
+      el.classList.add("is-leaving");
+      setTimeout(finish, 680);
+    });
   }
 
   function replayMotion(el, className) {
@@ -766,7 +806,9 @@
     if (fileList) fileList.hidden = !hasLibrary;
     if (searchWrap) {
       if (!showSearch && searchInput?.value) searchInput.value = "";
-      searchWrap.hidden = !showSearch;
+      if (!showSearch && document.activeElement === searchInput) searchInput.blur();
+      searchWrap.setAttribute("aria-hidden", showSearch ? "false" : "true");
+      if (searchInput) searchInput.tabIndex = showSearch ? 0 : -1;
     }
   }
 
@@ -846,7 +888,7 @@
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(f);
     }
-    html += `<div class="doc-list">`;
+    html += `<div class="doc-list"><div class="doc-list-body">`;
     for (const [group, items] of groups) {
       if (group !== t("rootDir")) html += `<div class="file-group-title">${escapeHtml(group)}</div>`;
       for (const f of items) {
@@ -854,7 +896,7 @@
         html += `<button class="file-item${f.path === activePath ? " active" : ""}" type="button" data-path="${escapeHtml(f.path)}" title="${escapeHtml(f.path)}"><span class="file-icon file-icon-doc" aria-hidden="true">${ICON_DOC}</span><span class="file-name">${escapeHtml(f.name)}${dirtyMark}</span></button>`;
       }
     }
-    html += `</div>`;
+    html += `</div></div>`;
     fileList.innerHTML = html;
   }
 
