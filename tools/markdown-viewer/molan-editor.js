@@ -3,7 +3,75 @@
  * 浏览器工作室与 VSCode 扩展共用。
  */
 (function (global) {
-  const DEFAULT_CDN = "https://cdn.jsdelivr.net/npm/vditor@3.10.9";
+  function resolveDefaultCdn() {
+    try {
+      return new URL("vendor/vditor", document.baseURI || location.href).href.replace(/\/$/, "");
+    } catch (_) {
+      return "./vendor/vditor";
+    }
+  }
+  const DEFAULT_CDN = resolveDefaultCdn();
+  const scriptLoads = Object.create(null);
+
+  function loadScript(src, id) {
+    if (id && document.getElementById(id) && isScriptReady(id)) {
+      return Promise.resolve();
+    }
+    const key = id || src;
+    if (scriptLoads[key]) return scriptLoads[key];
+    scriptLoads[key] = new Promise((resolve, reject) => {
+      if (id && document.getElementById(id) && isScriptReady(id)) {
+        resolve();
+        return;
+      }
+      const s = document.createElement("script");
+      s.src = src;
+      s.async = true;
+      s.onload = () => {
+        if (id && !s.id) s.id = id;
+        resolve();
+      };
+      s.onerror = () => {
+        delete scriptLoads[key];
+        reject(new Error("加载失败: " + src));
+      };
+      document.head.appendChild(s);
+    });
+    return scriptLoads[key];
+  }
+
+  function isScriptReady(id) {
+    if (id === "vditorLuteScript") return typeof global.Lute === "function";
+    if (id === "vditorFullScript") return isFullVditor();
+    if (id === "vditorMermaidScript") return !!global.mermaid;
+    return true;
+  }
+
+  function isFullVditor() {
+    return typeof global.Vditor === "function"
+      && typeof global.Vditor.prototype?.getValue === "function"
+      && typeof global.Vditor.prototype?.setValue === "function";
+  }
+
+  function preloadLute(cdn) {
+    if (typeof global.Lute === "function") return Promise.resolve();
+    return loadScript(`${cdn}/dist/js/lute/lute.min.js`, "vditorLuteScript").catch(() => {});
+  }
+
+  function ensureFullVditor(cdn) {
+    if (isFullVditor()) return Promise.resolve();
+    return loadScript(`${cdn}/dist/index.min.js`, "vditorFullScript").then(() => {
+      if (!isFullVditor()) throw new Error("Vditor 编辑器未加载");
+    });
+  }
+
+  function markdownHasMermaid(text) {
+    return /(^|\n)\s*(```+|~~~+)\s*mermaid\b/i.test(String(text || ""));
+  }
+
+  function maybePreloadMermaid(cdn, text) {
+    if (markdownHasMermaid(text)) preloadMermaid(cdn);
+  }
 
   function t(key, vars) {
     if (global.MolanI18n && typeof global.MolanI18n.t === "function") {
@@ -151,29 +219,12 @@
       patchMermaidInitialize();
       return Promise.resolve();
     }
-    if (preloadMermaid._p) return preloadMermaid._p;
-    preloadMermaid._p = new Promise((resolve) => {
-      const s = document.createElement("script");
-      s.src = `${cdn}/dist/js/mermaid/mermaid.min.js`;
-      s.async = true;
-      s.onload = () => {
+    return loadScript(`${cdn}/dist/js/mermaid/mermaid.min.js`, "vditorMermaidScript")
+      .then(() => {
         applyMermaidTheme();
         patchMermaidInitialize();
-        resolve();
-      };
-      s.onerror = () => resolve();
-      document.head.appendChild(s);
-    });
-    return preloadMermaid._p;
-  }
-
-  function scheduleMermaidWarmup(cdn) {
-    const run = () => { preloadMermaid(cdn); };
-    if (typeof requestIdleCallback === "function") {
-      requestIdleCallback(run, { timeout: 2500 });
-    } else {
-      setTimeout(run, 700);
-    }
+      })
+      .catch(() => {});
   }
 
   function initLightbox() {
@@ -1237,15 +1288,15 @@
     const placeholder = options.placeholder || t("placeholder");
     toastEl = document.getElementById("toast");
     patchMermaidLoader();
-    scheduleMermaidWarmup(cdn);
+    preloadLute(cdn);
 
     const lightbox = initLightbox();
     const vditorRoot = document.getElementById(elementId);
     if (!vditorRoot) {
       return Promise.reject(new Error(`找不到编辑器容器 #${elementId}`));
     }
-    if (typeof global.Vditor !== "function") {
-      return Promise.reject(new Error("Vditor 未加载"));
+    if (typeof global.Vditor?.preview !== "function") {
+      return Promise.reject(new Error("Vditor 预览未加载"));
     }
 
     const { wrap, host: previewHost, body: previewBody } = ensureLitePreviewDom(vditorRoot);
@@ -1275,6 +1326,7 @@
       codeBlockPreview: true,
       mathBlockPreview: true,
     };
+    const lazyLoadImage = `${cdn}/dist/images/img-loading.svg`;
 
     const notifyPreview = () => {
       previewListeners.forEach((cb) => {
@@ -1288,29 +1340,36 @@
     };
 
     const renderLitePreview = (text) => {
-      if (!previewBody || typeof global.Vditor.preview !== "function") return;
+      if (!previewBody || typeof global.Vditor?.preview !== "function") return;
       const seq = ++previewSeq;
       syncLiteClass();
-      global.Vditor.preview(previewBody, text ?? "", {
-        cdn,
-        mode: "light",
-        hljs: { style: "kimbie-dark", lineNumber: false },
-        math: { engine: "KaTeX", inlineDigit: true },
-        markdown: markdownOpts,
-        after() {
-          if (seq !== previewSeq) return;
-          enhanceMermaidPreviews(previewHost || previewBody);
-          scheduleFitTables(previewHost || previewBody);
-          if (findState.open) runFind({ keepIndex: true, reveal: false });
-        },
-      });
+      maybePreloadMermaid(cdn, text);
+      const run = () => {
+        if (seq !== previewSeq) return;
+        global.Vditor.preview(previewBody, text ?? "", {
+          cdn,
+          lazyLoadImage,
+          mode: "light",
+          hljs: { style: "kimbie-dark", lineNumber: false },
+          math: { engine: "KaTeX", inlineDigit: true },
+          markdown: markdownOpts,
+          after() {
+            if (seq !== previewSeq) return;
+            enhanceMermaidPreviews(previewHost || previewBody);
+            scheduleFitTables(previewHost || previewBody);
+            if (findState.open) runFind({ keepIndex: true, reveal: false });
+          },
+        });
+      };
+      Promise.resolve(preloadLute(cdn)).then(run, run);
     };
 
     const bootEditor = () => {
       if (vditor) return Promise.resolve(vditor);
       if (vditorReady) return vditorReady;
-      vditorReady = new Promise((resolve) => {
-        vditor = new Vditor(elementId, {
+      vditorReady = ensureFullVditor(cdn).then(() => new Promise((resolve) => {
+        maybePreloadMermaid(cdn, markdown);
+        vditor = new global.Vditor(elementId, {
           cdn,
           height: "100%",
           mode: "ir",
@@ -1337,6 +1396,7 @@
             hljs: { style: "kimbie-dark", lineNumber: false },
             math: { engine: "KaTeX", inlineDigit: true },
             markdown: markdownOpts,
+            lazyLoadImage,
           },
           counter: {
             enable: true,
@@ -1364,6 +1424,9 @@
             resolve(vditor);
           },
         });
+      })).catch((err) => {
+        vditorReady = null;
+        throw err;
       });
       return vditorReady;
     };

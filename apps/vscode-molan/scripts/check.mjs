@@ -24,6 +24,7 @@ assert(existsSync(join(root, "LICENSE")), "LICENSE");
 assert(existsSync(join(root, "media/molan.css")), "synced molan.css");
 assert(existsSync(join(root, "media/molan-editor.js")), "synced molan-editor.js");
 assert(existsSync(join(root, "media/vditor/dist/index.min.js")), "vendored vditor");
+assert(existsSync(join(root, "media/vditor/dist/method.min.js")), "vendored method.min.js for preview");
 assert(existsSync(join(root, "media/vditor/dist/js/mermaid/mermaid.min.js")), "vendored mermaid");
 assert(existsSync(join(root, "media/vditor/dist/js/lute/lute.min.js")), "vendored lute");
 assert(existsSync(join(root, "media/vditor/dist/js/katex/katex.min.js")), "vendored katex");
@@ -42,19 +43,29 @@ assert(js.includes("molan-host-vscode"), "webview host class");
 assert(js.includes("__MOLAN_VDITOR_CDN__"), "vditor cdn injection");
 assert(js.includes("vditorIconScript"), "icon sprite loaded with CSP nonce");
 assert(js.includes("ant.js"), "ant icon script in webview");
+assert(js.includes("method.min.js"), "preview loads method.min.js");
+assert(js.includes("lute.min.js"), "preload lute in webview");
+assert(js.includes('rel="preload"'), "webview preloads lute");
 
 const viewer = join(repoRoot, "tools", "markdown-viewer");
 const html = readFileSync(join(viewer, "index.html"), "utf8");
 assert(html.includes("./molan.css"), "html links molan.css");
 assert(html.includes("./molan-editor.js"), "html loads editor core");
 assert(html.includes("./molan-app.js"), "html loads browser app");
+assert(html.includes("./vendor/vditor/dist/method.min.js"), "html loads local method.min.js");
+assert(html.includes("./vendor/vditor/dist/js/lute/lute.min.js"), "html preloads local lute");
+assert(!html.includes("cdn.jsdelivr.net"), "html must not load vditor from jsdelivr");
 assert(existsSync(join(viewer, "molan.css")), "viewer molan.css");
 assert(existsSync(join(viewer, "molan-editor.js")), "viewer molan-editor.js");
 assert(existsSync(join(viewer, "molan-app.js")), "viewer molan-app.js");
+assert(existsSync(join(viewer, "serve.mjs")), "viewer gzip static server");
+assert(existsSync(join(viewer, "vendor/vditor/dist/method.min.js")), "viewer vendored method.min.js");
+assert(existsSync(join(viewer, "vendor/vditor/dist/js/lute/lute.min.js")), "viewer vendored lute");
 
 for (const path of [
   join(viewer, "molan-editor.js"),
   join(viewer, "molan-app.js"),
+  join(viewer, "serve.mjs"),
   join(root, "media/vscode-bridge.js"),
 ]) {
   const result = spawnSync(process.execPath, ["--check", path], { encoding: "utf8" });
@@ -67,6 +78,7 @@ assert(app.includes("SCAN_MAX_DEPTH"), "limits folder scan depth");
 assert(app.includes("SCAN_MAX_FILES"), "limits folder scan file count");
 assert(app.includes("pathHasSkippedDir"), "skips node_modules in folder file lists");
 assert(app.includes("isSkippedDirName"), "skips dependency directories by name");
+assert(app.includes("loadThemeFonts"), "loads theme fonts on demand");
 
 const editorSource = readFileSync(join(viewer, "molan-editor.js"), "utf8");
 assert(editorSource.includes("global.MolanEditor"), "exports MolanEditor");
@@ -75,6 +87,10 @@ assert(editorSource.includes("setPreview"), "preview mode API");
 assert(editorSource.includes("defaultPreview !== false"), "opens in preview by default");
 assert(editorSource.includes("hide: false"), "toolbar stays visible");
 assert(editorSource.includes("Vditor.preview"), "preview uses lightweight Vditor.preview");
+assert(editorSource.includes("ensureFullVditor"), "loads index.min.js only when editing");
+assert(editorSource.includes("markdownHasMermaid"), "preloads mermaid only when source has diagrams");
+assert(editorSource.includes("preloadLute"), "preloads lute before preview");
+assert(!editorSource.includes("cdn.jsdelivr.net"), "editor must not default to jsdelivr");
 
 const bridge = readFileSync(join(root, "media/vscode-bridge.js"), "utf8");
 assert(bridge.includes("await api.setPreview(true)"), "defaults to preview on init");

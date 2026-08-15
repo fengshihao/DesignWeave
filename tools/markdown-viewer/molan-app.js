@@ -29,6 +29,26 @@
 
   const THEMES = ["xuan", "night", "hack", "rose"];
   const THEME_KEY = "molan-theme";
+  const THEME_FONTS = {
+    night: "family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500",
+    hack: "family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400",
+    xuan: "family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500",
+    rose: "family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500",
+  };
+
+  function loadThemeFonts(theme) {
+    const query = THEME_FONTS[theme] || THEME_FONTS.night;
+    const href = "https://fonts.googleapis.com/css2?" + query + "&display=swap";
+    let link = document.getElementById("molan-fonts");
+    if (!link) {
+      link = document.createElement("link");
+      link.id = "molan-fonts";
+      link.rel = "stylesheet";
+      document.head.appendChild(link);
+    }
+    if (link.getAttribute("href") === href) return;
+    link.href = href;
+  }
 
   function readStoredTheme() {
     try {
@@ -41,6 +61,7 @@
   function applyTheme(theme, persist) {
     const next = THEMES.includes(theme) ? theme : "night";
     document.documentElement.setAttribute("data-theme", next);
+    loadThemeFonts(next);
     if (persist !== false) {
       try { localStorage.setItem(THEME_KEY, next); } catch (_) { /* ignore */ }
     }

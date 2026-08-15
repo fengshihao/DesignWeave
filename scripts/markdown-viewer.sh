@@ -113,49 +113,30 @@ open_browser() {
 }
 
 serve_viewer() {
-  if command -v python3 >/dev/null 2>&1; then
+  if command -v node >/dev/null 2>&1; then
+    MOLAN_ROOT="${VIEWER_DIR}" MOLAN_SERVE_PORT="${PORT}" node "${VIEWER_DIR}/serve.mjs"
+  elif command -v python3 >/dev/null 2>&1; then
     python3 -m http.server "${PORT}" --bind 127.0.0.1 --directory "${VIEWER_DIR}"
   elif command -v python >/dev/null 2>&1; then
     python -m http.server "${PORT}" --bind 127.0.0.1 --directory "${VIEWER_DIR}"
-  elif command -v node >/dev/null 2>&1; then
-    MOLAN_ROOT="${VIEWER_DIR}" MOLAN_SERVE_PORT="${PORT}" node --input-type=module -e '
-      import http from "node:http";
-      import fs from "node:fs";
-      import path from "node:path";
-      const root = process.env.MOLAN_ROOT;
-      const port = Number(process.env.MOLAN_SERVE_PORT);
-      const mime = {
-        ".html": "text/html; charset=utf-8",
-        ".css": "text/css; charset=utf-8",
-        ".js": "text/javascript; charset=utf-8",
-        ".md": "text/markdown; charset=utf-8",
-        ".json": "application/json; charset=utf-8",
-        ".svg": "image/svg+xml",
-        ".png": "image/png",
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".woff2": "font/woff2",
-      };
-      http.createServer((req, res) => {
-        const urlPath = decodeURIComponent((req.url || "/").split("?")[0]);
-        const rel = urlPath === "/" ? "index.html" : urlPath.replace(/^\/+/, "");
-        const file = path.resolve(root, rel);
-        if (!file.startsWith(path.resolve(root) + path.sep) && file !== path.resolve(root)) {
-          res.writeHead(403); res.end("Forbidden"); return;
-        }
-        fs.readFile(file, (err, data) => {
-          if (err) { res.writeHead(404); res.end("Not found"); return; }
-          res.writeHead(200, { "Content-Type": mime[path.extname(file)] || "application/octet-stream" });
-          res.end(data);
-        });
-      }).listen(port, "127.0.0.1", () => {
-        console.log("Serving " + root + " at http://127.0.0.1:" + port + "/");
-      });
-    '
   else
-    echo "需要 python3 或 Node.js 才能启动静态服务" >&2
+    echo "需要 Node.js 或 python3 才能启动静态服务" >&2
     exit 1
   fi
+}
+
+vendor_vditor() {
+  local sync="${ROOT}/apps/vscode-molan/scripts/sync-media.mjs"
+  if [[ ! -f "${sync}" ]]; then
+    echo "未找到 ${sync}" >&2
+    exit 1
+  fi
+  if ! command -v node >/dev/null 2>&1; then
+    echo "需要 Node.js 才能同步本地 Vditor" >&2
+    exit 1
+  fi
+  echo "==> 同步本地 Vditor"
+  node "${sync}"
 }
 
 case "${ACTION}" in
@@ -172,6 +153,7 @@ case "${ACTION}" in
     echo "==> 清理旧进程"
     kill_port "${PORT}"
     sleep 0.3
+    vendor_vditor
     echo "==> 启动墨览 Markdown 工作室  ${URL}"
     echo "    侧栏「打开文件夹」打开本地目录；Chrome / Edge 可写回，Cursor 内置浏览器自动走兼容选择。Ctrl+C 停止。"
     (

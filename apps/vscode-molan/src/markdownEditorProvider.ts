@@ -260,7 +260,8 @@ export class MolanEditorProvider implements vscode.CustomEditorProvider<MolanDoc
     const vditorRoot = vscode.Uri.joinPath(media, "vditor");
     const molanCss = webview.asWebviewUri(vscode.Uri.joinPath(media, "molan.css"));
     const vditorCss = webview.asWebviewUri(vscode.Uri.joinPath(vditorRoot, "dist", "index.css"));
-    const vditorJs = webview.asWebviewUri(vscode.Uri.joinPath(vditorRoot, "dist", "index.min.js"));
+    const vditorMethodJs = webview.asWebviewUri(vscode.Uri.joinPath(vditorRoot, "dist", "method.min.js"));
+    const vditorLuteJs = webview.asWebviewUri(vscode.Uri.joinPath(vditorRoot, "dist", "js", "lute", "lute.min.js"));
     const vditorIconsJs = webview.asWebviewUri(vscode.Uri.joinPath(vditorRoot, "dist", "js", "icons", "ant.js"));
     const editorJs = webview.asWebviewUri(vscode.Uri.joinPath(media, "molan-editor.js"));
     const bridgeJs = webview.asWebviewUri(vscode.Uri.joinPath(media, "vscode-bridge.js"));
@@ -284,6 +285,8 @@ export class MolanEditorProvider implements vscode.CustomEditorProvider<MolanDoc
   <meta http-equiv="Content-Security-Policy" content="${csp}" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>墨览</title>
+  <link rel="preload" href="${vditorLuteJs}" as="script" />
+  <link rel="preload" href="${vditorMethodJs}" as="script" />
   <link rel="stylesheet" href="${vditorCss}" />
   <link rel="stylesheet" href="${molanCss}" />
 </head>
@@ -361,7 +364,7 @@ export class MolanEditorProvider implements vscode.CustomEditorProvider<MolanDoc
     window.__MOLAN_LINK_BASE__ = ${JSON.stringify(linkBase)};
   </script>
   <script nonce="${nonce}" id="vditorIconScript" src="${vditorIconsJs}"></script>
-  <script nonce="${nonce}" src="${vditorJs}"></script>
+  <script nonce="${nonce}" src="${vditorMethodJs}"></script>
   <script nonce="${nonce}" src="${editorJs}"></script>
   <script nonce="${nonce}" src="${bridgeJs}"></script>
 </body>
