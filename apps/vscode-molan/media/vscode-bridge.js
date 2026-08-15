@@ -91,17 +91,13 @@
     clearTimeout(editorIdleTimer);
     applyingRemote = true;
     const incoming = msg.value ?? "";
-    api.setValue(incoming, true);
-    if (msg.type === "init" || api.isPreview()) {
-      api.setPreview(true);
+    await api.setPreview(true);
+    await api.setValue(incoming, true);
+    if (!api.isPreview()) {
+      await wait(480);
     }
-    // 等 Vditor undoDelay(200) + 流程图增强(400)，避免 setValue 往返被当成一次编辑。
-    await wait(480);
     baseline = api.getValue();
     applyingRemote = false;
-    if (api.isPreview()) {
-      api.setPreview(true);
-    }
     setChrome({
       fileName: msg.fileName || currentFileName,
       value: incoming,
@@ -151,10 +147,10 @@
     }
   });
 
-  modeBtn?.addEventListener("click", () => {
+  modeBtn?.addEventListener("click", async () => {
     if (!editorApi) return;
     const nextPreview = !editorApi.isPreview();
-    editorApi.setPreview(nextPreview);
+    await editorApi.setPreview(nextPreview);
     syncModeButton();
     const wrap = document.getElementById("editorWrap");
     if (wrap) {

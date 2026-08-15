@@ -313,6 +313,9 @@ export class MolanEditorProvider implements vscode.CustomEditorProvider<MolanDoc
       </header>
       <div class="reader-body">
         <div class="editor-wrap visible" id="editorWrap">
+          <div class="molan-preview vditor-preview" id="molanPreview">
+            <div class="vditor-reset" id="molanPreviewBody"></div>
+          </div>
           <div id="vditor"></div>
         </div>
       </div>

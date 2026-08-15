@@ -70,9 +70,10 @@ assert(editorSource.includes("create("), "has create()");
 assert(editorSource.includes("setPreview"), "preview mode API");
 assert(editorSource.includes("defaultPreview !== false"), "opens in preview by default");
 assert(editorSource.includes("hide: false"), "toolbar stays visible");
+assert(editorSource.includes("Vditor.preview"), "preview uses lightweight Vditor.preview");
 
 const bridge = readFileSync(join(root, "media/vscode-bridge.js"), "utf8");
-assert(bridge.includes('msg.type === "init" || api.isPreview()'), "defaults to preview on init");
+assert(bridge.includes("await api.setPreview(true)"), "defaults to preview on init");
 assert(bridge.includes("value !== baseline"), "ignores Vditor setValue round-trip");
 assert(bridge.includes("openRelative"), "webview opens relative markdown links");
 

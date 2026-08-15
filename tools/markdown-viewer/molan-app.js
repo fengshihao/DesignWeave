@@ -1251,16 +1251,18 @@
       setActiveFileItem(path);
       readerTitle.textContent = file.name.replace(/\.(md|markdown|mdx|mdown)$/i, "");
       baselineText = text;
-      editorApi.setValue(text, true);
-      editorApi.setPreview(true);
+      await editorApi.setPreview(true);
+      await editorApi.setValue(text, true);
       setDirty(false);
       statusLeft.textContent = `${file.name} · ${((file.size || text.length) / 1024).toFixed(1)} KB`;
       paintStatus(text);
       syncModeButton();
-      // 等 Vditor undoDelay(200) + 流程图增强(400)，避免 setValue 往返被当成一次编辑。
-      await wait(480);
-      if (seq !== openSeq) return;
-      baselineText = editorApi.getValue();
+      if (!editorApi.isPreview()) {
+        // 编辑态：等 Vditor undoDelay(200) + 流程图增强(400)，避免 setValue 往返被当成一次编辑。
+        await wait(480);
+        if (seq !== openSeq) return;
+        baselineText = editorApi.getValue();
+      }
       applyingRemote = false;
       setDirty(false);
       updateStatusRight();
@@ -1425,10 +1427,10 @@
     void reloadLibrary();
   });
 
-  modeBtn?.addEventListener("click", () => {
+  modeBtn?.addEventListener("click", async () => {
     if (!editorApi || !activePath) return;
     const nextPreview = !editorApi.isPreview();
-    editorApi.setPreview(nextPreview);
+    await editorApi.setPreview(nextPreview);
     syncModeButton();
     replayMotion(editorWrap, "is-mode");
     if (!nextPreview) {

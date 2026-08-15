@@ -1938,6 +1938,31 @@
 
     .editor-wrap.visible { display: flex; flex-direction: column; }
 
+    .molan-preview {
+      display: none;
+      flex: 1;
+      min-height: 0;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+      background: transparent !important;
+    }
+
+    .molan-preview > .vditor-reset {
+      flex: 1;
+      min-height: 0;
+      height: 100%;
+      overflow: auto;
+    }
+
+    .editor-wrap.is-lite-preview .molan-preview {
+      display: flex;
+    }
+
+    .editor-wrap.is-lite-preview #vditor {
+      display: none !important;
+    }
+
     .editor-wrap.is-mode {
       animation: molan-mode-in 0.96s var(--ease) both;
     }
@@ -1972,6 +1997,10 @@
       padding-right: 8px !important;
     }
 
+    #vditor.is-preview .vditor-toolbar {
+      display: none !important;
+    }
+
     .vditor-toolbar__item,
     .vditor-toolbar__divider {
       float: none !important;
@@ -2000,7 +2029,7 @@
     .vditor-ir,
     .vditor-wysiwyg,
     .vditor-sv,
-    .vditor-preview {
+    .vditor-preview:not(.molan-preview) {
       min-height: 0;
       height: 100%;
       overflow: auto;

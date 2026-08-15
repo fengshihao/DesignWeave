@@ -627,7 +627,7 @@
   }
 
   function watchMermaidPreviews(rootId = "vditor") {
-    const root = document.getElementById(rootId);
+    const root = typeof rootId === "string" ? document.getElementById(rootId) : rootId;
     if (!root) return;
     enhanceMermaidPreviews(root);
     if (diagramObserver) return;
@@ -747,6 +747,11 @@
   function getSearchRoot() {
     const wrap = document.getElementById("editorWrap");
     if (wrap && !wrap.classList.contains("visible")) return null;
+    if (wrap?.classList.contains("is-lite-preview")) {
+      return document.getElementById("molanPreviewBody")
+        || document.getElementById("molanPreview")
+        || wrap;
+    }
     const previewBtn = document.querySelector('.vditor-toolbar [data-type="preview"]');
     const previewOn = previewBtn?.classList.contains("vditor-menu--current");
     if (previewOn) {
@@ -1207,6 +1212,25 @@
     });
   }
 
+  function ensureLitePreviewDom(vditorEl) {
+    const wrap = vditorEl.parentElement;
+    let host = document.getElementById("molanPreview");
+    if (!host && wrap) {
+      host = document.createElement("div");
+      host.id = "molanPreview";
+      host.className = "molan-preview vditor-preview";
+      wrap.insertBefore(host, vditorEl);
+    }
+    let body = document.getElementById("molanPreviewBody");
+    if (!body && host) {
+      body = document.createElement("div");
+      body.id = "molanPreviewBody";
+      body.className = "vditor-reset";
+      host.appendChild(body);
+    }
+    return { wrap, host, body };
+  }
+
   function create(options = {}) {
     const elementId = options.elementId || "vditor";
     const cdn = options.cdn || DEFAULT_CDN;
@@ -1214,7 +1238,6 @@
     toastEl = document.getElementById("toast");
     patchMermaidLoader();
     scheduleMermaidWarmup(cdn);
-    watchMermaidPreviews(elementId);
 
     const lightbox = initLightbox();
     const vditorRoot = document.getElementById(elementId);
@@ -1225,134 +1248,207 @@
       return Promise.reject(new Error("Vditor 未加载"));
     }
 
+    const { wrap, host: previewHost, body: previewBody } = ensureLitePreviewDom(vditorRoot);
+    const previewRoot = wrap || vditorRoot;
     let vditor = null;
-    bindMermaidInteractions(vditorRoot, () => vditor, lightbox);
+    let vditorReady = null;
+    let markdown = "";
+    let previewing = options.defaultPreview !== false;
+    let previewSeq = 0;
+    let muteInput = false;
+    const previewListeners = [];
 
-    return new Promise((resolve) => {
-      vditor = new Vditor(elementId, {
+    bindMermaidInteractions(previewRoot, () => vditor, lightbox);
+    watchMermaidPreviews(previewRoot);
+    watchTables(previewRoot);
+    initFind();
+    observeFindTarget(previewRoot);
+
+    const markdownOpts = {
+      linkBase: options.linkBase || "",
+      toc: false,
+      fixTermTypo: false,
+      autoSpace: false,
+      paragraphBeginningSpace: false,
+      listStyle: false,
+      sanitize: true,
+      codeBlockPreview: true,
+      mathBlockPreview: true,
+    };
+
+    const notifyPreview = () => {
+      previewListeners.forEach((cb) => {
+        try { cb(previewing); } catch (_) { /* ignore */ }
+      });
+    };
+
+    const syncLiteClass = () => {
+      wrap?.classList.toggle("is-lite-preview", previewing);
+      vditorRoot.classList.toggle("is-preview", previewing);
+    };
+
+    const renderLitePreview = (text) => {
+      if (!previewBody || typeof global.Vditor.preview !== "function") return;
+      const seq = ++previewSeq;
+      syncLiteClass();
+      global.Vditor.preview(previewBody, text ?? "", {
         cdn,
-        height: "100%",
-        mode: "ir",
-        theme: "classic",
-        icon: "ant",
-        lang: options.lang || (global.MolanI18n && global.MolanI18n.vditorLang()) || "zh_CN",
-        placeholder,
-        cache: { enable: false },
-        undoDelay: 200,
-        hint: { delay: 400 },
-        toolbar: [
-          "headings", "bold", "italic", "strike", "|",
-          "line", "quote", "list", "ordered-list", "check", "outdent", "indent", "|",
-          "code", "inline-code", "link", "table", "|",
-          "undo", "redo", "|",
-          "edit-mode", "outline", "preview", "fullscreen",
-        ],
-        toolbarConfig: { pin: true, hide: false },
-        preview: {
-          delay: 800,
-          maxWidth: 2400,
-          actions: options.previewActions || [],
-          theme: { current: "light" },
-          hljs: { style: "kimbie-dark", lineNumber: false },
-          math: { engine: "KaTeX", inlineDigit: true },
-          markdown: {
-            linkBase: options.linkBase || "",
-            toc: false,
-            fixTermTypo: false,
-            autoSpace: false,
-            paragraphBeginningSpace: false,
-            listStyle: false,
-            sanitize: true,
-            codeBlockPreview: true,
-            mathBlockPreview: true,
-          },
-        },
-        counter: {
-          enable: true,
-          type: "text",
-          after: () => options.onCounter?.(),
-        },
-        input: () => {
-          scheduleFitTables(vditorRoot);
-          try {
-            options.onInput?.();
-          } catch (_) { /* ignore */ }
-        },
-        ctrlEnter: () => {
-          options.onSave?.();
-        },
-        after: () => {
-          applyMermaidTheme();
-          watchMermaidPreviews(elementId);
-          watchTables(vditorRoot);
-          revealVditorIcons();
-          initFind();
-          observeFindTarget(vditorRoot);
-          const previewBtn = () =>
-            vditor?.vditor?.toolbar?.elements?.preview?.querySelector?.('[data-type="preview"]') || null;
-          const isPreview = () => previewBtn()?.classList.contains("vditor-menu--current") ?? false;
-          const setPreview = (on) => {
-            const btn = previewBtn();
-            if (!btn) return isPreview();
-            const active = btn.classList.contains("vditor-menu--current");
-            if (Boolean(on) !== active) btn.click();
-            else if (on) {
-              try { vditor.renderPreview(); } catch (_) { /* ignore */ }
-            }
-            setTimeout(() => {
-              scheduleFitTables(vditorRoot);
-              if (findState.open) runFind({ keepIndex: true, reveal: false });
-            }, 80);
-            return Boolean(on);
-          };
-          const api = {
-            setValue(text, clearStack = true) {
-              vditor.setValue(text ?? "", clearStack);
-              applyMermaidTheme();
-              watchMermaidPreviews(elementId);
-              if (isPreview()) {
-                try { vditor.renderPreview(); } catch (_) { /* ignore */ }
-              }
-              setTimeout(() => {
-                const root = document.getElementById(elementId);
-                enhanceMermaidPreviews(root);
-                scheduleFitTables(root);
-                if (findState.open) runFind({ keepIndex: true, reveal: false });
-              }, 400);
-            },
-            getValue() {
-              // 列宽只用于当前 webview 的呈现，不能把 class / style 写回 Markdown。
-              clearMolanTableLayout(vditorRoot);
-              const value = vditor.getValue();
-              scheduleFitTables(vditorRoot);
-              return value;
-            },
-            focus() {
-              try { vditor.focus(); } catch (_) { /* ignore */ }
-            },
-            isPreview,
-            setPreview,
-            onPreviewChange(cb) {
-              const btn = previewBtn();
-              if (!btn || typeof cb !== "function") return () => {};
-              const obs = new MutationObserver(() => {
-                scheduleFitTables(vditorRoot);
-                if (findState.open) runFind({ keepIndex: true, reveal: false });
-                cb(isPreview());
-              });
-              obs.observe(btn, { attributes: true, attributeFilter: ["class"] });
-              return () => obs.disconnect();
-            },
-            getVditor() {
-              return vditor;
-            },
-          };
-          if (options.defaultPreview !== false) setPreview(true);
-          options.onReady?.(api);
-          resolve(api);
+        mode: "light",
+        hljs: { style: "kimbie-dark", lineNumber: false },
+        math: { engine: "KaTeX", inlineDigit: true },
+        markdown: markdownOpts,
+        after() {
+          if (seq !== previewSeq) return;
+          enhanceMermaidPreviews(previewHost || previewBody);
+          scheduleFitTables(previewHost || previewBody);
+          if (findState.open) runFind({ keepIndex: true, reveal: false });
         },
       });
-    });
+    };
+
+    const bootEditor = () => {
+      if (vditor) return Promise.resolve(vditor);
+      if (vditorReady) return vditorReady;
+      vditorReady = new Promise((resolve) => {
+        vditor = new Vditor(elementId, {
+          cdn,
+          height: "100%",
+          mode: "ir",
+          theme: "classic",
+          icon: "ant",
+          lang: options.lang || (global.MolanI18n && global.MolanI18n.vditorLang()) || "zh_CN",
+          placeholder,
+          cache: { enable: false },
+          undoDelay: 200,
+          hint: { delay: 400 },
+          toolbar: [
+            "headings", "bold", "italic", "strike", "|",
+            "line", "quote", "list", "ordered-list", "check", "outdent", "indent", "|",
+            "code", "inline-code", "link", "table", "|",
+            "undo", "redo", "|",
+            "edit-mode", "outline", "fullscreen",
+          ],
+          toolbarConfig: { pin: true, hide: false },
+          preview: {
+            delay: 800,
+            maxWidth: 2400,
+            actions: options.previewActions || [],
+            theme: { current: "light" },
+            hljs: { style: "kimbie-dark", lineNumber: false },
+            math: { engine: "KaTeX", inlineDigit: true },
+            markdown: markdownOpts,
+          },
+          counter: {
+            enable: true,
+            type: "text",
+            after: () => {
+              if (previewing || muteInput) return;
+              options.onCounter?.();
+            },
+          },
+          input: () => {
+            if (previewing || muteInput) return;
+            scheduleFitTables(vditorRoot);
+            try {
+              options.onInput?.();
+            } catch (_) { /* ignore */ }
+          },
+          ctrlEnter: () => {
+            options.onSave?.();
+          },
+          after: () => {
+            applyMermaidTheme();
+            watchMermaidPreviews(previewRoot);
+            watchTables(vditorRoot);
+            revealVditorIcons();
+            resolve(vditor);
+          },
+        });
+      });
+      return vditorReady;
+    };
+
+    const api = {
+      async setValue(text, clearStack = true) {
+        markdown = text ?? "";
+        if (previewing) {
+          renderLitePreview(markdown);
+          return;
+        }
+        muteInput = true;
+        await bootEditor();
+        vditor.setValue(markdown, clearStack);
+        applyMermaidTheme();
+        setTimeout(() => {
+          muteInput = false;
+          enhanceMermaidPreviews(vditorRoot);
+          scheduleFitTables(vditorRoot);
+          if (findState.open) runFind({ keepIndex: true, reveal: false });
+        }, 400);
+      },
+      getValue() {
+        if (previewing || !vditor) return markdown;
+        clearMolanTableLayout(vditorRoot);
+        const value = vditor.getValue();
+        scheduleFitTables(vditorRoot);
+        return value;
+      },
+      focus() {
+        if (previewing || !vditor) return;
+        try { vditor.focus(); } catch (_) { /* ignore */ }
+      },
+      isPreview() {
+        return previewing;
+      },
+      async setPreview(on) {
+        const want = Boolean(on);
+        if (want === previewing) return previewing;
+        if (want) {
+          if (vditor) {
+            try { markdown = vditor.getValue(); } catch (_) { /* ignore */ }
+          }
+          previewing = true;
+          renderLitePreview(markdown);
+          notifyPreview();
+          return true;
+        }
+        previewing = false;
+        muteInput = true;
+        syncLiteClass();
+        await bootEditor();
+        vditor.setValue(markdown, true);
+        applyMermaidTheme();
+        setTimeout(() => {
+          muteInput = false;
+          enhanceMermaidPreviews(vditorRoot);
+          scheduleFitTables(vditorRoot);
+          if (findState.open) runFind({ keepIndex: true, reveal: false });
+        }, 400);
+        notifyPreview();
+        return false;
+      },
+      onPreviewChange(cb) {
+        if (typeof cb !== "function") return () => {};
+        previewListeners.push(cb);
+        return () => {
+          const i = previewListeners.indexOf(cb);
+          if (i >= 0) previewListeners.splice(i, 1);
+        };
+      },
+      getVditor() {
+        return vditor;
+      },
+    };
+
+    syncLiteClass();
+    if (options.defaultPreview === false) {
+      return bootEditor().then(() => {
+        options.onReady?.(api);
+        return api;
+      });
+    }
+    options.onReady?.(api);
+    return Promise.resolve(api);
   }
 
   global.MolanEditor = {
