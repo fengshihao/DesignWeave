@@ -81,6 +81,8 @@ assert(app.includes("isSkippedDirName"), "skips dependency directories by name")
 assert(app.includes("loadThemeFonts"), "loads theme fonts on demand");
 
 const editorSource = readFileSync(join(viewer, "molan-editor.js"), "utf8");
+assert(editorSource.includes("initType"), "reader type controls");
+assert(editorSource.includes("molan-type"), "persists type settings");
 assert(editorSource.includes("global.MolanEditor"), "exports MolanEditor");
 assert(editorSource.includes("create("), "has create()");
 assert(editorSource.includes("setPreview"), "preview mode API");

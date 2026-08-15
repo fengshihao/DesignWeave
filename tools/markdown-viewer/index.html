@@ -21,6 +21,16 @@
         else if (l === "zh-Hant") document.documentElement.lang = "zh-TW";
         else if (l) document.documentElement.lang = l;
       } catch (e) {}
+      try {
+        var ty = JSON.parse(localStorage.getItem("molan-type") || "null");
+        if (ty && typeof ty === "object") {
+          var s = document.documentElement.style;
+          if (ty.size) s.setProperty("--reader-size", ty.size + "rem");
+          if (ty.leading) s.setProperty("--reader-leading", String(ty.leading));
+          if (ty.gap != null) s.setProperty("--reader-gap", ty.gap + "em");
+          if (ty.tracking != null) s.setProperty("--reader-tracking", ty.tracking + "em");
+        }
+      } catch (e) {}
       var fonts = {
         night: "family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500",
         hack: "family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400",
@@ -42,7 +52,7 @@
   <link rel="preload" href="./vendor/vditor/dist/js/lute/lute.min.js" as="script" />
   <link rel="preload" href="./vendor/vditor/dist/method.min.js" as="script" />
   <link rel="stylesheet" href="./vendor/vditor/dist/index.css" />
-  <link rel="stylesheet" href="./molan.css?v=20260815u" />
+  <link rel="stylesheet" href="./molan.css?v=20260815type" />
 </head>
 <body>
   <div class="app">
@@ -82,6 +92,10 @@
               <div class="lang-switch">
                 <select id="langSelect" aria-label="界面语言" data-i18n-aria="langAria"></select>
               </div>
+            </div>
+            <div class="prefs-section">
+              <div class="prefs-label" data-i18n="prefsEditors">编辑器</div>
+              <a class="prefs-link" href="./extension.html" data-i18n="extensionLink">Cursor / VS Code 扩展</a>
             </div>
           </div>
         </div>
@@ -123,6 +137,11 @@
           <button class="icon-btn" id="copyBtn" type="button" hidden title="复制原文" aria-label="复制原文" data-i18n-title="copySource" data-i18n-aria="copySource">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2"/><rect x="4" y="8" width="12" height="12" rx="2"/></svg>
           </button>
+          <div class="type-prefs" id="typePrefs">
+            <button class="icon-btn" id="typeBtn" type="button" hidden title="调节字号与行距" aria-label="排版" aria-expanded="false" aria-haspopup="dialog" aria-controls="typeMenu" data-i18n-title="typeTitle" data-i18n-aria="typeAria">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.6 19L8.2 5.5h1.7L14.5 19"/><path d="M5.4 13.6h7.2"/><path d="M16.4 19l2.6-8h1.1L22.6 19"/><path d="M17.5 15.6h4.1"/></svg>
+            </button>
+          </div>
           <button class="icon-btn molan-find-btn" id="molanFindBtn" type="button" hidden title="在文档中查找" aria-label="在文档中查找" data-i18n-title="findAria" data-i18n-aria="findAria">
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
@@ -198,9 +217,9 @@
   </div>
 
   <script src="./vendor/vditor/dist/method.min.js"></script>
-  <script src="./molan-i18n.js?v=20260815n"></script>
+  <script src="./molan-i18n.js?v=20260815type"></script>
   <script src="./molan-aphorisms.js?v=20260815n"></script>
-  <script src="./molan-editor.js?v=20260815u"></script>
-  <script src="./molan-app.js?v=20260815u"></script>
+  <script src="./molan-editor.js?v=20260815type"></script>
+  <script src="./molan-app.js?v=20260815type"></script>
 </body>
 </html>

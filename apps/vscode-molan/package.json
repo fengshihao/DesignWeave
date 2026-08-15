@@ -2,7 +2,7 @@
   "name": "molan-markdown",
   "displayName": "墨览 Markdown",
   "description": "用墨览打开 Markdown：点开即可阅读，需要时再编辑，保存写回原文件。",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "publisher": "fengshihao",
   "license": "MIT",
   "icon": "icon.png",
@@ -18,7 +18,7 @@
   "bugs": {
     "url": "https://github.com/fengshihao/DesignWeave/issues"
   },
-  "homepage": "https://github.com/fengshihao/DesignWeave/tree/main/apps/vscode-molan",
+  "homepage": "https://molan.guoyoutech.cn/extension.html",
   "engines": {
     "vscode": "^1.74.0"
   },

@@ -100,6 +100,14 @@
       findNoMatch: "无匹配",
       findMatchCount: "{current}/{total}",
       findAria: "在文档中查找",
+      typeAria: "排版",
+      typeTitle: "调节字号与行距",
+      typeLabel: "排版",
+      typeSize: "字号",
+      typeLeading: "行距",
+      typeGap: "段距",
+      typeTracking: "字距",
+      typeReset: "恢复默认",
       placeholder: "开始编辑 Markdown…",
     };
     let s = fallback[key] || key;
@@ -777,6 +785,7 @@
       btn.setAttribute("aria-label", label);
     });
     applyFindI18n();
+    applyTypeI18n();
   }
 
   const findState = {
@@ -1101,6 +1110,7 @@
   }
 
   function openFind() {
+    closeType();
     initFind();
     const bar = document.getElementById("molanFindBar");
     const input = document.getElementById("molanFindInput");
@@ -1253,6 +1263,315 @@
     document.addEventListener("keydown", handleFindKey, true);
   }
 
+  const TYPE_KEY = "molan-type";
+  const TYPE_DEFAULTS = {
+    size: 0.98,
+    leading: 1.58,
+    gap: 0.65,
+    tracking: 0,
+  };
+  const TYPE_RANGES = {
+    size: { min: 0.85, max: 1.5, step: 0.01 },
+    leading: { min: 1.3, max: 2.2, step: 0.02 },
+    gap: { min: 0.25, max: 1.4, step: 0.05 },
+    tracking: { min: -0.03, max: 0.12, step: 0.005 },
+  };
+  const TYPE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.6 19L8.2 5.5h1.7L14.5 19"/><path d="M5.4 13.6h7.2"/><path d="M16.4 19l2.6-8h1.1L22.6 19"/><path d="M17.5 15.6h4.1"/></svg>';
+
+  const typeState = {
+    open: false,
+    animToken: 0,
+    values: { ...TYPE_DEFAULTS },
+  };
+
+  function clampType(key, value) {
+    const range = TYPE_RANGES[key];
+    const n = Number(value);
+    if (!range || !Number.isFinite(n)) return TYPE_DEFAULTS[key];
+    const snapped = range.step ? Math.round(n / range.step) * range.step : n;
+    return Math.min(range.max, Math.max(range.min, snapped));
+  }
+
+  function readStoredType() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(TYPE_KEY) || "null");
+      if (!raw || typeof raw !== "object") return { ...TYPE_DEFAULTS };
+      return {
+        size: clampType("size", raw.size ?? TYPE_DEFAULTS.size),
+        leading: clampType("leading", raw.leading ?? TYPE_DEFAULTS.leading),
+        gap: clampType("gap", raw.gap ?? TYPE_DEFAULTS.gap),
+        tracking: clampType("tracking", raw.tracking ?? TYPE_DEFAULTS.tracking),
+      };
+    } catch (_) {
+      return { ...TYPE_DEFAULTS };
+    }
+  }
+
+  function persistType() {
+    try {
+      localStorage.setItem(TYPE_KEY, JSON.stringify(typeState.values));
+    } catch (_) { /* ignore */ }
+  }
+
+  function applyTypeVars(values) {
+    const root = document.documentElement.style;
+    root.setProperty("--reader-size", `${values.size}rem`);
+    root.setProperty("--reader-leading", String(values.leading));
+    root.setProperty("--reader-gap", `${values.gap}em`);
+    root.setProperty("--reader-tracking", `${values.tracking}em`);
+  }
+
+  function applyStoredType() {
+    typeState.values = readStoredType();
+    applyTypeVars(typeState.values);
+  }
+
+  function formatTypeValue(key, value) {
+    if (key === "size") return String(Math.round(value * 16));
+    if (key === "tracking") {
+      if (Math.abs(value) < 0.0005) return "0";
+      const sign = value > 0 ? "+" : "";
+      return sign + value.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
+    }
+    return value.toFixed(2);
+  }
+
+  function setRangeFill(input) {
+    if (!input) return;
+    const min = Number(input.min);
+    const max = Number(input.max);
+    const val = Number(input.value);
+    const pct = max === min ? 0 : ((val - min) / (max - min)) * 100;
+    input.style.setProperty("--pct", `${pct}%`);
+  }
+
+  function paintTypeControls() {
+    const menu = document.getElementById("typeMenu");
+    if (!menu) return;
+    Object.keys(TYPE_RANGES).forEach((key) => {
+      const input = menu.querySelector(`[data-type-key="${key}"]`);
+      const label = menu.querySelector(`[data-type-val="${key}"]`);
+      const value = typeState.values[key];
+      if (input) {
+        input.value = String(value);
+        setRangeFill(input);
+      }
+      if (label) label.textContent = formatTypeValue(key, value);
+    });
+  }
+
+  function setTypeValue(key, raw, persist) {
+    const next = clampType(key, raw);
+    typeState.values[key] = next;
+    applyTypeVars(typeState.values);
+    paintTypeControls();
+    if (persist !== false) persistType();
+  }
+
+  function resetType() {
+    typeState.values = { ...TYPE_DEFAULTS };
+    applyTypeVars(typeState.values);
+    paintTypeControls();
+    persistType();
+  }
+
+  function typeIsOpen() {
+    const menu = document.getElementById("typeMenu");
+    return !!(typeState.open && menu && !menu.hidden && menu.classList.contains("is-open"));
+  }
+
+  function paintTypeButton(btn) {
+    if (!btn) return;
+    btn.id = "typeBtn";
+    btn.className = "icon-btn";
+    btn.type = "button";
+    if (!btn.querySelector("svg")) btn.innerHTML = TYPE_ICON;
+  }
+
+  function ensureTypeButton() {
+    const actions = document.querySelector(".reader-actions");
+    let wrap = document.getElementById("typePrefs") || document.querySelector(".type-prefs");
+    let btn = document.getElementById("typeBtn");
+    if (!wrap && actions) {
+      wrap = document.createElement("div");
+      wrap.id = "typePrefs";
+      wrap.className = "type-prefs";
+      const findBtn = document.getElementById("molanFindBtn");
+      if (findBtn && findBtn.parentElement === actions) actions.insertBefore(wrap, findBtn);
+      else actions.appendChild(wrap);
+    }
+    if (!btn && wrap) {
+      btn = document.createElement("button");
+      wrap.appendChild(btn);
+    } else if (btn && wrap && btn.parentElement !== wrap) {
+      wrap.appendChild(btn);
+    }
+    paintTypeButton(btn);
+    if (btn && !btn.dataset.bound) {
+      btn.dataset.bound = "1";
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        toggleType();
+      });
+    }
+    return { wrap, btn };
+  }
+
+  function applyTypeI18n() {
+    const btn = document.getElementById("typeBtn");
+    const menu = document.getElementById("typeMenu");
+    const label = t("typeAria");
+    const title = t("typeTitle");
+    if (btn) {
+      btn.title = title;
+      btn.setAttribute("aria-label", label);
+    }
+    if (!menu) return;
+    menu.setAttribute("aria-label", label);
+    const head = menu.querySelector(".type-head");
+    if (head) head.textContent = t("typeLabel");
+    const map = {
+      size: "typeSize",
+      leading: "typeLeading",
+      gap: "typeGap",
+      tracking: "typeTracking",
+    };
+    Object.keys(map).forEach((key) => {
+      const el = menu.querySelector(`[data-type-name="${key}"]`);
+      if (el) el.textContent = t(map[key]);
+    });
+    const reset = menu.querySelector("#typeReset");
+    if (reset) reset.textContent = t("typeReset");
+  }
+
+  function openType() {
+    initType();
+    const menu = document.getElementById("typeMenu");
+    const btn = document.getElementById("typeBtn");
+    if (!menu || !btn) return;
+    typeState.animToken += 1;
+    const already = typeIsOpen();
+    typeState.open = true;
+    menu.hidden = false;
+    btn.setAttribute("aria-expanded", "true");
+    btn.classList.add("is-on");
+    paintTypeControls();
+    if (!already) {
+      menu.classList.remove("is-out", "is-open");
+      void menu.offsetWidth;
+      menu.classList.add("is-open");
+    }
+  }
+
+  function closeType() {
+    const menu = document.getElementById("typeMenu");
+    const btn = document.getElementById("typeBtn");
+    if (!menu || menu.hidden || menu.classList.contains("is-out")) {
+      typeState.open = false;
+      btn?.setAttribute("aria-expanded", "false");
+      btn?.classList.remove("is-on");
+      return;
+    }
+    const token = typeState.animToken + 1;
+    typeState.animToken = token;
+    typeState.open = false;
+    menu.classList.remove("is-open");
+    menu.classList.add("is-out");
+    btn?.setAttribute("aria-expanded", "false");
+    btn?.classList.remove("is-on");
+    const finish = () => {
+      if (token !== typeState.animToken) return;
+      menu.hidden = true;
+      menu.classList.remove("is-out");
+    };
+    if (prefersReducedMotion()) {
+      finish();
+      return;
+    }
+    menu.addEventListener("animationend", (e) => {
+      if (e.target === menu) finish();
+    }, { once: true });
+    window.setTimeout(finish, 280);
+  }
+
+  function toggleType() {
+    if (typeIsOpen()) closeType();
+    else openType();
+  }
+
+  function initType() {
+    if (initType.done) {
+      ensureTypeButton();
+      applyTypeI18n();
+      paintTypeControls();
+      return;
+    }
+    initType.done = true;
+    applyStoredType();
+    const { wrap } = ensureTypeButton();
+    if (wrap && !document.getElementById("typeMenu")) {
+      const menu = document.createElement("div");
+      menu.id = "typeMenu";
+      menu.className = "type-menu";
+      menu.hidden = true;
+      menu.setAttribute("role", "dialog");
+      menu.innerHTML = `
+        <div class="type-head" data-i18n="typeLabel">排版</div>
+        <label class="type-row">
+          <span class="type-row-head">
+            <span data-type-name="size" data-i18n="typeSize">字号</span>
+            <span class="type-val" data-type-val="size">16</span>
+          </span>
+          <input type="range" data-type-key="size" min="${TYPE_RANGES.size.min}" max="${TYPE_RANGES.size.max}" step="${TYPE_RANGES.size.step}" />
+        </label>
+        <label class="type-row">
+          <span class="type-row-head">
+            <span data-type-name="leading" data-i18n="typeLeading">行距</span>
+            <span class="type-val" data-type-val="leading">1.58</span>
+          </span>
+          <input type="range" data-type-key="leading" min="${TYPE_RANGES.leading.min}" max="${TYPE_RANGES.leading.max}" step="${TYPE_RANGES.leading.step}" />
+        </label>
+        <label class="type-row">
+          <span class="type-row-head">
+            <span data-type-name="gap" data-i18n="typeGap">段距</span>
+            <span class="type-val" data-type-val="gap">0.65</span>
+          </span>
+          <input type="range" data-type-key="gap" min="${TYPE_RANGES.gap.min}" max="${TYPE_RANGES.gap.max}" step="${TYPE_RANGES.gap.step}" />
+        </label>
+        <label class="type-row">
+          <span class="type-row-head">
+            <span data-type-name="tracking" data-i18n="typeTracking">字距</span>
+            <span class="type-val" data-type-val="tracking">0</span>
+          </span>
+          <input type="range" data-type-key="tracking" min="${TYPE_RANGES.tracking.min}" max="${TYPE_RANGES.tracking.max}" step="${TYPE_RANGES.tracking.step}" />
+        </label>
+        <button type="button" class="type-reset" id="typeReset" data-i18n="typeReset">恢复默认</button>
+      `;
+      wrap.appendChild(menu);
+      menu.addEventListener("click", (e) => e.stopPropagation());
+      menu.querySelectorAll("[data-type-key]").forEach((input) => {
+        input.addEventListener("input", () => {
+          setTypeValue(input.getAttribute("data-type-key"), input.value, false);
+        });
+        input.addEventListener("change", () => persistType());
+      });
+      menu.querySelector("#typeReset")?.addEventListener("click", () => resetType());
+    }
+    const btn = document.getElementById("typeBtn");
+    btn?.setAttribute("aria-expanded", "false");
+    btn?.setAttribute("aria-haspopup", "dialog");
+    btn?.setAttribute("aria-controls", "typeMenu");
+    applyTypeI18n();
+    paintTypeControls();
+    document.addEventListener("pointerdown", (e) => {
+      if (e.target.closest(".type-prefs")) return;
+      closeType();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeType();
+    });
+  }
+
   function revealVditorIcons() {
     const xlink = "http://www.w3.org/1999/xlink";
     document.querySelectorAll("use").forEach((use) => {
@@ -1313,6 +1632,7 @@
     watchMermaidPreviews(previewRoot);
     watchTables(previewRoot);
     initFind();
+    initType();
     observeFindTarget(previewRoot);
 
     const markdownOpts = {
@@ -1530,11 +1850,20 @@
       next() { moveFind(1); },
       prev() { moveFind(-1); },
     },
+    type: {
+      open: openType,
+      close: closeType,
+    },
   };
 
+  applyStoredType();
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initFind);
+    document.addEventListener("DOMContentLoaded", () => {
+      initFind();
+      initType();
+    });
   } else {
     initFind();
+    initType();
   }
 })(window);

@@ -19,6 +19,7 @@
   const copyBtn = document.getElementById("copyBtn");
   const modeBtn = document.getElementById("modeBtn");
   const findBtn = document.getElementById("molanFindBtn");
+  const typeBtn = document.getElementById("typeBtn");
   const reloadBtn = document.getElementById("reloadBtn");
 
   const toast = (msg) => window.MolanEditor.toast(msg);
@@ -618,11 +619,13 @@
       saveBtn.hidden = true;
       copyBtn.hidden = true;
       if (findBtn) findBtn.hidden = true;
+      if (typeBtn) typeBtn.hidden = true;
       if (reloadBtn) reloadBtn.hidden = true;
       return;
     }
     copyBtn.hidden = false;
     if (findBtn) findBtn.hidden = false;
+    if (typeBtn) typeBtn.hidden = false;
     if (reloadBtn) reloadBtn.hidden = false;
     saveBtn.hidden = !dirty;
   }
@@ -1020,6 +1023,7 @@
     copyBtn.hidden = true;
     if (modeBtn) modeBtn.hidden = true;
     if (findBtn) findBtn.hidden = true;
+    if (typeBtn) typeBtn.hidden = true;
     if (reloadBtn) reloadBtn.hidden = true;
     readerTitle.textContent = "墨览";
     activePath = null;
@@ -1027,6 +1031,7 @@
     baselineText = "";
     applyingRemote = false;
     clearTimeout(editorIdleTimer);
+    window.MolanEditor.type?.close();
     syncOpenHint();
     scheduleAphorismCycle();
   }
@@ -1390,6 +1395,7 @@
     copyBtn.hidden = false;
     if (modeBtn) modeBtn.hidden = false;
     if (findBtn) findBtn.hidden = false;
+    if (typeBtn) typeBtn.hidden = false;
     if (reloadBtn) reloadBtn.hidden = false;
     statusLeft.textContent = t("openingName", { name: file.name });
 

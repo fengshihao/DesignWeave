@@ -63,6 +63,10 @@
       --lightbox-dim: rgba(20, 18, 14, 0.72);
       --scroll-thumb: rgba(28, 25, 20, 0.22);
       --scroll-thumb-side: rgba(255, 255, 255, 0.15);
+      --reader-size: 0.98rem;
+      --reader-leading: 1.58;
+      --reader-gap: 0.65em;
+      --reader-tracking: 0em;
     }
 
     /* 墨夜：暖黑夜读，油灯金 */
@@ -490,7 +494,9 @@
       .prefs-menu.is-open,
       .prefs-menu.is-out,
       .molan-find-bar.is-open,
-      .molan-find-bar.is-out {
+      .molan-find-bar.is-out,
+      .type-menu.is-open,
+      .type-menu.is-out {
         animation: none;
       }
     }
@@ -519,6 +525,18 @@
       text-transform: uppercase;
       color: var(--sidebar-fg-mute);
       font-weight: 600;
+    }
+
+    .prefs-link {
+      display: inline-block;
+      color: var(--accent-soft);
+      font-size: 0.78rem;
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+    }
+
+    .prefs-link:hover {
+      border-bottom-color: currentColor;
     }
 
     .theme-switch {
@@ -1470,6 +1488,183 @@
       right: 14px;
     }
 
+    .type-prefs {
+      position: relative;
+      display: flex;
+      flex: 0 0 auto;
+    }
+
+    .reader-actions .type-prefs:has(#typeBtn[hidden]) {
+      display: none;
+    }
+
+    .type-menu {
+      display: none;
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      z-index: 14;
+      width: 228px;
+      padding: 14px 14px 12px;
+      border-radius: 14px;
+      background: var(--paper-lift);
+      border: 1px solid var(--hairline-strong);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+      color: var(--ink-soft);
+      transform-origin: 88% 0%;
+    }
+
+    .type-menu.is-open,
+    .type-menu.is-out {
+      display: block;
+    }
+
+    .type-menu.is-open {
+      animation: molan-prefs-in 0.42s var(--ease) both;
+    }
+
+    .type-menu.is-out {
+      animation: molan-prefs-out 0.22s ease both;
+    }
+
+    html[dir="rtl"] .type-menu {
+      right: auto;
+      left: 0;
+      transform-origin: 12% 0%;
+    }
+
+    .type-head {
+      margin: 0 0 12px;
+      font-size: 0.62rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
+      font-weight: 600;
+    }
+
+    .type-row {
+      display: block;
+      margin: 0 0 12px;
+    }
+
+    .type-row-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 7px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--ink-soft);
+    }
+
+    .type-val {
+      font-variant-numeric: tabular-nums;
+      font-size: 0.72rem;
+      font-weight: 650;
+      letter-spacing: 0.02em;
+      color: var(--accent);
+    }
+
+    .type-menu input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      display: block;
+      width: 100%;
+      height: 4px;
+      margin: 0;
+      border-radius: 999px;
+      background: linear-gradient(
+        to right,
+        var(--accent) var(--pct, 0%),
+        var(--hairline-strong) var(--pct, 0%)
+      );
+      outline: none;
+      cursor: pointer;
+      accent-color: var(--accent);
+    }
+
+    html[dir="rtl"] .type-menu input[type="range"] {
+      background: linear-gradient(
+        to left,
+        var(--accent) var(--pct, 0%),
+        var(--hairline-strong) var(--pct, 0%)
+      );
+    }
+
+    .type-menu input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid var(--paper-lift);
+      box-shadow: 0 0 0 1px var(--accent);
+      cursor: pointer;
+      transition: transform 0.16s var(--ease);
+    }
+
+    .type-menu input[type="range"]::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid var(--paper-lift);
+      box-shadow: 0 0 0 1px var(--accent);
+      cursor: pointer;
+    }
+
+    .type-menu input[type="range"]::-moz-range-track {
+      background: transparent;
+      border: none;
+    }
+
+    .type-menu input[type="range"]:hover::-webkit-slider-thumb,
+    .type-menu input[type="range"]:focus-visible::-webkit-slider-thumb {
+      transform: scale(1.12);
+    }
+
+    .type-menu input[type="range"]:focus-visible {
+      box-shadow: 0 0 0 3px var(--accent-glow);
+      border-radius: 999px;
+    }
+
+    .type-reset {
+      appearance: none;
+      width: 100%;
+      margin-top: 2px;
+      padding: 7px 8px;
+      border: 1px solid var(--hairline);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--ink-muted);
+      font-family: var(--font-ui);
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+    }
+
+    .type-reset:hover {
+      color: var(--accent);
+      border-color: var(--accent);
+      background: var(--surface-solid);
+    }
+
+    .type-reset:focus-visible {
+      outline: 2px solid var(--accent-glow);
+      outline-offset: 1px;
+    }
+
+    #typeBtn.is-on {
+      color: var(--accent);
+      background: var(--surface);
+      border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    }
+
     .reader-body {
       position: relative;
       z-index: 1;
@@ -2024,7 +2219,9 @@
       .reader-actions .icon-btn.is-pulse,
       .reader-actions #reloadBtn.is-busy svg,
       .molan-find-bar.is-open,
-      .molan-find-bar.is-out {
+      .molan-find-bar.is-out,
+      .type-menu.is-open,
+      .type-menu.is-out {
         animation: none;
       }
       .file-item,
@@ -2180,8 +2377,9 @@
       padding: 22px 40px 56px !important;
       overflow-x: auto;
       font-family: var(--font-ui) !important;
-      font-size: 0.98rem !important;
-      line-height: 1.58 !important;
+      font-size: var(--reader-size) !important;
+      line-height: var(--reader-leading) !important;
+      letter-spacing: var(--reader-tracking);
       color: var(--ink) !important;
       background: transparent !important;
     }
@@ -2200,15 +2398,15 @@
     }
 
     .vditor-reset h1 {
-      font-size: 2.1rem !important;
+      font-size: 2.14em !important;
       padding-bottom: 0.3em !important;
       border-bottom: 1px solid var(--hairline-strong) !important;
     }
 
-    .vditor-reset h2 { font-size: 1.55rem !important; }
-    .vditor-reset h3 { font-size: 1.22rem !important; }
+    .vditor-reset h2 { font-size: 1.58em !important; }
+    .vditor-reset h3 { font-size: 1.24em !important; }
     .vditor-reset h4 {
-      font-size: 1.05rem !important;
+      font-size: 1.07em !important;
       font-family: var(--font-ui) !important;
       font-weight: 650 !important;
     }
@@ -2221,7 +2419,7 @@
       margin: 1.1em 0 0.35em !important;
     }
 
-    .vditor-reset p { margin: 0.65em 0 !important; }
+    .vditor-reset p { margin: var(--reader-gap) 0 !important; }
 
     .vditor-reset a {
       color: var(--link) !important;
@@ -2262,7 +2460,7 @@
 
     .vditor-reset ul,
     .vditor-reset ol {
-      margin: 0.65em 0 !important;
+      margin: var(--reader-gap) 0 !important;
       padding-left: 1.35em !important;
     }
 
@@ -2300,7 +2498,7 @@
       border-collapse: separate !important;
       border-spacing: 0;
       margin: 1.4em 0 !important;
-      font-size: 0.92rem;
+      font-size: 0.94em;
       overflow: hidden;
       border-radius: var(--radius);
       border: 1px solid var(--hairline-strong) !important;
@@ -2410,7 +2608,7 @@
       /* 不加 !important，避免压过 kimbie-dark 的 token 色 */
       color: var(--code-fg);
       padding: 0 !important;
-      font-size: 0.8rem !important;
+      font-size: 0.82em !important;
       line-height: 1.55 !important;
       border-radius: 0 !important;
       display: block;

@@ -306,6 +306,11 @@ export class MolanEditorProvider implements vscode.CustomEditorProvider<MolanDoc
           <button class="icon-btn" id="copyBtn" type="button" title="复制原文" aria-label="复制原文">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2"/><rect x="4" y="8" width="12" height="12" rx="2"/></svg>
           </button>
+          <div class="type-prefs" id="typePrefs">
+            <button class="icon-btn" id="typeBtn" type="button" title="调节字号与行距" aria-label="排版" aria-expanded="false" aria-haspopup="dialog" aria-controls="typeMenu">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.6 19L8.2 5.5h1.7L14.5 19"/><path d="M5.4 13.6h7.2"/><path d="M16.4 19l2.6-8h1.1L22.6 19"/><path d="M17.5 15.6h4.1"/></svg>
+            </button>
+          </div>
           <button class="icon-btn molan-find-btn" id="molanFindBtn" type="button" title="在文档中查找" aria-label="在文档中查找">
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>

@@ -2,6 +2,9 @@
 
 用墨览打开 Markdown：点开即可阅读，需要时再编辑，保存写回原文件。
 
+网站：https://molan.guoyoutech.cn/extension.html  
+Cursor（Open VSX）：https://open-vsx.org/extension/fengshihao/molan-markdown
+
 ![墨览编辑器](media/screenshot.jpg)
 
 安装后，点击 `.md` 文件就会进入墨览，不必先面对一屏源码。

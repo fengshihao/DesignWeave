@@ -12,10 +12,10 @@
 | Short description / 简短说明 | 用墨览打开 Markdown：点开即可阅读，需要时再编辑，保存写回原文件。 |
 | Categories / 分类 | Other |
 | Tags / 标签 | markdown, vditor, wysiwyg, 墨览, mermaid, typora |
-| Version | 0.1.6 |
+| Version | 0.1.8 |
 | License | MIT |
 | Repository | https://github.com/fengshihao/DesignWeave.git |
-| Homepage | https://github.com/fengshihao/DesignWeave/tree/main/apps/vscode-molan |
+| Homepage | https://molan.guoyoutech.cn/extension.html |
 | Bugs / Issues | https://github.com/fengshihao/DesignWeave/issues |
 | Q&A | Marketplace（默认） |
 | Gallery banner color | `#1E2A24`（深苔绿，暗色） |
@@ -53,4 +53,4 @@ npx @vscode/vsce publish --no-dependencies --baseContentUrl https://github.com/f
 pnpm --filter molan-markdown package
 ```
 
-Cursor 用户走 Open VSX（另一套账号）：https://open-vsx.org/ ，用 `npx ovsx publish molan-markdown-0.1.6.vsix -p <token>`。
+Cursor 用户走 Open VSX（另一套账号）：https://open-vsx.org/ ，用 `npx ovsx publish molan-markdown-0.1.8.vsix -p "$OVSX_PAT"`。
