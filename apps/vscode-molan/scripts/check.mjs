@@ -103,6 +103,11 @@ assert(editorSource.includes("hide: false"), "toolbar stays visible");
 assert(editorSource.includes("Vditor.preview"), "preview uses lightweight Vditor.preview");
 assert(editorSource.includes("ensureFullVditor"), "loads index.min.js only when editing");
 assert(editorSource.includes("markdownHasMermaid"), "preloads mermaid only when source has diagrams");
+assert(editorSource.includes("function mermaidRoot"), "theme switch looks up preview+editor mermaid hosts");
+assert(editorSource.includes("captureMermaidSource"), "saves mermaid source before Vditor replaces it");
+assert(editorSource.includes("scheduleMermaidThemeRefresh"), "theme switch re-renders mermaid diagrams");
+assert(editorSource.includes("onThemeChange"), "theme switch notifies editor to restyle mermaid");
+assert(editorSource.includes("stampMermaidSources"), "preview stamps mermaid source before Vditor wipes it");
 assert(editorSource.includes("preloadLute"), "preloads lute before preview");
 assert(!editorSource.includes("cdn.jsdelivr.net"), "editor must not default to jsdelivr");
 

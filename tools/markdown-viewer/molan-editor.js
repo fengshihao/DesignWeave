@@ -187,11 +187,93 @@
   function applyMermaidTheme() {
     if (!global.mermaid || typeof mermaid.initialize !== "function") return false;
     try {
+      patchMermaidInitialize();
+      if (typeof mermaid.mermaidAPI?.reset === "function") {
+        try { mermaid.mermaidAPI.reset(); } catch (_) { /* ignore */ }
+      }
       mermaid.initialize(getMermaidOpts());
       return true;
     } catch (_) {
       return false;
     }
+  }
+
+  function mermaidRoot() {
+    return document.getElementById("editorWrap")
+      || document.getElementById("molanPreview")
+      || document.getElementById("vditor")
+      || document;
+  }
+
+  let mermaidMarkdownProvider = null;
+  const themeChangeListeners = [];
+
+  function setMermaidMarkdownProvider(fn) {
+    mermaidMarkdownProvider = typeof fn === "function" ? fn : null;
+  }
+
+  function onThemeChange(fn) {
+    if (typeof fn !== "function") return () => {};
+    themeChangeListeners.push(fn);
+    return () => {
+      const i = themeChangeListeners.indexOf(fn);
+      if (i >= 0) themeChangeListeners.splice(i, 1);
+    };
+  }
+
+  function extractMermaidSources(text) {
+    const out = [];
+    const src = String(text || "");
+    const re = /(?:^|\n)[ \t]*(```+|~~~+)[ \t]*mermaid[^\n]*\n([\s\S]*?)(?:\n[ \t]*\1[ \t]*(?:\n|$))/gi;
+    let match;
+    while ((match = re.exec(src))) out.push(match[2].trim());
+    return out;
+  }
+
+  function mermaidSourcesFromMarkdown() {
+    if (typeof mermaidMarkdownProvider !== "function") return [];
+    try {
+      return extractMermaidSources(mermaidMarkdownProvider());
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function captureMermaidSource(el) {
+    if (!el || el.nodeType !== 1) return;
+    if (el.getAttribute("data-molan-source")) return;
+    if (el.getAttribute("data-processed") === "true") return;
+    if (el.querySelector("svg")) return;
+    const text = (el.textContent || "").trim();
+    if (text) el.setAttribute("data-molan-source", text);
+  }
+
+  function captureMermaidSources(root = document) {
+    root.querySelectorAll?.(".language-mermaid")?.forEach(captureMermaidSource);
+  }
+
+  function stampMermaidSources(root, text) {
+    if (!root) return;
+    const sources = extractMermaidSources(text);
+    root.querySelectorAll(".language-mermaid").forEach((el, i) => {
+      if (sources[i]) el.setAttribute("data-molan-source", sources[i]);
+      else captureMermaidSource(el);
+    });
+  }
+
+  function scheduleMermaidThemeRefresh() {
+    const run = () => {
+      applyMermaidTheme();
+      if (themeChangeListeners.length) {
+        themeChangeListeners.forEach((fn) => {
+          try { fn(); } catch (_) { /* ignore */ }
+        });
+        return;
+      }
+      refreshMermaidDiagrams(mermaidRoot());
+    };
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(run);
+    else run();
   }
 
   function patchMermaidInitialize() {
@@ -439,10 +521,13 @@
     const node = previewEl?.closest?.(".vditor-ir__node");
     const marker = node?.querySelector?.(".vditor-ir__marker--pre code.language-mermaid");
     if (marker?.textContent?.trim()) return marker.textContent.trim();
-    const host = previewEl?.querySelector?.(".language-mermaid") || previewEl;
-    const saved = host?.getAttribute?.("data-molan-source");
+    const host = previewEl?.matches?.(".language-mermaid")
+      ? previewEl
+      : (previewEl?.querySelector?.(".language-mermaid") || previewEl);
+    const saved = host?.getAttribute?.("data-molan-source")
+      || previewEl?.getAttribute?.("data-molan-source");
     if (saved) return saved;
-    const code = previewEl?.querySelector?.("code.language-mermaid, .language-mermaid");
+    const code = previewEl?.querySelector?.("code.language-mermaid, .language-mermaid") || host;
     if (!code) return "";
     if (code.getAttribute?.("data-processed")) return "";
     return (code.textContent || "").trim();
@@ -452,45 +537,58 @@
   let mermaidRefreshing = false;
   let mermaidRefreshQueued = null;
 
+  function cleanupMermaidTemp(id) {
+    document.getElementById(id)?.remove();
+    document.getElementById("d" + id)?.remove();
+  }
+
   function renderMermaidSvg(source) {
     const id = "molan-mmd-" + (++mermaidRenderSeq);
     const api = global.mermaid;
     if (!api || typeof api.render !== "function") {
       return Promise.reject(new Error("mermaid.render 不可用"));
     }
+    const done = (svg) => {
+      cleanupMermaidTemp(id);
+      return svg;
+    };
     try {
       const out = api.render(id, source);
       if (out && typeof out.then === "function") {
-        return out.then((result) => (typeof result === "string" ? result : result.svg));
+        return out.then((result) => done(typeof result === "string" ? result : result.svg));
       }
-      if (typeof out === "string") return Promise.resolve(out);
-      if (out && out.svg) return Promise.resolve(out.svg);
+      if (typeof out === "string") return Promise.resolve(done(out));
+      if (out && out.svg) return Promise.resolve(done(out.svg));
     } catch (_) { /* mermaid 9 走回调 */ }
     return new Promise((resolve, reject) => {
       try {
-        api.render(id, source, (svg) => resolve(svg));
+        api.render(id, source, (svg) => resolve(done(svg)));
       } catch (err) {
+        cleanupMermaidTemp(id);
         reject(err);
       }
     });
   }
 
   async function refreshMermaidDiagrams(root = document) {
+    if (!global.mermaid || typeof mermaid.render !== "function") return;
     if (mermaidRefreshing) {
       mermaidRefreshQueued = root;
       return;
     }
     mermaidRefreshing = true;
     try {
-      if (typeof mermaid.mermaidAPI?.reset === "function") {
-        try { mermaid.mermaidAPI.reset(); } catch (_) { /* ignore */ }
-      }
       applyMermaidTheme();
-      const hosts = Array.from(root.querySelectorAll(".language-mermaid"))
-        .filter((el) => el.querySelector("svg"));
-      for (const host of hosts) {
+      captureMermaidSources(root);
+      const fromMd = mermaidSourcesFromMarkdown();
+      const hosts = Array.from(root.querySelectorAll(".language-mermaid"));
+      for (let i = 0; i < hosts.length; i += 1) {
+        const host = hosts[i];
         const preview = host.closest(".vditor-ir__preview") || host;
-        const source = getMermaidSourceNear(preview) || host.getAttribute("data-molan-source") || "";
+        const source = getMermaidSourceNear(preview)
+          || host.getAttribute("data-molan-source")
+          || fromMd[i]
+          || "";
         if (!source) continue;
         host.setAttribute("data-molan-source", source);
         try {
@@ -498,9 +596,11 @@
           const wrap = document.createElement("div");
           wrap.innerHTML = svg;
           const next = wrap.querySelector("svg");
+          if (!next) continue;
           const old = host.querySelector("svg");
-          if (next && old) old.replaceWith(next);
-          else if (next) host.insertBefore(next, host.firstChild);
+          if (old) old.replaceWith(next);
+          else host.insertBefore(next, host.firstChild);
+          host.setAttribute("data-processed", "true");
         } catch (err) {
           console.warn(err);
         }
@@ -557,6 +657,7 @@
   }
 
   function enhanceMermaidPreviews(root = document) {
+    captureMermaidSources(root);
     const codes = root.querySelectorAll(".language-mermaid");
     codes.forEach((code) => {
       const shell = code.closest(".vditor-ir__preview") || code.closest("pre") || code;
@@ -706,10 +807,13 @@
     diagramObserver = new MutationObserver((mutations) => {
       let added = false;
       for (const m of mutations) {
-        if (m.addedNodes.length) {
-          added = true;
-          break;
-        }
+        if (!m.addedNodes.length) continue;
+        added = true;
+        m.addedNodes.forEach((node) => {
+          if (node.nodeType !== 1) return;
+          if (node.matches?.(".language-mermaid")) captureMermaidSource(node);
+          node.querySelectorAll?.(".language-mermaid")?.forEach(captureMermaidSource);
+        });
       }
       if (!added) return;
       if (raf) return;
@@ -1650,10 +1754,7 @@
     }
     paintThemeSwitch(next);
     try {
-      if (global.mermaid) {
-        const root = document.getElementById("vditor") || document;
-        refreshMermaidDiagrams(root);
-      }
+      scheduleMermaidThemeRefresh();
     } catch (_) { /* ignore */ }
   }
 
@@ -1847,6 +1948,13 @@
     let muteInput = false;
     const previewListeners = [];
 
+    setMermaidMarkdownProvider(() => {
+      if (previewing) return markdown;
+      if (vditor) {
+        try { return vditor.getValue(); } catch (_) { /* ignore */ }
+      }
+      return markdown;
+    });
     bindMermaidInteractions(previewRoot, () => vditor, lightbox);
     watchMermaidPreviews(previewRoot);
     watchTables(previewRoot);
@@ -1883,11 +1991,14 @@
     const renderLitePreview = (text) => {
       if (!previewBody || typeof global.Vditor?.preview !== "function") return;
       const seq = ++previewSeq;
+      const sourceText = text ?? "";
+      const restoreScroll = renderLitePreview._scrollTop;
+      renderLitePreview._scrollTop = null;
       syncLiteClass();
-      maybePreloadMermaid(cdn, text);
+      maybePreloadMermaid(cdn, sourceText);
       const run = () => {
         if (seq !== previewSeq) return;
-        global.Vditor.preview(previewBody, text ?? "", {
+        global.Vditor.preview(previewBody, sourceText, {
           cdn,
           lazyLoadImage,
           mode: "light",
@@ -1896,14 +2007,29 @@
           markdown: markdownOpts,
           after() {
             if (seq !== previewSeq) return;
-            enhanceMermaidPreviews(previewHost || previewBody);
-            scheduleFitTables(previewHost || previewBody);
+            const root = previewHost || previewBody;
+            stampMermaidSources(root, sourceText);
+            enhanceMermaidPreviews(root);
+            scheduleFitTables(root);
+            if (typeof restoreScroll === "number" && previewBody) {
+              previewBody.scrollTop = restoreScroll;
+            }
             if (findState.open) runFind({ keepIndex: true, reveal: false });
           },
         });
       };
       Promise.resolve(preloadLute(cdn)).then(run, run);
     };
+
+    onThemeChange(() => {
+      applyMermaidTheme();
+      if (previewing) {
+        if (previewBody) renderLitePreview._scrollTop = previewBody.scrollTop;
+        renderLitePreview(markdown);
+      } else {
+        refreshMermaidDiagrams(vditorRoot);
+      }
+    });
 
     const bootEditor = () => {
       if (vditor) return Promise.resolve(vditor);
@@ -1920,6 +2046,7 @@
           placeholder,
           cache: { enable: false },
           undoDelay: 200,
+          // 待做：hint.extend（key: "/"）做斜杠插入菜单，见 apps/vscode-molan/DEV.md
           hint: { delay: 400 },
           toolbar: [
             "headings", "bold", "italic", "strike", "|",
