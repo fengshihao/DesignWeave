@@ -81,7 +81,7 @@ export function changedFiles(dir: string): string[] {
   return out
     .split("\n")
     .map((line) => {
-      const rest = line.length >= 4 ? line.slice(3) : "";
+      const rest = line.slice(2).trim();
       if (rest.includes(" -> ")) return rest.split(" -> ").pop() || rest;
       return rest.replace(/^"|"$/g, "").trim();
     })

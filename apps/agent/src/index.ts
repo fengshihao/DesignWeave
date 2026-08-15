@@ -435,9 +435,6 @@ app.put("/v1/requirements/:id/files", (req, res) => {
     const content = String(req.body?.content ?? "");
     const ifMatch = req.header("if-match") || undefined;
     const file = writeDocFile(req.params.id, rel, content, ifMatch);
-    if (rel === "PRD.md") {
-      writePrdMarkdown(req.params.id, content);
-    }
     res.setHeader("ETag", file.etag);
     res.json(file);
   } catch (err) {
@@ -474,8 +471,13 @@ app.post("/v1/requirements/:id/versions", (req, res) => {
     );
     const custom = String(req.body?.message || "").trim();
     const files = changedFiles(meta.vaultPath);
+    const named =
+      files.find((f) => /(^|\/)PRD\.md$/i.test(f)) ||
+      files.find((f) => /(^|\/)调研\.md$/.test(f)) ||
+      files.find((f) => f.endsWith(".md") && !f.endsWith("meta.md")) ||
+      files[0];
     const message =
-      custom || `我：保存 ${files[0] ? path.basename(files[0]) : "文档"}`;
+      custom || `我：保存 ${named ? path.basename(named) : "文档"}`;
     const version = commitAll(meta.vaultPath, message, {
       name: req.user.name,
       email: req.user.email,
