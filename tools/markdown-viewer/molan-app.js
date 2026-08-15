@@ -176,6 +176,14 @@
   const DB_NAME = "molan-viewer";
   const DB_STORE = "folders";
   const MAX_RECENT = 30;
+  const SCAN_MAX_DEPTH = 6;
+  const SCAN_MAX_FILES = 500;
+  const SCAN_MAX_ENTRIES = 3000;
+  const SCAN_SKIP_DIRS = new Set([
+    "node_modules", "bower_components", "jspm_packages",
+    "dist", "build", "coverage", "vendor", "target",
+    "__pycache__", "venv",
+  ]);
 
   function openDb() {
     return new Promise((resolve, reject) => {
@@ -653,18 +661,66 @@
     return entry.text;
   }
 
-  async function collectFromDirectoryHandle(rootHandle, base = "") {
+  function isSkippedDirName(name) {
+    const n = String(name || "");
+    if (!n || n === "." || n === "..") return true;
+    if (n.startsWith(".")) return true;
+    return SCAN_SKIP_DIRS.has(n.toLowerCase());
+  }
+
+  function pathHasSkippedDir(relPath, ignoreFirst) {
+    const parts = String(relPath || "").replace(/\\/g, "/").split("/");
+    const end = parts.length - 1;
+    const start = ignoreFirst ? 1 : 0;
+    for (let i = start; i < end; i++) {
+      if (isSkippedDirName(parts[i])) return true;
+    }
+    return false;
+  }
+
+  function relativeDirDepth(relPath) {
+    const parts = String(relPath || "").replace(/\\/g, "/").split("/").filter(Boolean);
+    return Math.max(0, parts.length - 2);
+  }
+
+  function noteScanLimits(truncated) {
+    if (!truncated) return;
+    toast(t("scanLimited", { depth: SCAN_MAX_DEPTH, max: SCAN_MAX_FILES }));
+  }
+
+  async function collectFromDirectoryHandle(rootHandle) {
     const out = [];
-    for await (const [name, handle] of rootHandle.entries()) {
-      const path = base ? `${base}/${name}` : name;
-      if (handle.kind === "directory") {
-        if (name === "node_modules" || name === ".git" || name === ".pnpm-store" || name === "dist" || name === "build") continue;
-        out.push(...(await collectFromDirectoryHandle(handle, path)));
-      } else if (handle.kind === "file" && isMarkdown(name)) {
-        out.push({ path, name, dir: base || ".", size: 0, handle });
+    let entries = 0;
+    let truncated = false;
+
+    async function walk(dirHandle, base, depth) {
+      if (out.length >= SCAN_MAX_FILES || entries >= SCAN_MAX_ENTRIES) {
+        truncated = true;
+        return;
+      }
+      for await (const [name, handle] of dirHandle.entries()) {
+        if (out.length >= SCAN_MAX_FILES || entries >= SCAN_MAX_ENTRIES) {
+          truncated = true;
+          return;
+        }
+        entries += 1;
+        if (entries % 40 === 0) await wait(0);
+        const path = base ? `${base}/${name}` : name;
+        if (handle.kind === "directory") {
+          if (isSkippedDirName(name)) continue;
+          if (depth >= SCAN_MAX_DEPTH) {
+            truncated = true;
+            continue;
+          }
+          await walk(handle, path, depth + 1);
+        } else if (handle.kind === "file" && isMarkdown(name)) {
+          out.push({ path, name, dir: base || ".", size: 0, handle });
+        }
       }
     }
-    return out;
+
+    await walk(rootHandle, "", 0);
+    return { files: out, truncated };
   }
 
   async function loadFromDirectoryHandle(handle) {
@@ -673,25 +729,50 @@
     folderSource = "fs-access";
     statusLeft.textContent = t("scanning");
     const collected = await collectFromDirectoryHandle(handle);
-    setFiles(collected);
+    setFiles(collected.files);
+    noteScanLimits(collected.truncated);
     try {
       await rememberDirectoryHandle(handle);
-      await touchCurrentFolder(collected.length);
+      await touchCurrentFolder(collected.files.length);
       renderSidebarList();
     } catch (err) {
       console.warn(err);
     }
   }
 
-  function loadFromFileList(fileListObj) {
-    const all = Array.from(fileListObj || []);
-    const mdFiles = all.filter((f) => {
+  async function loadFromFileList(fileListObj) {
+    const all = fileListObj || [];
+    const mdFiles = [];
+    let truncated = false;
+    let seen = 0;
+    const total = all.length || 0;
+    statusLeft.textContent = t("scanning");
+    for (let i = 0; i < total; i++) {
+      if (i % 400 === 0) await wait(0);
+      const f = all[i];
       const rel = f.webkitRelativePath || f.name || "";
-      return isMarkdown(rel.split("/").pop() || f.name);
-    });
+      if (pathHasSkippedDir(rel, true)) continue;
+      seen += 1;
+      if (seen > SCAN_MAX_ENTRIES) {
+        truncated = true;
+        break;
+      }
+      const leaf = rel.split("/").pop() || f.name;
+      if (!isMarkdown(leaf)) continue;
+      if (relativeDirDepth(rel) > SCAN_MAX_DEPTH) {
+        truncated = true;
+        continue;
+      }
+      if (mdFiles.length >= SCAN_MAX_FILES) {
+        truncated = true;
+        break;
+      }
+      mdFiles.push(f);
+    }
     if (!mdFiles.length) {
       toast(all.length ? t("noMarkdown") : t("noFilesSelected"));
       statusLeft.textContent = t("noMarkdownRead");
+      noteScanLimits(truncated);
       return;
     }
     const firstRel = mdFiles[0].webkitRelativePath || mdFiles[0].name;
@@ -713,7 +794,8 @@
     rememberLegacyFolder(folderName, list.length)
       .then(() => renderSidebarList())
       .catch((err) => console.warn(err));
-    toast(t("compatEditable"));
+    if (truncated) noteScanLimits(true);
+    else toast(t("compatEditable"));
   }
 
   function openCompatPicker() {
@@ -761,7 +843,7 @@
         return;
       }
       const collected = await collectFromDirectoryHandle(folderHandle);
-      files = collected.sort((a, b) => a.path.localeCompare(b.path, locale()));
+      files = collected.files.sort((a, b) => a.path.localeCompare(b.path, locale()));
       statusRight.textContent = folderName || t("localOffline");
       renderSidebarList();
       try {
@@ -781,9 +863,11 @@
       } else {
         showWelcome();
         toast(t("noDocsInFolder"));
+        noteScanLimits(collected.truncated);
         return;
       }
       toast(t("reloaded", { n: files.length }));
+      noteScanLimits(collected.truncated);
     } catch (err) {
       console.warn(err);
       statusLeft.textContent = t("reloadFail");
@@ -1435,7 +1519,7 @@
       dirInput.value = "";
       return;
     }
-    if (dirInput.files && dirInput.files.length) loadFromFileList(dirInput.files);
+    if (dirInput.files && dirInput.files.length) void loadFromFileList(dirInput.files);
   });
 
   let searchTimer = 0;

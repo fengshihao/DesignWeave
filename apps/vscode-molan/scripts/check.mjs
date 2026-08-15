@@ -63,6 +63,10 @@ for (const path of [
 
 const app = readFileSync(join(viewer, "molan-app.js"), "utf8");
 assert(app.includes("openLocalMarkdownLink"), "browser opens in-folder markdown links");
+assert(app.includes("SCAN_MAX_DEPTH"), "limits folder scan depth");
+assert(app.includes("SCAN_MAX_FILES"), "limits folder scan file count");
+assert(app.includes("pathHasSkippedDir"), "skips node_modules in folder file lists");
+assert(app.includes("isSkippedDirName"), "skips dependency directories by name");
 
 const editorSource = readFileSync(join(viewer, "molan-editor.js"), "utf8");
 assert(editorSource.includes("global.MolanEditor"), "exports MolanEditor");
