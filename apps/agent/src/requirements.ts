@@ -1,8 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
-import { nanoid } from "nanoid";
+import { customAlphabet } from "nanoid";
 import { config } from "./config.js";
 import { getDb } from "./db.js";
+import {
+  commitAll,
+  ensureDocumentVault,
+  isDirty,
+  listVersions,
+  looksLikeCodeTree,
+} from "./gitVault.js";
 
 export type RequirementMeta = {
   id: string;
@@ -15,6 +22,8 @@ export type RequirementMeta = {
   updatedAt: string;
   vaultPath: string;
 };
+
+const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 10);
 
 function slugify(input: string): string {
   const s = input
@@ -147,7 +156,8 @@ export function createRequirement(input: {
   primaryRepo?: string;
   relatedRepos?: string[];
   importMarkdown?: string;
-}): RequirementMeta {
+  docRoot?: string;
+}): RequirementMeta & { codeTreeWarning?: string } {
   ensureRequirementsTable();
   const now = new Date().toISOString();
   const id = nanoid(8);
@@ -158,17 +168,31 @@ export function createRequirement(input: {
     .map((r) => r.trim())
     .filter(Boolean)
     .filter((r) => r !== primaryRepo);
+  const docRoot = input.docRoot?.trim() || undefined;
 
   if (primaryRepo && !fs.existsSync(primaryRepo)) {
-    throw new Error(`主工程路径不存在：${primaryRepo}`);
+    throw new Error(`代码仓路径不存在：${primaryRepo}`);
   }
   for (const r of relatedRepos) {
     if (!fs.existsSync(r)) {
-      throw new Error(`关联工程路径不存在：${r}`);
+      throw new Error(`代码仓路径不存在：${r}`);
     }
   }
 
-  const vaultPath = resolveVaultDir(primaryRepo, folderName);
+  let vaultPath: string;
+  if (docRoot) {
+    vaultPath = path.resolve(docRoot);
+    fs.mkdirSync(vaultPath, { recursive: true });
+  } else {
+    vaultPath = resolveVaultDir(primaryRepo, folderName);
+    fs.mkdirSync(path.join(vaultPath, "import"), { recursive: true });
+  }
+
+  const codeTreeWarning = looksLikeCodeTree(vaultPath)
+    ? "这看起来像代码仓。文档仓应是专门放 PRD / 调研的目录。"
+    : undefined;
+
+  ensureDocumentVault(vaultPath);
   fs.mkdirSync(path.join(vaultPath, "import"), { recursive: true });
 
   const meta: RequirementMeta = {
@@ -221,7 +245,12 @@ export function createRequirement(input: {
       meta.updatedAt
     );
 
-  return meta;
+  commitAll(vaultPath, "系统：初始化文档仓", {
+    name: "系统",
+    email: "system@designweave.local",
+  });
+
+  return { ...meta, codeTreeWarning };
 }
 
 export function listRequirements(): RequirementMeta[] {
@@ -391,10 +420,13 @@ export function importMarkdownToRequirement(
 export function getRequirementBundle(id: string) {
   const meta = getRequirement(id);
   if (!meta) return null;
+  const versions = listVersions(meta.vaultPath, 1);
   return {
     requirement: meta,
     prd: readPrdMarkdown(id),
     gaps: readGapsMarkdown(id),
     originalImport: readOriginalImport(id),
+    uncommitted: isDirty(meta.vaultPath),
+    latestVersion: versions[0] ?? null,
   };
 }

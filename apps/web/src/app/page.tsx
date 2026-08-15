@@ -206,6 +206,12 @@ function ProjectHome(props: { user: SessionUser }) {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
   const [showCreate, setShowCreate] = useState(false);
+  const [docRoot, setDocRoot] = useState("");
+  const [browse, setBrowse] = useState<{
+    path: string;
+    parent: string | null;
+    entries: Array<{ name: string; path: string; isDir: boolean }>;
+  } | null>(null);
 
   async function refresh() {
     setLoading(true);
@@ -257,6 +263,7 @@ function ProjectHome(props: { user: SessionUser }) {
         primaryRepo: primary,
         relatedRepos: related.filter((r) => r !== primary),
         importMarkdown: importMd.trim() || undefined,
+        docRoot: docRoot.trim() || undefined,
       });
       window.location.href = `/requirements/${requirement.id}`;
     } catch (err) {
@@ -340,6 +347,66 @@ function ProjectHome(props: { user: SessionUser }) {
               这一刀仍沿用现有落盘探针。下一刀会改成专有文档仓 Git。
             </p>
             <form onSubmit={onCreate} style={{ display: "grid", gap: 14, marginTop: 16 }}>
+              <div className="field">
+                <label>文档目录（将作为文档版本库，必填）</label>
+                <input
+                  value={docRoot}
+                  onChange={(e) => setDocRoot(e.target.value)}
+                  placeholder="/home/you/Documents/DesignWeave/设置页夜间模式"
+                  required
+                />
+                <button
+                  className="btn ghost"
+                  type="button"
+                  onClick={() => {
+                    void api.browseFs(docRoot || undefined).then(setBrowse).catch((e) => {
+                      setError(e instanceof Error ? e.message : "无法浏览");
+                    });
+                  }}
+                >
+                  浏览托管机目录
+                </button>
+                {browse && (
+                  <div
+                    style={{
+                      border: "1px solid var(--line)",
+                      borderRadius: 10,
+                      padding: 8,
+                      maxHeight: 180,
+                      overflow: "auto",
+                    }}
+                  >
+                    <p className="muted" style={{ margin: "0 0 8px", fontSize: 12 }}>
+                      {browse.path}
+                    </p>
+                    {browse.parent && (
+                      <button
+                        className="btn ghost"
+                        type="button"
+                        onClick={() => void api.browseFs(browse.parent || undefined).then(setBrowse)}
+                      >
+                        上一级
+                      </button>
+                    )}
+                    {browse.entries
+                      .filter((e) => e.isDir)
+                      .map((e) => (
+                        <button
+                          key={e.path}
+                          className="btn ghost"
+                          type="button"
+                          style={{ display: "block", width: "100%", textAlign: "left" }}
+                          onClick={() => {
+                            setDocRoot(e.path);
+                            void api.browseFs(e.path).then(setBrowse);
+                          }}
+                        >
+                          {e.name}/
+                        </button>
+                      ))}
+                  </div>
+                )}
+              </div>
               <div className="field">
                 <label>工程名称</label>
                 <input

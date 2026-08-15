@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import fs from "node:fs";
+import path from "node:path";
 import {
   AgentModeSchema,
   AgentRoleSchema,
@@ -48,6 +49,7 @@ import {
 import {
   createRequirement,
   ensureRequirementsTable,
+  getRequirement,
   getRequirementBundle,
   listRequirements,
   readPrdMarkdown,
@@ -56,6 +58,17 @@ import {
   importMarkdownToRequirement,
 } from "./requirements.js";
 import { runRequirementChat } from "./requirementChat.js";
+import { browseDir } from "./fsBrowse.js";
+import { listDocTree, readDocFile, writeDocFile } from "./files.js";
+import {
+  changedFiles,
+  commitAll,
+  isDirty,
+  listVersions,
+  readFileAt,
+  restoreFile,
+  revertLatestAiCommit,
+} from "./gitVault.js";
 
 fs.mkdirSync(workspacesRoot(), { recursive: true });
 getDb();
@@ -245,6 +258,8 @@ app.post("/v1/requirements", requireArchitect, (req, res) => {
         ? req.body.importMarkdown
         : undefined;
 
+    const docRoot =
+      typeof req.body?.docRoot === "string" ? req.body.docRoot.trim() : undefined;
     if (!title && !summary && !importMarkdown) {
       res.status(400).json({ error: "请提供标题、一句话目标或导入的 Markdown" });
       return;
@@ -256,6 +271,7 @@ app.post("/v1/requirements", requireArchitect, (req, res) => {
       primaryRepo,
       relatedRepos,
       importMarkdown,
+      docRoot,
     });
     res.status(201).json({
       requirement,
@@ -346,6 +362,154 @@ app.patch("/v1/requirements/:id/phase", (req, res) => {
   } catch (err) {
     res.status(404).json({
       error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+app.get("/v1/fs/browse", requireArchitect, (req, res) => {
+  try {
+    const dir = typeof req.query.path === "string" ? req.query.path : undefined;
+    res.json(browseDir(dir));
+  } catch (err) {
+    res.status(400).json({
+      error: err instanceof Error ? err.message : "无法浏览目录",
+    });
+  }
+});
+
+app.get("/v1/requirements/:id/tree", (req, res) => {
+  try {
+    res.json({ files: listDocTree(req.params.id) });
+  } catch (err) {
+    res.status(404).json({
+      error: err instanceof Error ? err.message : "工程不存在",
+    });
+  }
+});
+
+app.get("/v1/requirements/:id/files", (req, res) => {
+  try {
+    const rel = typeof req.query.path === "string" ? req.query.path : "PRD.md";
+    const file = readDocFile(req.params.id, rel);
+    res.setHeader("ETag", file.etag);
+    res.json(file);
+  } catch (err) {
+    res.status(404).json({
+      error: err instanceof Error ? err.message : "文件不存在",
+    });
+  }
+});
+
+app.put("/v1/requirements/:id/files", (req, res) => {
+  try {
+    const rel = typeof req.query.path === "string" ? req.query.path : "PRD.md";
+    const content = String(req.body?.content ?? "");
+    const ifMatch = req.header("if-match") || undefined;
+    const file = writeDocFile(req.params.id, rel, content, ifMatch);
+    if (rel === "PRD.md") {
+      writePrdMarkdown(req.params.id, content);
+    }
+    res.setHeader("ETag", file.etag);
+    res.json(file);
+  } catch (err) {
+    const status = (err as { status?: number }).status === 409 ? 409 : 400;
+    res.status(status).json({
+      error: err instanceof Error ? err.message : "保存失败",
+    });
+  }
+});
+
+app.get("/v1/requirements/:id/versions", (req, res) => {
+  const meta = getRequirement(req.params.id);
+  if (!meta) {
+    res.status(404).json({ error: "工程不存在" });
+    return;
+  }
+  res.json({
+    versions: listVersions(meta.vaultPath),
+    uncommitted: isDirty(meta.vaultPath),
+    changedFiles: changedFiles(meta.vaultPath),
+  });
+});
+
+app.post("/v1/requirements/:id/versions", (req, res) => {
+  const meta = getRequirement(req.params.id);
+  if (!meta || !req.user) {
+    res.status(404).json({ error: "工程不存在" });
+    return;
+  }
+  const custom = String(req.body?.message || "").trim();
+  const files = changedFiles(meta.vaultPath);
+  const message =
+    custom || `我：保存 ${files[0] ? path.basename(files[0]) : "文档"}`;
+  try {
+    const version = commitAll(meta.vaultPath, message, {
+      name: req.user.name,
+      email: req.user.email,
+    });
+    if (!version) {
+      res.json({ version: null, message: "没有需要记入的改动" });
+      return;
+    }
+    res.status(201).json({ version });
+  } catch (err) {
+    res.status(400).json({
+      error: err instanceof Error ? err.message : "版本没记下，请稍后再试",
+    });
+  }
+});
+
+app.get("/v1/requirements/:id/versions/:sha/files", (req, res) => {
+  const meta = getRequirement(req.params.id);
+  if (!meta) {
+    res.status(404).json({ error: "工程不存在" });
+    return;
+  }
+  const rel = typeof req.query.path === "string" ? req.query.path : "PRD.md";
+  const content = readFileAt(meta.vaultPath, req.params.sha, rel);
+  if (content === null) {
+    res.status(404).json({ error: "这一版里还没有这篇" });
+    return;
+  }
+  res.json({ path: rel, content, version: req.params.sha });
+});
+
+app.post("/v1/requirements/:id/versions/:sha/restore", (req, res) => {
+  const meta = getRequirement(req.params.id);
+  if (!meta) {
+    res.status(404).json({ error: "工程不存在" });
+    return;
+  }
+  const rel = typeof req.body?.path === "string" ? req.body.path : "PRD.md";
+  try {
+    restoreFile(meta.vaultPath, req.params.sha, rel);
+    res.json({
+      path: rel,
+      content: readPrdMarkdown(req.params.id),
+      uncommitted: isDirty(meta.vaultPath),
+    });
+  } catch (err) {
+    res.status(400).json({
+      error: err instanceof Error ? err.message : "无法恢复这一篇",
+    });
+  }
+});
+
+app.post("/v1/requirements/:id/versions/revert-latest-ai", (req, res) => {
+  const meta = getRequirement(req.params.id);
+  if (!meta || !req.user) {
+    res.status(404).json({ error: "工程不存在" });
+    return;
+  }
+  try {
+    const version = revertLatestAiCommit(meta.vaultPath, {
+      name: req.user.name,
+      email: req.user.email,
+    });
+    res.json({ version, bundle: getRequirementBundle(req.params.id) });
+  } catch (err) {
+    res.status(400).json({
+      error: err instanceof Error ? err.message : "这一版没能撤销，当前纸面没变。",
     });
   }
 });

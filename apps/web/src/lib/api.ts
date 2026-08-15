@@ -33,6 +33,13 @@ export type RequirementBundle = {
   prd: string;
   gaps: string;
   originalImport: string | null;
+  uncommitted?: boolean;
+  latestVersion?: {
+    id: string;
+    message: string;
+    author: string;
+    createdAt: string;
+  } | null;
 };
 
 export type AuthStatus = {
@@ -118,6 +125,7 @@ export const api = {
     primaryRepo?: string;
     relatedRepos?: string[];
     importMarkdown?: string;
+    docRoot?: string;
   }) =>
     request<{ requirement: RequirementMeta; bundle: RequirementBundle }>(
       "/v1/requirements",
@@ -168,4 +176,54 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+
+  browseFs: (dir?: string) =>
+    request<{
+      path: string;
+      parent: string | null;
+      entries: Array<{ name: string; path: string; isDir: boolean }>;
+    }>(`/v1/fs/browse${dir ? `?path=${encodeURIComponent(dir)}` : ""}`),
+
+  listVersions: (id: string) =>
+    request<{
+      versions: Array<{
+        id: string;
+        message: string;
+        author: string;
+        createdAt: string;
+      }>;
+      uncommitted: boolean;
+      changedFiles: string[];
+    }>(`/v1/requirements/${id}/versions`),
+
+  recordVersion: (id: string, message?: string) =>
+    request<{
+      version: {
+        id: string;
+        message: string;
+        author: string;
+        createdAt: string;
+      } | null;
+      message?: string;
+    }>(`/v1/requirements/${id}/versions`, {
+      method: "POST",
+      body: JSON.stringify({ message }),
+    }),
+
+  readVersionFile: (id: string, sha: string, filePath = "PRD.md") =>
+    request<{ path: string; content: string; version: string }>(
+      `/v1/requirements/${id}/versions/${sha}/files?path=${encodeURIComponent(filePath)}`
+    ),
+
+  restoreFile: (id: string, sha: string, filePath = "PRD.md") =>
+    request<{ path: string; content: string; uncommitted: boolean }>(
+      `/v1/requirements/${id}/versions/${sha}/restore`,
+      { method: "POST", body: JSON.stringify({ path: filePath }) }
+    ),
+
+  revertLatestAi: (id: string) =>
+    request<{ version: { id: string; message: string } }>(
+      `/v1/requirements/${id}/versions/revert-latest-ai`,
+      { method: "POST" }
+    ),
 };

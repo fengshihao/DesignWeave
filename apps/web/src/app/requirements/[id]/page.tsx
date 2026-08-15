@@ -22,6 +22,15 @@ export default function RequirementPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(true);
+  const [uncommitted, setUncommitted] = useState(false);
+  const [versions, setVersions] = useState<
+    Array<{ id: string; message: string; author: string; createdAt: string }>
+  >([]);
+  const [history, setHistory] = useState<{
+    sha: string;
+    content: string;
+    message: string;
+  } | null>(null);
 
   async function load() {
     setError("");
@@ -31,7 +40,11 @@ export default function RequirementPage() {
       const data = await api.getRequirement(id);
       setBundle(data);
       setPrd(data.prd);
+      setUncommitted(Boolean(data.uncommitted));
       setTab(data.requirement.phase === "gaps" ? "gaps" : data.requirement.phase);
+      const ver = await api.listVersions(id);
+      setVersions(ver.versions);
+      setUncommitted(ver.uncommitted);
       if (data.requirement.phase === "gaps" && !log) {
         setLog("已导入文档。可以开始追问完善，或先到「文档」查看原文。\n");
       }
@@ -60,6 +73,9 @@ export default function RequirementPage() {
     try {
       const { prd: saved } = await api.savePrd(id, prd);
       setPrd(saved);
+      const ver = await api.listVersions(id);
+      setUncommitted(ver.uncommitted);
+      setVersions(ver.versions);
     } catch (e) {
       setError(e instanceof Error ? e.message : "保存失败");
     } finally {
@@ -186,7 +202,12 @@ export default function RequirementPage() {
                 }}
               >
                 <strong>PRD.md</strong>
-                <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {uncommitted ? (
+                    <span className="tag warn">未记入版本</span>
+                  ) : (
+                    <span className="tag ok">已是最新版本</span>
+                  )}
                   <button
                     className="btn ghost"
                     type="button"
@@ -202,6 +223,27 @@ export default function RequirementPage() {
                   >
                     保存
                   </button>
+                  <button
+                    className="btn"
+                    type="button"
+                    disabled={busy || !uncommitted}
+                    onClick={() => {
+                      void (async () => {
+                        setBusy(true);
+                        setError("");
+                        try {
+                          await api.recordVersion(id);
+                          await load();
+                        } catch (e) {
+                          setError(e instanceof Error ? e.message : "版本没记下");
+                        } finally {
+                          setBusy(false);
+                        }
+                      })();
+                    }}
+                  >
+                    记入版本
+                  </button>
                 </div>
               </div>
               {preview ? (
@@ -213,7 +255,7 @@ export default function RequirementPage() {
                     fontFamily: "var(--font-body)",
                   }}
                 >
-                  {prd}
+                  {history ? history.content : prd}
                 </pre>
               ) : (
                 <textarea
@@ -324,7 +366,69 @@ export default function RequirementPage() {
         </section>
 
         <aside className="panel" style={{ padding: 16 }}>
-          <strong>当前 PRD 摘要视图</strong>
+          <strong>版本时间线</strong>
+          <ul style={{ listStyle: "none", padding: 0, margin: "12px 0 0", display: "grid", gap: 8 }}>
+            {versions.map((v) => (
+              <li key={v.id} style={{ fontSize: 13 }}>
+                <div>
+                  {v.author}：{v.message}
+                </div>
+                <div className="muted" style={{ fontSize: 12 }}>
+                  {v.createdAt.replace("T", " ").slice(0, 16)}
+                </div>
+                <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                  <button
+                    className="btn ghost"
+                    type="button"
+                    onClick={() => {
+                      void api.readVersionFile(id, v.id).then((file) => {
+                        setHistory({ sha: v.id, content: file.content, message: v.message });
+                        setPreview(true);
+                      });
+                    }}
+                  >
+                    打开
+                  </button>
+                  <button
+                    className="btn ghost"
+                    type="button"
+                    onClick={() => {
+                      void (async () => {
+                        setBusy(true);
+                        try {
+                          const restored = await api.restoreFile(id, v.id);
+                          setPrd(restored.content);
+                          setUncommitted(restored.uncommitted);
+                          setHistory(null);
+                        } catch (e) {
+                          setError(e instanceof Error ? e.message : "无法恢复");
+                        } finally {
+                          setBusy(false);
+                        }
+                      })();
+                    }}
+                  >
+                    恢复这一篇
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+          {history && (
+            <p className="muted" style={{ fontSize: 13, marginTop: 12 }}>
+              正在看旧版：{history.message}
+              <button
+                className="btn ghost"
+                type="button"
+                style={{ marginLeft: 8 }}
+                onClick={() => setHistory(null)}
+              >
+                返回编辑
+              </button>
+            </p>
+          )}
+
+          <strong style={{ display: "block", marginTop: 16 }}>当前 PRD 摘要视图</strong>
           <pre
             style={{
               whiteSpace: "pre-wrap",
