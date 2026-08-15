@@ -21,6 +21,7 @@
   const copyBtn = document.getElementById("copyBtn");
   const modeBtn = document.getElementById("modeBtn");
   const findBtn = document.getElementById("molanFindBtn");
+  const reloadBtn = document.getElementById("reloadBtn");
 
   const toast = (msg) => window.MolanEditor.toast(msg);
   const countWords = (text) => window.MolanEditor.countWords(text);
@@ -160,6 +161,8 @@
   let currentFolderId = null;
   let recentFolders = [];
   let folderSource = null; // "fs-access" | "legacy"
+  let folderHandle = null;
+  let reloading = false;
   let dirty = false;
   let baselineText = "";
   let editorApi = null;
@@ -373,6 +376,116 @@
     return /\.(md|markdown|mdx|mdown)$/i.test(name);
   }
 
+  function dirname(p) {
+    const n = String(p || "").replace(/\\/g, "/");
+    const i = n.lastIndexOf("/");
+    return i === -1 ? "" : n.slice(0, i);
+  }
+
+  function decodeHrefPart(s) {
+    try {
+      return decodeURIComponent(s);
+    } catch (_) {
+      return s;
+    }
+  }
+
+  function resolveRelativePath(fromFile, rel) {
+    let raw = decodeHrefPart(String(rel || "").trim()).replace(/\\/g, "/");
+    raw = raw.replace(/^\.\//, "").replace(/^\/+/, "");
+    const base = dirname(fromFile);
+    const parts = (base ? base.split("/") : []).concat(raw.split("/"));
+    const out = [];
+    for (const part of parts) {
+      if (!part || part === ".") continue;
+      if (part === "..") {
+        if (out.length) out.pop();
+        continue;
+      }
+      out.push(part);
+    }
+    return out.join("/");
+  }
+
+  function findLocalMarkdown(resolved) {
+    const norm = String(resolved || "").replace(/\\/g, "/").replace(/^\.\//, "");
+    if (!norm) return null;
+    const leaf = norm.split("/").pop() || "";
+    if (!isMarkdown(leaf)) return null;
+    const lower = norm.toLowerCase();
+    const exact = files.find((f) => f.path === norm)
+      || files.find((f) => f.path.replace(/\\/g, "/").toLowerCase() === lower);
+    if (exact) return exact;
+    const dir = dirname(activePath || "");
+    const sameDir = files.filter((f) => dirname(f.path) === dir && f.name.toLowerCase() === leaf.toLowerCase());
+    if (sameDir.length === 1) return sameDir[0];
+    const unique = files.filter((f) => f.name.toLowerCase() === leaf.toLowerCase());
+    return unique.length === 1 ? unique[0] : null;
+  }
+
+  function studioHref(href) {
+    const raw = String(href || "").trim();
+    if (!raw || /^(mailto:|tel:|javascript:)/i.test(raw)) return raw;
+    if (!/^https?:/i.test(raw)) return raw;
+    try {
+      const u = new URL(raw);
+      if (u.origin === window.location.origin) {
+        const leaf = decodeHrefPart(u.pathname.split("/").pop() || "");
+        if (isMarkdown(leaf)) return leaf + (u.hash || "");
+      }
+    } catch (_) { /* keep original */ }
+    return raw;
+  }
+
+  function parseEditorHref(href) {
+    const raw = studioHref(href);
+    if (!raw || /^javascript:/i.test(raw)) return { kind: "ignore" };
+    if (/^(https?:|mailto:|tel:)/i.test(raw)) return { kind: "external", href: raw };
+    if (raw.startsWith("#")) return { kind: "hash", hash: raw.slice(1) };
+    const hashIdx = raw.indexOf("#");
+    const pathAndQuery = hashIdx >= 0 ? raw.slice(0, hashIdx) : raw;
+    const hash = hashIdx >= 0 ? raw.slice(hashIdx + 1) : "";
+    const qIdx = pathAndQuery.indexOf("?");
+    const filePart = qIdx >= 0 ? pathAndQuery.slice(0, qIdx) : pathAndQuery;
+    return { kind: "local", rel: filePart, hash };
+  }
+
+  function hrefFromClick(e) {
+    const a = e.target.closest?.("a[href]");
+    if (a && editorWrap?.contains(a)) return a.getAttribute("href") || "";
+    return "";
+  }
+
+  function scrollToDocHash(hash) {
+    const id = decodeHrefPart(String(hash || "").replace(/^#/, ""));
+    if (!id || !editorWrap) return;
+    const esc = (window.CSS && CSS.escape) ? CSS.escape(id) : id.replace(/"/g, '\\"');
+    const el = editorWrap.querySelector(`#${esc}`)
+      || editorWrap.querySelector(`[name="${esc}"]`)
+      || [...editorWrap.querySelectorAll("h1,h2,h3,h4,h5,h6")].find((h) => {
+        const text = (h.textContent || "").trim();
+        return h.id === id || text === id || text === id.replace(/-/g, " ");
+      });
+    el?.scrollIntoView({ block: "start", behavior: prefersReducedMotion() ? "auto" : "smooth" });
+  }
+
+  async function openLocalMarkdownLink(rel, hash) {
+    const resolved = resolveRelativePath(activePath || "", rel);
+    const file = findLocalMarkdown(resolved) || findLocalMarkdown(decodeHrefPart(rel).replace(/^\.\//, ""));
+    if (!file) {
+      toast(t("linkNotInFolder", { name: decodeHrefPart(rel).split("/").pop() || rel }));
+      return;
+    }
+    if (file.path !== activePath) {
+      await openFile(file.path);
+      if (activePath !== file.path) return;
+    }
+    if (hash) {
+      await wait(80);
+      scrollToDocHash(hash);
+    }
+  }
+
   function canWriteActive() {
     const file = files.find((f) => f.path === activePath);
     return !!(file && file.handle);
@@ -387,6 +500,21 @@
     if (!file) return;
     const next = dirty ? `${file.name} ·` : file.name;
     if (nameEl.textContent !== next) nameEl.textContent = next;
+  }
+
+  function prefersReducedMotion() {
+    try {
+      return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function replayMotion(el, className) {
+    if (!el || prefersReducedMotion()) return;
+    el.classList.remove(className);
+    void el.offsetWidth;
+    el.classList.add(className);
   }
 
   function labelAction(el, label) {
@@ -418,10 +546,12 @@
       saveBtn.hidden = true;
       copyBtn.hidden = true;
       if (findBtn) findBtn.hidden = true;
+      if (reloadBtn) reloadBtn.hidden = true;
       return;
     }
     copyBtn.hidden = false;
     if (findBtn) findBtn.hidden = false;
+    if (reloadBtn) reloadBtn.hidden = false;
     saveBtn.hidden = !dirty;
   }
 
@@ -465,16 +595,18 @@
   }
 
   async function ensureFileText(entry) {
-    if (entry.text != null) return entry.text;
     if (entry.handle) {
       const file = await entry.handle.getFile();
       entry.text = await file.text();
       entry.size = file.size;
-    } else if (entry.fileRef) {
-      entry.text = await entry.fileRef.text();
-    } else {
-      entry.text = "";
+      return entry.text;
     }
+    if (entry.text != null) return entry.text;
+    if (entry.fileRef) {
+      entry.text = await entry.fileRef.text();
+      return entry.text;
+    }
+    entry.text = "";
     return entry.text;
   }
 
@@ -493,6 +625,7 @@
   }
 
   async function loadFromDirectoryHandle(handle) {
+    folderHandle = handle;
     folderName = handle.name;
     folderSource = "fs-access";
     statusLeft.textContent = t("scanning");
@@ -521,6 +654,7 @@
     const firstRel = mdFiles[0].webkitRelativePath || mdFiles[0].name;
     folderName = firstRel.split("/")[0] || t("folderLabel");
     folderSource = "legacy";
+    folderHandle = null;
     const list = mdFiles.map((file) => {
       const rel = file.webkitRelativePath || file.name;
       const parts = rel.split("/");
@@ -567,6 +701,64 @@
     else {
       showWelcome();
       toast(t("noDocsInFolder"));
+    }
+  }
+
+  async function reloadLibrary() {
+    if (reloading) return;
+    if (folderSource !== "fs-access" || !folderHandle) {
+      toast(t("reloadNeedReselect"));
+      return;
+    }
+    if (!confirmDiscardIfDirty()) return;
+    reloading = true;
+    reloadBtn?.classList.add("is-busy");
+    if (reloadBtn) reloadBtn.disabled = true;
+    const keepPath = activePath;
+    statusLeft.textContent = t("reloading");
+    try {
+      const ok = await ensurePermission(folderHandle, "readwrite");
+      if (!ok) {
+        toast(t("needPermission"));
+        return;
+      }
+      const collected = await collectFromDirectoryHandle(folderHandle);
+      files = collected.sort((a, b) => a.path.localeCompare(b.path, locale()));
+      folderMeta.classList.toggle("visible", !!files.length);
+      const writeHint = t("canWriteBack");
+      folderMeta.innerHTML = files.length
+        ? t("folderMeta", { name: escapeHtml(folderName), n: files.length, hint: writeHint })
+        : "";
+      statusRight.textContent = folderName || t("localOffline");
+      renderSidebarList();
+      try {
+        await rememberDirectoryHandle(folderHandle);
+        await touchCurrentFolder(files.length);
+      } catch (err) {
+        console.warn(err);
+      }
+      if (keepPath && files.some((f) => f.path === keepPath)) {
+        await openFile(keepPath, { force: true });
+      } else if (keepPath) {
+        toast(t("reloadFileGone", { name: keepPath.split("/").pop() }));
+        if (files.length) await openFile(files[0].path, { force: true });
+        else showWelcome();
+      } else if (files.length) {
+        await openFile(files[0].path, { force: true });
+      } else {
+        showWelcome();
+        toast(t("noDocsInFolder"));
+        return;
+      }
+      toast(t("reloaded", { n: files.length }));
+    } catch (err) {
+      console.warn(err);
+      statusLeft.textContent = t("reloadFail");
+      toast(t("reloadFail"));
+    } finally {
+      reloading = false;
+      reloadBtn?.classList.remove("is-busy");
+      if (reloadBtn) reloadBtn.disabled = false;
     }
   }
 
@@ -675,6 +867,7 @@
     copyBtn.hidden = true;
     if (modeBtn) modeBtn.hidden = true;
     if (findBtn) findBtn.hidden = true;
+    if (reloadBtn) reloadBtn.hidden = true;
     readerTitle.textContent = "墨览";
     activePath = null;
     dirty = false;
@@ -1044,6 +1237,7 @@
     copyBtn.hidden = false;
     if (modeBtn) modeBtn.hidden = false;
     if (findBtn) findBtn.hidden = false;
+    if (reloadBtn) reloadBtn.hidden = false;
     statusLeft.textContent = t("openingName", { name: file.name });
 
     await ensureVditor();
@@ -1062,7 +1256,6 @@
       setDirty(false);
       statusLeft.textContent = `${file.name} · ${((file.size || text.length) / 1024).toFixed(1)} KB`;
       paintStatus(text);
-      renderSidebarList();
       syncModeButton();
       // 等 Vditor undoDelay(200) + 流程图增强(400)，避免 setValue 往返被当成一次编辑。
       await wait(480);
@@ -1228,20 +1421,60 @@
     });
   }
 
+  reloadBtn?.addEventListener("click", () => {
+    void reloadLibrary();
+  });
+
   modeBtn?.addEventListener("click", () => {
     if (!editorApi || !activePath) return;
     const nextPreview = !editorApi.isPreview();
     editorApi.setPreview(nextPreview);
     syncModeButton();
+    replayMotion(editorWrap, "is-mode");
     if (!nextPreview) {
       try { editorApi.focus(); } catch (_) { /* ignore */ }
     }
   });
 
+  editorWrap?.addEventListener("click", (e) => {
+    if (e.defaultPrevented || e.button !== 0) return;
+    const href = hrefFromClick(e);
+    if (!href) return;
+    const parsed = parseEditorHref(href);
+    if (parsed.kind === "ignore") {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    if (parsed.kind === "external") {
+      e.preventDefault();
+      e.stopPropagation();
+      window.open(parsed.href, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (parsed.kind === "hash") {
+      e.preventDefault();
+      e.stopPropagation();
+      scrollToDocHash(parsed.hash);
+      return;
+    }
+    if (parsed.kind === "local") {
+      e.preventDefault();
+      e.stopPropagation();
+      const leaf = decodeHrefPart(parsed.rel).split("/").pop() || "";
+      if (isMarkdown(leaf)) {
+        void openLocalMarkdownLink(parsed.rel, parsed.hash);
+        return;
+      }
+      toast(t("linkNotInFolder", { name: leaf || parsed.rel }));
+    }
+  }, true);
+
   copyBtn.addEventListener("click", async () => {
     if (!editorApi) return;
     try {
       await navigator.clipboard.writeText(editorApi.getValue());
+      replayMotion(copyBtn, "is-pulse");
       toast(t("copiedMd"));
     } catch {
       toast(t("copyFail"));

@@ -480,7 +480,9 @@
         transform: none;
       }
       .prefs-menu.is-open,
-      .prefs-menu.is-out {
+      .prefs-menu.is-out,
+      .molan-find-bar.is-open,
+      .molan-find-bar.is-out {
         animation: none;
       }
     }
@@ -834,12 +836,17 @@
       gap: 7px;
       align-items: center;
       font-family: var(--font-ui);
-      transition: background 0.15s ease, border-color 0.15s ease;
+      transition: background 0.22s var(--ease), border-color 0.22s var(--ease), transform 0.22s var(--ease);
     }
 
     .recent-item:hover {
       background: var(--sidebar-fill);
       border-color: var(--sidebar-line);
+      transform: translateX(3px);
+    }
+
+    .recent-item:active {
+      transform: translateX(1px) scale(0.99);
     }
 
     .recent-item .file-icon {
@@ -918,7 +925,7 @@
       grid-template-columns: 20px 1fr;
       gap: 7px;
       align-items: center;
-      transition: background 0.15s ease, border-color 0.15s ease;
+      transition: background 0.22s var(--ease), border-color 0.22s var(--ease), transform 0.22s var(--ease);
       font-family: var(--font-ui);
       content-visibility: auto;
       contain-intrinsic-size: auto 44px;
@@ -927,11 +934,27 @@
     .file-item:hover {
       background: var(--sidebar-fill);
       border-color: var(--sidebar-line);
+      transform: translateX(3px);
+    }
+
+    html[dir="rtl"] .file-item:hover,
+    html[dir="rtl"] .recent-item:hover {
+      transform: translateX(-3px);
+    }
+
+    .file-item:active {
+      transform: translateX(1px) scale(0.99);
     }
 
     .file-item.active {
       background: var(--sidebar-active-bg);
       border-color: var(--sidebar-active-border);
+    }
+
+    .file-item.active .file-icon {
+      transform: scale(1.08);
+      color: var(--on-accent);
+      background: color-mix(in srgb, var(--accent) 78%, var(--sidebar-fill-strong));
     }
 
     .file-icon {
@@ -945,6 +968,7 @@
       font-family: var(--font-display);
       font-size: 0.72rem;
       line-height: 1;
+      transition: transform 0.22s var(--ease), background 0.22s var(--ease), color 0.22s var(--ease);
     }
 
     .file-name {
@@ -1046,6 +1070,7 @@
     .reader-actions .icon-btn {
       width: 40px;
       height: 40px;
+      position: relative;
     }
 
     .reader-actions .icon-btn svg {
@@ -1053,16 +1078,68 @@
       height: 20px;
     }
 
-    .reader-actions .icon-btn[hidden] { display: none; }
+    .reader-actions .icon-btn svg.icon-edit,
+    .reader-actions .icon-btn svg.icon-preview,
+    .reader-actions .icon-btn svg.icon-save,
+    .reader-actions .icon-btn svg.icon-download {
+      position: absolute;
+      inset: 0;
+      margin: auto;
+      transition: opacity 0.22s var(--ease), transform 0.28s var(--ease);
+    }
 
     .reader-actions .icon-download,
-    .reader-actions .icon-preview { display: none; }
+    .reader-actions .icon-preview {
+      opacity: 0;
+      transform: scale(0.72) rotate(10deg);
+    }
 
-    #saveBtn[data-kind="download"] .icon-save { display: none; }
-    #saveBtn[data-kind="download"] .icon-download { display: block; }
+    #saveBtn[data-kind="download"] .icon-save {
+      opacity: 0;
+      transform: scale(0.72) rotate(-10deg);
+    }
+    #saveBtn[data-kind="download"] .icon-download {
+      opacity: 1;
+      transform: none;
+    }
 
-    #modeBtn:not(.is-preview) .icon-edit { display: none; }
-    #modeBtn:not(.is-preview) .icon-preview { display: block; }
+    #modeBtn:not(.is-preview) .icon-edit {
+      opacity: 0;
+      transform: scale(0.72) rotate(-12deg);
+    }
+    #modeBtn:not(.is-preview) .icon-preview {
+      opacity: 1;
+      transform: none;
+    }
+
+    .reader-actions .icon-btn[hidden]:not(#saveBtn) { display: none; }
+
+    .reader-actions #saveBtn {
+      overflow: hidden;
+      transition:
+        width 0.28s var(--ease),
+        opacity 0.22s var(--ease),
+        transform 0.22s var(--ease),
+        color 0.2s var(--ease),
+        background 0.2s var(--ease),
+        border-color 0.2s var(--ease),
+        box-shadow 0.2s var(--ease);
+    }
+
+    .reader-actions #saveBtn[hidden] {
+      display: inline-flex !important;
+      width: 0;
+      min-width: 0;
+      opacity: 0;
+      pointer-events: none;
+      transform: scale(0.72);
+      margin: 0;
+      border-color: transparent;
+    }
+
+    .reader-actions .icon-btn.is-pulse {
+      animation: molan-btn-pulse 0.42s var(--ease);
+    }
 
     .reader-actions .icon-btn.is-dirty:not(:disabled) {
       color: var(--on-accent);
@@ -1158,15 +1235,26 @@
       color: var(--ink-soft);
       flex-wrap: nowrap;
       max-width: calc(100% - 28px);
+      transform-origin: 88% 0%;
+    }
+
+    .molan-find-bar.is-open,
+    .molan-find-bar.is-out {
+      display: flex;
     }
 
     .molan-find-bar.is-open {
-      display: flex;
+      animation: molan-prefs-in 0.42s var(--ease) both;
+    }
+
+    .molan-find-bar.is-out {
+      animation: molan-prefs-out 0.22s ease both;
     }
 
     html[dir="rtl"] .molan-find-bar {
       right: auto;
       left: 18px;
+      transform-origin: 12% 0%;
     }
 
     .molan-find-input {
@@ -1788,14 +1876,54 @@
       100% { opacity: 0; transform: translateX(0.28em); }
     }
 
+    @keyframes molan-mode-in {
+      from { opacity: 0.42; }
+      to { opacity: 1; }
+    }
+
+    @keyframes molan-btn-pulse {
+      0% { transform: scale(1); }
+      38% { transform: scale(0.9); }
+      100% { transform: scale(1); }
+    }
+
+    @keyframes molan-reload-spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .reader-actions #reloadBtn.is-busy svg {
+      animation: molan-reload-spin 0.8s linear infinite;
+    }
+
     @media (prefers-reduced-motion: reduce) {
       .welcome-folio,
       .folio-watermark,
       .aphorism.is-in,
       .aphorism.is-out,
       .aphorism.is-in .ink-ch,
-      .aphorism.is-out .ink-ch {
+      .aphorism.is-out .ink-ch,
+      .editor-wrap.is-mode,
+      .reader-actions .icon-btn.is-pulse,
+      .reader-actions #reloadBtn.is-busy svg,
+      .molan-find-bar.is-open,
+      .molan-find-bar.is-out {
         animation: none;
+      }
+      .file-item,
+      .recent-item,
+      .icon-btn,
+      .reader-actions #saveBtn,
+      .reader-actions .icon-btn svg.icon-edit,
+      .reader-actions .icon-btn svg.icon-preview,
+      .reader-actions .icon-btn svg.icon-save,
+      .reader-actions .icon-btn svg.icon-download {
+        transition: none;
+      }
+      .file-item:hover,
+      .recent-item:hover,
+      .icon-btn:hover,
+      .icon-btn:active {
+        transform: none;
       }
     }
 
@@ -1809,6 +1937,10 @@
     }
 
     .editor-wrap.visible { display: flex; flex-direction: column; }
+
+    .editor-wrap.is-mode {
+      animation: molan-mode-in 0.96s var(--ease) both;
+    }
 
     #vditor {
       flex: 1;
@@ -2350,6 +2482,13 @@
       cursor: pointer;
       flex: 0 0 auto;
       line-height: 0;
+      transition:
+        color 0.2s var(--ease),
+        background 0.2s var(--ease),
+        border-color 0.2s var(--ease),
+        transform 0.2s var(--ease),
+        box-shadow 0.2s var(--ease),
+        opacity 0.22s var(--ease);
     }
 
     .icon-btn svg {
@@ -2367,6 +2506,11 @@
       border-color: var(--accent);
       color: var(--accent);
       background: var(--surface-solid);
+      transform: translateY(-1px);
+    }
+
+    .icon-btn:active {
+      transform: translateY(1px) scale(0.94);
     }
 
     .icon-btn:focus-visible {

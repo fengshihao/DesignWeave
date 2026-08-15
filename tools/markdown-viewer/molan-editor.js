@@ -737,6 +737,7 @@
     composing: false,
     refreshTimer: 0,
     observer: null,
+    animToken: 0,
   };
 
   function hasHighlightApi() {
@@ -1035,6 +1036,14 @@
     });
   }
 
+  function prefersReducedMotion() {
+    try {
+      return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    } catch (_) {
+      return false;
+    }
+  }
+
   function openFind() {
     initFind();
     const bar = document.getElementById("molanFindBar");
@@ -1043,11 +1052,17 @@
     if (!bar || !input) return;
     const picked = selectedTextForFind();
     if (picked) input.value = picked;
+    findState.animToken += 1;
+    const already = findState.open && bar.classList.contains("is-open");
     findState.open = true;
     bar.hidden = false;
-    bar.classList.add("is-open");
     header?.classList.add("is-finding");
     document.querySelector(".main")?.classList.add("is-finding");
+    if (!already) {
+      bar.classList.remove("is-out", "is-open");
+      void bar.offsetWidth;
+      bar.classList.add("is-open");
+    }
     applyFindI18n();
     runFind({ keepIndex: false, reveal: true });
     input.focus();
@@ -1057,24 +1072,43 @@
   function closeFind() {
     const bar = document.getElementById("molanFindBar");
     const header = document.querySelector(".reader-header");
+    if (!findState.open) return;
     const current = findState.matches[findState.index];
     findState.open = false;
+    const token = ++findState.animToken;
     bar?.classList.remove("is-open");
-    if (bar) bar.hidden = true;
-    header?.classList.remove("is-finding");
-    document.querySelector(".main")?.classList.remove("is-finding");
-    clearFindHighlights();
-    if (current) {
-      try {
-        const sel = global.getSelection();
-        const caret = current.cloneRange();
-        caret.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(caret);
-      } catch (_) { /* ignore */ }
+    bar?.classList.add("is-out");
+
+    const finish = () => {
+      if (token !== findState.animToken) return;
+      if (bar) {
+        bar.hidden = true;
+        bar.classList.remove("is-out");
+      }
+      header?.classList.remove("is-finding");
+      document.querySelector(".main")?.classList.remove("is-finding");
+      clearFindHighlights();
+      if (current) {
+        try {
+          const sel = global.getSelection();
+          const caret = current.cloneRange();
+          caret.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(caret);
+        } catch (_) { /* ignore */ }
+      }
+      findState.matches = [];
+      findState.index = 0;
+    };
+
+    if (!bar || prefersReducedMotion()) {
+      finish();
+      return;
     }
-    findState.matches = [];
-    findState.index = 0;
+    bar.addEventListener("animationend", (e) => {
+      if (e.target === bar) finish();
+    }, { once: true });
+    window.setTimeout(finish, 280);
   }
 
   function handleFindKey(e) {

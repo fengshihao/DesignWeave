@@ -61,6 +61,9 @@ for (const path of [
   assert(result.status === 0, `syntax ${path}: ${result.stderr}`);
 }
 
+const app = readFileSync(join(viewer, "molan-app.js"), "utf8");
+assert(app.includes("openLocalMarkdownLink"), "browser opens in-folder markdown links");
+
 const editorSource = readFileSync(join(viewer, "molan-editor.js"), "utf8");
 assert(editorSource.includes("global.MolanEditor"), "exports MolanEditor");
 assert(editorSource.includes("create("), "has create()");
@@ -71,6 +74,7 @@ assert(editorSource.includes("hide: false"), "toolbar stays visible");
 const bridge = readFileSync(join(root, "media/vscode-bridge.js"), "utf8");
 assert(bridge.includes('msg.type === "init" || api.isPreview()'), "defaults to preview on init");
 assert(bridge.includes("value !== baseline"), "ignores Vditor setValue round-trip");
+assert(bridge.includes("openRelative"), "webview opens relative markdown links");
 
 const readme = readFileSync(join(root, "README.md"), "utf8");
 assert(readme.includes("![墨览编辑器](media/screenshot.jpg)"), "store screenshot");

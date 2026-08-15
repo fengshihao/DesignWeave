@@ -142,6 +142,9 @@
     if (!editorApi) return;
     try {
       await navigator.clipboard.writeText(editorApi.getValue());
+      copyBtn.classList.remove("is-pulse");
+      void copyBtn.offsetWidth;
+      copyBtn.classList.add("is-pulse");
       toast("已复制 Markdown 原文");
     } catch {
       toast("复制失败");
@@ -153,6 +156,12 @@
     const nextPreview = !editorApi.isPreview();
     editorApi.setPreview(nextPreview);
     syncModeButton();
+    const wrap = document.getElementById("editorWrap");
+    if (wrap) {
+      wrap.classList.remove("is-mode");
+      void wrap.offsetWidth;
+      wrap.classList.add("is-mode");
+    }
     if (!nextPreview) {
       try { editorApi.focus(); } catch (_) { /* ignore */ }
     }
@@ -167,4 +176,66 @@
   });
 
   vscode.postMessage({ type: "ready" });
+
+  const MD_LINK = /\.(md|markdown|mdx|mdown)([?#]|$)/i;
+
+  function isMarkdownHref(href) {
+    const pathPart = String(href || "").split("#")[0].split("?")[0];
+    return MD_LINK.test(pathPart);
+  }
+
+  function relativeToLinkBase(href) {
+    const linkBase = window.__MOLAN_LINK_BASE__ || "";
+    const raw = String(href || "").trim();
+    if (!raw || !linkBase) return raw;
+    try {
+      const target = new URL(raw, linkBase);
+      const base = new URL(linkBase);
+      if (target.origin !== base.origin) return raw;
+      const tParts = decodeURIComponent(target.pathname).split("/").filter(Boolean);
+      const bParts = decodeURIComponent(base.pathname).split("/").filter(Boolean);
+      let i = 0;
+      while (i < tParts.length && i < bParts.length && tParts[i] === bParts[i]) i += 1;
+      const rel = [...Array(bParts.length - i).fill(".."), ...tParts.slice(i)].join("/");
+      return rel + target.search + target.hash;
+    } catch (_) {
+      return raw.startsWith(linkBase) ? raw.slice(linkBase.length) : raw;
+    }
+  }
+
+  function isExternalHttp(href) {
+    if (!/^https?:/i.test(href)) return false;
+    const linkBase = window.__MOLAN_LINK_BASE__ || "";
+    if (!linkBase) return true;
+    try {
+      return new URL(href, linkBase).origin !== new URL(linkBase).origin;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  document.getElementById("editorWrap")?.addEventListener("click", (e) => {
+    if (e.defaultPrevented || e.button !== 0) return;
+    const a = e.target.closest("a[href]");
+    if (!a) return;
+    const attr = a.getAttribute("href") || "";
+    if (/^javascript:/i.test(attr)) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    if (/^(mailto:|tel:)/i.test(attr)) return;
+    if (isExternalHttp(attr)) {
+      e.preventDefault();
+      e.stopPropagation();
+      vscode.postMessage({ type: "openExternal", value: attr });
+      return;
+    }
+    const rel = relativeToLinkBase(attr || a.href);
+    if (rel.startsWith("#")) return;
+    if (!isMarkdownHref(rel) && !isMarkdownHref(attr) && !isMarkdownHref(a.href)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    vscode.postMessage({ type: "openRelative", value: rel || attr });
+  }, true);
 })();

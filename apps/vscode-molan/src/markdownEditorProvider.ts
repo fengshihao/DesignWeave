@@ -120,6 +120,14 @@ export class MolanEditorProvider implements vscode.CustomEditorProvider<MolanDoc
       }
       if (msg.type === "save") {
         await vscode.commands.executeCommand("workbench.action.files.save");
+        return;
+      }
+      if (msg.type === "openRelative" && typeof msg.value === "string") {
+        await this.openRelativeMarkdown(document.uri, msg.value);
+        return;
+      }
+      if (msg.type === "openExternal" && typeof msg.value === "string") {
+        await vscode.env.openExternal(vscode.Uri.parse(msg.value));
       }
     });
 
@@ -220,6 +228,21 @@ export class MolanEditorProvider implements vscode.CustomEditorProvider<MolanDoc
   private fileName(uri: vscode.Uri): string {
     const parts = uri.path.split("/");
     return parts[parts.length - 1] || uri.path;
+  }
+
+  private async openRelativeMarkdown(from: vscode.Uri, href: string): Promise<void> {
+    const pathPart = href.split("#")[0].split("?")[0].trim();
+    if (!pathPart) return;
+    const segments = pathPart.replace(/\\/g, "/").split("/").filter((s) => s && s !== ".");
+    if (!segments.length) return;
+    const target = vscode.Uri.joinPath(from, "..", ...segments);
+    try {
+      await vscode.workspace.fs.stat(target);
+    } catch {
+      void vscode.window.showWarningMessage(`找不到「${this.fileName(target)}」`);
+      return;
+    }
+    await vscode.commands.executeCommand("vscode.openWith", target, MolanEditorProvider.viewType);
   }
 
   private getLocalRoots(document: MolanDocument): vscode.Uri[] {
