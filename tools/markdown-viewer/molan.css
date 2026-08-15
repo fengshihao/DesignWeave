@@ -1036,7 +1036,7 @@
 
     .reader-actions {
       display: flex;
-      gap: 2px;
+      gap: 4px;
       flex: 0 0 auto;
       flex-wrap: nowrap;
       justify-content: flex-end;
@@ -1044,13 +1044,13 @@
     }
 
     .reader-actions .icon-btn {
-      width: 32px;
-      height: 32px;
+      width: 40px;
+      height: 40px;
     }
 
     .reader-actions .icon-btn svg {
-      width: 16px;
-      height: 16px;
+      width: 20px;
+      height: 20px;
     }
 
     .reader-actions .icon-btn[hidden] { display: none; }
@@ -2637,11 +2637,11 @@
     }
 
     body.molan-host-vscode .reader-header {
-      min-height: 48px;
+      min-height: 56px;
       padding: 8px 16px;
       flex-direction: row;
       flex-wrap: nowrap;
-      align-items: flex-end;
+      align-items: center;
     }
 
     body.molan-host-vscode .reader-title h2 {

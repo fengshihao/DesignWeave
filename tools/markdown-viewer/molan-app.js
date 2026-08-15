@@ -422,7 +422,7 @@
     }
     copyBtn.hidden = false;
     if (findBtn) findBtn.hidden = false;
-    saveBtn.hidden = preview && !dirty;
+    saveBtn.hidden = !dirty;
   }
 
   function paintStatus(text) {
