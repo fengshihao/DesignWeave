@@ -7,8 +7,6 @@
   const dirInput = document.getElementById("dirInput");
   const searchInput = document.getElementById("searchInput");
   const fileList = document.getElementById("fileList");
-  const folderMeta = document.getElementById("folderMeta");
-  const libraryTitle = document.getElementById("libraryTitle");
   const welcome = document.getElementById("welcome");
   const welcomePickBtn = document.getElementById("welcomePickBtn");
   const aphorismText = document.getElementById("aphorismText");
@@ -223,15 +221,6 @@
     });
   }
 
-  function formatRelativeTime(ts) {
-    const diff = Date.now() - ts;
-    if (diff < 60_000) return t("justNow");
-    if (diff < 3_600_000) return t("minutesAgo", { n: Math.floor(diff / 60_000) });
-    if (diff < 86_400_000) return t("hoursAgo", { n: Math.floor(diff / 3_600_000) });
-    if (diff < 86_400_000 * 7) return t("daysAgo", { n: Math.floor(diff / 86_400_000) });
-    return new Date(ts).toLocaleDateString(locale());
-  }
-
   async function refreshRecentFolders() {
     try {
       const all = await idbAllFolders();
@@ -355,10 +344,24 @@
     openCompatPicker();
   }
 
+  function unloadLibrary() {
+    files = [];
+    folderName = "";
+    folderSource = null;
+    folderHandle = null;
+    currentFolderId = null;
+    if (searchInput?.value) searchInput.value = "";
+    statusLeft.textContent = "";
+    statusRight.textContent = "";
+    showWelcome();
+  }
+
   async function removeRecentFolder(id, e) {
     e?.stopPropagation?.();
+    const closingCurrent = currentFolderId === id;
+    if (closingCurrent && !confirmDiscardIfDirty()) return;
     await idbDeleteFolder(id);
-    if (currentFolderId === id) currentFolderId = null;
+    if (closingCurrent) unloadLibrary();
     await refreshRecentFolders();
     renderSidebarList();
     toast(t("removedRecent"));
@@ -682,11 +685,6 @@
   function setFiles(list) {
     files = list.sort((a, b) => a.path.localeCompare(b.path, locale()));
     searchInput.value = "";
-    folderMeta.classList.toggle("visible", !!files.length);
-    const writeHint = folderSource === "fs-access" ? t("canWriteBack") : t("willDownload");
-    folderMeta.innerHTML = files.length
-      ? t("folderMeta", { name: escapeHtml(folderName), n: files.length, hint: writeHint })
-      : "";
     statusLeft.textContent = files.length ? t("indexed", { n: files.length }) : t("noMarkdown");
     statusRight.textContent = folderSource === "legacy"
       ? t("compatImport")
@@ -724,11 +722,6 @@
       }
       const collected = await collectFromDirectoryHandle(folderHandle);
       files = collected.sort((a, b) => a.path.localeCompare(b.path, locale()));
-      folderMeta.classList.toggle("visible", !!files.length);
-      const writeHint = t("canWriteBack");
-      folderMeta.innerHTML = files.length
-        ? t("folderMeta", { name: escapeHtml(folderName), n: files.length, hint: writeHint })
-        : "";
       statusRight.textContent = folderName || t("localOffline");
       renderSidebarList();
       try {
@@ -762,14 +755,18 @@
     }
   }
 
-  function syncLibraryTitle() {
-    if (!libraryTitle) return;
-    if (files.length) {
-      libraryTitle.textContent = folderName || t("recentFolders");
-      libraryTitle.classList.add("is-folder");
-    } else {
-      libraryTitle.textContent = t("recentFolders");
-      libraryTitle.classList.remove("is-folder");
+  function syncLibraryVisibility() {
+    const hasLibrary = files.length > 0 || recentFolders.length > 0;
+    const showSearch = files.length > 5;
+    const sidebar = document.querySelector(".sidebar");
+    const toolbar = document.querySelector(".toolbar");
+    const searchWrap = searchInput?.closest(".search-wrap");
+    sidebar?.classList.toggle("is-compact", !hasLibrary);
+    toolbar?.classList.toggle("has-search", showSearch);
+    if (fileList) fileList.hidden = !hasLibrary;
+    if (searchWrap) {
+      if (!showSearch && searchInput?.value) searchInput.value = "";
+      searchWrap.hidden = !showSearch;
     }
   }
 
@@ -789,24 +786,32 @@
     pickBtn.classList.toggle("is-hint", idle);
   }
 
+  const ICON_FOLDER = `<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.25 4.75A1.5 1.5 0 0 1 3.75 3.25h2.2c.28 0 .55.11.75.31L8 4.9h4.25a1.5 1.5 0 0 1 1.5 1.5v5.85a1.5 1.5 0 0 1-1.5 1.5H3.75a1.5 1.5 0 0 1-1.5-1.5V4.75Z" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"/></svg>`;
+  const ICON_DOC = `<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4.25 2.5h5.2L11.75 5v8.5h-7.5V2.5Z" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"/><path d="M9.45 2.5V5h2.3" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"/></svg>`;
+
   function renderRecentSection(q) {
     const matched = recentFolders.filter((r) => !q || (r.name || "").toLowerCase().includes(q));
     if (!matched.length) return "";
-    let html = files.length ? `<div class="file-group-title">${t("recentFolders")}</div>` : "";
+    const writeHint = files.length
+      ? (folderSource === "fs-access" ? t("canWriteBack") : t("willDownload"))
+      : "";
+    let html = `<div class="recent-list">`;
     for (const r of matched) {
-      const count = typeof r.fileCount === "number" ? t("docsCount", { n: r.fileCount }) : "";
-      const mode = r.handle ? t("canOpenDirect") : t("needSelectAgain");
+      const current = r.id === currentFolderId;
+      const n = current && files.length ? files.length : r.fileCount;
+      const count = typeof n === "number" ? t("docsCount", { n }) : "";
+      const name = r.name || t("unnamed");
+      const title = current && writeHint ? `${name} · ${writeHint}` : name;
       html += `<div class="recent-row">
-        <button class="recent-item" type="button" data-recent-id="${escapeHtml(r.id)}">
-          <span class="file-icon">夹</span>
-          <span>
-            <div class="recent-name">${escapeHtml(r.name || t("unnamed"))}</div>
-            <div class="recent-meta">${count}${formatRelativeTime(r.lastUsed || 0)} · ${mode}</div>
-          </span>
+        <button class="recent-item${current ? " is-current" : ""}" type="button" data-recent-id="${escapeHtml(r.id)}" title="${escapeHtml(title)}">
+          <span class="file-icon file-icon-folder" aria-hidden="true">${ICON_FOLDER}</span>
+          <span class="file-name">${escapeHtml(name)}</span>
+          ${count ? `<span class="file-count">${escapeHtml(count)}</span>` : ""}
         </button>
         <button class="recent-remove" type="button" data-remove-recent="${escapeHtml(r.id)}" title="${escapeHtml(t("removeRecord"))}">×</button>
       </div>`;
     }
+    html += `</div>`;
     return html;
   }
 
@@ -815,7 +820,7 @@
   }
 
   function renderSidebarList() {
-    syncLibraryTitle();
+    syncLibraryVisibility();
     syncOpenHint();
     const q = searchInput.value.trim().toLowerCase();
     const recentHtml = renderRecentSection(q);
@@ -841,14 +846,15 @@
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(f);
     }
-    html += `<div class="file-group-title">${t("currentDocs")}</div>`;
+    html += `<div class="doc-list">`;
     for (const [group, items] of groups) {
       if (group !== t("rootDir")) html += `<div class="file-group-title">${escapeHtml(group)}</div>`;
       for (const f of items) {
         const dirtyMark = f.path === activePath && dirty ? " ·" : "";
-        html += `<button class="file-item${f.path === activePath ? " active" : ""}" type="button" data-path="${escapeHtml(f.path)}"><span class="file-icon">文</span><span><div class="file-name">${escapeHtml(f.name)}${dirtyMark}</div><div class="file-path">${escapeHtml(f.path)}</div></span></button>`;
+        html += `<button class="file-item${f.path === activePath ? " active" : ""}" type="button" data-path="${escapeHtml(f.path)}" title="${escapeHtml(f.path)}"><span class="file-icon file-icon-doc" aria-hidden="true">${ICON_DOC}</span><span class="file-name">${escapeHtml(f.name)}${dirtyMark}</span></button>`;
       }
     }
+    html += `</div>`;
     fileList.innerHTML = html;
   }
 
@@ -1529,8 +1535,6 @@
     }
     syncModeButton();
     if (files.length) {
-      const writeHint = folderSource === "fs-access" ? t("canWriteBack") : t("willDownload");
-      folderMeta.innerHTML = t("folderMeta", { name: escapeHtml(folderName), n: files.length, hint: writeHint });
       statusLeft.textContent = t("indexed", { n: files.length });
     } else if (!activePath) {
       statusLeft.textContent = "";
