@@ -1,6 +1,6 @@
 /**
  * VSCode webview ↔ 墨览编辑器桥：把 Vditor 的内容同步给扩展宿主。
- * 打开后默认编辑；只有用户真正改过 Markdown 才通知宿主标脏。
+ * 打开后默认预览（只读）；点「编辑」后，只有用户真正改过 Markdown 才通知宿主标脏。
  */
 (function () {
   const vscode = acquireVsCodeApi();
@@ -38,7 +38,10 @@
   function syncModeButton() {
     if (!modeBtn) return;
     const preview = editorApi?.isPreview?.() ?? false;
-    modeBtn.textContent = preview ? "编辑" : "预览";
+    modeBtn.classList.toggle("is-preview", preview);
+    const label = preview ? "编辑" : "预览";
+    modeBtn.title = label;
+    modeBtn.setAttribute("aria-label", label);
   }
 
   let editorIdleTimer = 0;
@@ -63,10 +66,11 @@
       previewActions: [],
       onInput: () => {
         if (applyingRemote) return;
+        if (editorApi?.isPreview?.()) return;
         scheduleEditorIdleWork();
       },
       onCounter: () => {
-        if (applyingRemote || !editorApi) return;
+        if (applyingRemote || !editorApi || editorApi.isPreview?.()) return;
         setChrome({ value: editorApi.getValue() });
       },
       onSave: () => vscode.postMessage({ type: "save" }),
@@ -88,11 +92,14 @@
     applyingRemote = true;
     const incoming = msg.value ?? "";
     api.setValue(incoming, true);
+    if (msg.type === "init" || api.isPreview()) {
+      api.setPreview(true);
+    }
     // 等 Vditor undoDelay(200) + 流程图增强(400)，避免 setValue 往返被当成一次编辑。
     await wait(480);
     baseline = api.getValue();
     applyingRemote = false;
-    if (msg.type === "setContent" && api.isPreview()) {
+    if (api.isPreview()) {
       api.setPreview(true);
     }
     setChrome({

@@ -273,8 +273,19 @@ export class MolanEditorProvider implements vscode.CustomEditorProvider<MolanDoc
           <h2 id="readerTitle">墨览</h2>
         </div>
         <div class="reader-actions">
-          <button class="chip" id="modeBtn" type="button">预览</button>
-          <button class="chip" id="copyBtn" type="button">复制原文</button>
+          <button class="icon-btn is-preview" id="modeBtn" type="button" title="编辑" aria-label="编辑">
+            <svg class="icon-edit" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg>
+            <svg class="icon-preview" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.8-7 9.5-7 9.5 7 9.5 7-3.8 7-9.5 7-9.5-7-9.5-7z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+          <button class="icon-btn" id="copyBtn" type="button" title="复制原文" aria-label="复制原文">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2"/><rect x="4" y="8" width="12" height="12" rx="2"/></svg>
+          </button>
+          <button class="icon-btn molan-find-btn" id="molanFindBtn" type="button" title="在文档中查找" aria-label="在文档中查找">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
+              <path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
         </div>
       </header>
       <div class="reader-body">

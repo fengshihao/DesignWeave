@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- 打开 Markdown 默认进入预览（只阅读），点顶栏「编辑」再改
+
 ## 0.1.7
 
 - 文档内查找：`Cmd/Ctrl+F` 打开查找栏，高亮匹配并跳转；VS Code 下也会接管工作区的查找快捷键

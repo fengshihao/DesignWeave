@@ -249,6 +249,7 @@
 
     html, body {
       height: 100%;
+      max-height: 100%;
       color: var(--ink);
       font-family: var(--font-ui);
       /* Windows ClearType 下不要强行 antialiased，否则中文发虚 */
@@ -307,7 +308,11 @@
       z-index: 1;
       display: grid;
       grid-template-columns: 280px minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr);
       height: 100%;
+      max-height: 100%;
+      min-height: 0;
+      overflow: hidden;
       padding: 12px;
       gap: 12px;
     }
@@ -317,12 +322,14 @@
       --ctrl: 36px;
       display: flex;
       flex-direction: column;
+      min-height: 0;
+      height: 100%;
       background: linear-gradient(180deg, var(--sidebar-lift) 0%, var(--sidebar) 100%);
       color: var(--sidebar-fg);
       border-radius: var(--radius-shell);
       border: 1px solid var(--sidebar-edge);
       box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,0.06);
-      overflow: visible;
+      overflow: hidden;
     }
 
     .brand {
@@ -334,6 +341,7 @@
       border-bottom: 1px solid var(--sidebar-line);
       position: relative;
       z-index: 6;
+      flex-shrink: 0;
     }
 
     .brand-mark {
@@ -600,6 +608,7 @@
       flex-direction: row;
       align-items: center;
       gap: 12px;
+      flex-shrink: 0;
     }
 
     .toolbar-pick {
@@ -798,6 +807,7 @@
       font-size: 0.75rem;
       color: var(--sidebar-fg-mute);
       letter-spacing: 0.02em;
+      flex-shrink: 0;
     }
 
     .folder-meta.visible { display: block; }
@@ -873,7 +883,8 @@
     }
 
     .file-list {
-      flex: 1;
+      flex: 1 1 auto;
+      min-height: 0;
       overflow: auto;
       padding: 4px var(--rail) 14px 8px;
       scrollbar-width: thin;
@@ -965,6 +976,8 @@
       display: flex;
       flex-direction: column;
       min-width: 0;
+      min-height: 0;
+      height: 100%;
       background: var(--paper-lift);
       border-radius: var(--radius-shell);
       border: 1px solid var(--hairline);
@@ -980,6 +993,7 @@
     .reader-header {
       position: relative;
       z-index: 2;
+      min-width: 0;
       padding: 16px 28px 12px;
       border-bottom: 1px solid var(--hairline);
       background: var(--header-bg);
@@ -1022,10 +1036,54 @@
 
     .reader-actions {
       display: flex;
-      gap: 8px;
+      gap: 2px;
       flex: 0 0 auto;
       flex-wrap: nowrap;
       justify-content: flex-end;
+      align-items: center;
+    }
+
+    .reader-actions .icon-btn {
+      width: 32px;
+      height: 32px;
+    }
+
+    .reader-actions .icon-btn svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .reader-actions .icon-btn[hidden] { display: none; }
+
+    .reader-actions .icon-download,
+    .reader-actions .icon-preview { display: none; }
+
+    #saveBtn[data-kind="download"] .icon-save { display: none; }
+    #saveBtn[data-kind="download"] .icon-download { display: block; }
+
+    #modeBtn:not(.is-preview) .icon-edit { display: none; }
+    #modeBtn:not(.is-preview) .icon-preview { display: block; }
+
+    .reader-actions .icon-btn.is-dirty:not(:disabled) {
+      color: var(--on-accent);
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%);
+      border-color: transparent;
+    }
+
+    .reader-actions .icon-btn.is-dirty:not(:disabled):hover {
+      color: var(--on-accent);
+      box-shadow: 0 6px 16px var(--accent-glow);
+    }
+
+    .icon-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .icon-btn:disabled:hover {
+      border-color: transparent;
+      color: var(--ink-soft);
+      background: transparent;
     }
 
     .chip {
@@ -1068,8 +1126,6 @@
       background: var(--hairline-strong);
       color: var(--ink-muted);
     }
-
-    .main.is-idle .molan-find-btn { display: none; }
 
     .reader-header.is-finding .reader-actions {
       visibility: hidden;
@@ -1806,6 +1862,16 @@
     .vditor-content {
       flex: 1;
       min-height: 0;
+      overflow: hidden;
+    }
+
+    .vditor-ir,
+    .vditor-wysiwyg,
+    .vditor-sv,
+    .vditor-preview {
+      min-height: 0;
+      height: 100%;
+      overflow: auto;
     }
 
     .vditor-content,
@@ -2469,6 +2535,7 @@
     .status-bar {
       position: relative;
       z-index: 1;
+      flex-shrink: 0;
       border-top: 1px solid var(--hairline);
       padding: 10px 28px;
       display: flex;
@@ -2518,12 +2585,15 @@
       body { overflow: auto; }
       .app {
         grid-template-columns: 1fr;
+        grid-template-rows: auto auto;
         height: auto;
+        max-height: none;
         min-height: 100%;
+        overflow: visible;
         padding: 12px;
       }
-      .sidebar { min-height: 42vh; max-height: 48vh; }
-      .main { min-height: 70vh; }
+      .sidebar { min-height: 42vh; max-height: 48vh; height: auto; }
+      .main { min-height: 70vh; height: auto; }
       .welcome { padding: 12px 12px 14px; }
       .welcome-folio {
         padding: 32px 22px 18px;

@@ -19,6 +19,8 @@
   const statusRight = document.getElementById("statusRight");
   const saveBtn = document.getElementById("saveBtn");
   const copyBtn = document.getElementById("copyBtn");
+  const modeBtn = document.getElementById("modeBtn");
+  const findBtn = document.getElementById("molanFindBtn");
 
   const toast = (msg) => window.MolanEditor.toast(msg);
   const countWords = (text) => window.MolanEditor.countWords(text);
@@ -164,6 +166,11 @@
   let editorReady = null;
   let pendingOpenPath = null;
   let openSeq = 0;
+  let applyingRemote = false;
+
+  function wait(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
 
   const DB_NAME = "molan-viewer";
   const DB_STORE = "folders";
@@ -382,16 +389,40 @@
     if (nameEl.textContent !== next) nameEl.textContent = next;
   }
 
+  function labelAction(el, label) {
+    if (!el || label == null) return;
+    el.title = label;
+    el.setAttribute("aria-label", label);
+  }
+
   function setDirty(next) {
     dirty = !!next;
     saveBtn.disabled = !dirty;
+    saveBtn.classList.toggle("is-dirty", dirty);
     if (activePath) {
-      saveBtn.title = canWriteActive()
-        ? t("saveWriteHint")
-        : t("saveDownloadHint");
-      saveBtn.textContent = canWriteActive() ? t("save") : t("downloadSave");
+      const write = canWriteActive();
+      saveBtn.dataset.kind = write ? "save" : "download";
+      labelAction(saveBtn, write ? t("saveWriteHint") : t("saveDownloadHint"));
     }
     syncActiveDirtyMark();
+    syncModeButton();
+  }
+
+  function syncModeButton() {
+    if (!modeBtn) return;
+    const preview = !!(editorApi?.isPreview?.());
+    modeBtn.classList.toggle("is-preview", preview);
+    labelAction(modeBtn, preview ? t("modeEdit") : t("modePreview"));
+    modeBtn.hidden = !activePath;
+    if (!activePath) {
+      saveBtn.hidden = true;
+      copyBtn.hidden = true;
+      if (findBtn) findBtn.hidden = true;
+      return;
+    }
+    copyBtn.hidden = false;
+    if (findBtn) findBtn.hidden = false;
+    saveBtn.hidden = preview && !dirty;
   }
 
   function paintStatus(text) {
@@ -417,7 +448,7 @@
   function scheduleEditorIdleWork() {
     clearTimeout(editorIdleTimer);
     editorIdleTimer = setTimeout(() => {
-      if (!editorApi || !activePath) return;
+      if (applyingRemote || !editorApi || !activePath) return;
       try {
         const text = editorApi.getValue();
         const nextDirty = text !== baselineText;
@@ -428,8 +459,8 @@
   }
 
   function onEditorInput() {
-    if (!activePath) return;
-    if (!dirty) setDirty(true);
+    if (applyingRemote || !activePath) return;
+    if (editorApi?.isPreview?.()) return;
     scheduleEditorIdleWork();
   }
 
@@ -529,6 +560,8 @@
     dirty = false;
     baselineText = "";
     activePath = null;
+    openSeq += 1;
+    applyingRemote = false;
     renderSidebarList();
     if (files.length) openFile(files[0].path);
     else {
@@ -640,10 +673,13 @@
     editorWrap.classList.remove("visible");
     saveBtn.hidden = true;
     copyBtn.hidden = true;
+    if (modeBtn) modeBtn.hidden = true;
+    if (findBtn) findBtn.hidden = true;
     readerTitle.textContent = "墨览";
     activePath = null;
     dirty = false;
     baselineText = "";
+    applyingRemote = false;
     clearTimeout(editorIdleTimer);
     syncOpenHint();
     scheduleAphorismCycle();
@@ -968,7 +1004,10 @@
       placeholder: t("placeholder"),
       lang: window.MolanI18n ? window.MolanI18n.vditorLang() : "zh_CN",
       onInput: () => onEditorInput(),
-      onCounter: () => scheduleEditorIdleWork(),
+      onCounter: () => {
+        if (applyingRemote || editorApi?.isPreview?.()) return;
+        scheduleEditorIdleWork();
+      },
       onSave: () => { saveActiveFile(); },
       onReady: (api) => {
         editorApi = api;
@@ -980,6 +1019,7 @@
       },
     }).then((api) => {
       editorApi = api;
+      api.onPreviewChange?.(() => syncModeButton());
       return api;
     });
 
@@ -993,14 +1033,17 @@
     if (!opts.force && !confirmDiscardIfDirty()) return;
 
     const seq = ++openSeq;
+    applyingRemote = true;
     clearTimeout(editorIdleTimer);
     stopAphorismCycle();
     if (welcome) welcome.hidden = true;
     document.querySelector(".main")?.classList.remove("is-idle");
     readerBody?.classList.add("is-editing");
     editorWrap.classList.add("visible");
-    saveBtn.hidden = false;
+    saveBtn.hidden = true;
     copyBtn.hidden = false;
+    if (modeBtn) modeBtn.hidden = false;
+    if (findBtn) findBtn.hidden = false;
     statusLeft.textContent = t("openingName", { name: file.name });
 
     await ensureVditor();
@@ -1015,14 +1058,23 @@
       readerTitle.textContent = file.name.replace(/\.(md|markdown|mdx|mdown)$/i, "");
       baselineText = text;
       editorApi.setValue(text, true);
+      editorApi.setPreview(true);
       setDirty(false);
       statusLeft.textContent = `${file.name} · ${((file.size || text.length) / 1024).toFixed(1)} KB`;
-      updateStatusRight();
+      paintStatus(text);
       renderSidebarList();
-      try { editorApi.focus(); } catch (_) { /* ignore */ }
+      syncModeButton();
+      // 等 Vditor undoDelay(200) + 流程图增强(400)，避免 setValue 往返被当成一次编辑。
+      await wait(480);
+      if (seq !== openSeq) return;
+      baselineText = editorApi.getValue();
+      applyingRemote = false;
+      setDirty(false);
+      updateStatusRight();
     } catch (err) {
       console.warn(err);
       if (seq !== openSeq) return;
+      applyingRemote = false;
       statusLeft.textContent = t("readFail");
       toast(t("readFailToast"));
     }
@@ -1169,6 +1221,23 @@
 
   saveBtn.addEventListener("click", () => saveActiveFile());
 
+  if (findBtn && !findBtn.dataset.bound) {
+    findBtn.dataset.bound = "1";
+    findBtn.addEventListener("click", () => {
+      window.MolanEditor.find?.open();
+    });
+  }
+
+  modeBtn?.addEventListener("click", () => {
+    if (!editorApi || !activePath) return;
+    const nextPreview = !editorApi.isPreview();
+    editorApi.setPreview(nextPreview);
+    syncModeButton();
+    if (!nextPreview) {
+      try { editorApi.focus(); } catch (_) { /* ignore */ }
+    }
+  });
+
   copyBtn.addEventListener("click", async () => {
     if (!editorApi) return;
     try {
@@ -1223,6 +1292,7 @@
       }
       setDirty(dirty);
     }
+    syncModeButton();
     if (files.length) {
       const writeHint = folderSource === "fs-access" ? t("canWriteBack") : t("willDownload");
       folderMeta.innerHTML = t("folderMeta", { name: escapeHtml(folderName), n: files.length, hint: writeHint });

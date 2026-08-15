@@ -31,7 +31,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   </noscript>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vditor@3.10.9/dist/index.css" />
-  <link rel="stylesheet" href="./molan.css" />
+  <link rel="stylesheet" href="./molan.css?v=20260814c" />
 </head>
 <body>
   <div class="app">
@@ -105,8 +105,23 @@
           <h2 id="readerTitle">墨览</h2>
         </div>
         <div class="reader-actions">
-          <button class="chip chip-primary" id="saveBtn" type="button" hidden disabled data-i18n="save">保存</button>
-          <button class="chip" id="copyBtn" type="button" hidden data-i18n="copySource">复制原文</button>
+          <button class="icon-btn is-preview" id="modeBtn" type="button" hidden title="编辑" aria-label="编辑">
+            <svg class="icon-edit" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg>
+            <svg class="icon-preview" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.8-7 9.5-7 9.5 7 9.5 7-3.8 7-9.5 7-9.5-7-9.5-7z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+          <button class="icon-btn" id="saveBtn" type="button" hidden disabled title="保存" aria-label="保存">
+            <svg class="icon-save" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h11l3 3v11H5V5z"/><path d="M9 5v4h7V5"/><path d="M8 19v-6h8v6"/></svg>
+            <svg class="icon-download" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11"/><path d="M7.5 11.5 12 16l4.5-4.5"/><path d="M5 19h14"/></svg>
+          </button>
+          <button class="icon-btn" id="copyBtn" type="button" hidden title="复制原文" aria-label="复制原文" data-i18n-title="copySource" data-i18n-aria="copySource">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2"/><rect x="4" y="8" width="12" height="12" rx="2"/></svg>
+          </button>
+          <button class="icon-btn molan-find-btn" id="molanFindBtn" type="button" hidden title="在文档中查找" aria-label="在文档中查找" data-i18n-title="findAria" data-i18n-aria="findAria">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
+              <path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
         </div>
       </header>
 
@@ -167,9 +182,9 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/vditor@3.10.9/dist/index.min.js"></script>
-  <script src="./molan-i18n.js"></script>
-  <script src="./molan-aphorisms.js"></script>
-  <script src="./molan-editor.js"></script>
-  <script src="./molan-app.js"></script>
+  <script src="./molan-i18n.js?v=20260814c"></script>
+  <script src="./molan-aphorisms.js?v=20260814c"></script>
+  <script src="./molan-editor.js?v=20260814c"></script>
+  <script src="./molan-app.js?v=20260814c"></script>
 </body>
 </html>

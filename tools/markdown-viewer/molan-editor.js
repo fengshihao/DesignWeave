@@ -985,22 +985,36 @@
       caseBtn.setAttribute("aria-label", t("findCase"));
     }
     if (btn) {
-      btn.textContent = t("find");
       btn.title = t("findAria");
       btn.setAttribute("aria-label", t("findAria"));
     }
     updateFindCount();
   }
 
+  const FIND_ICON = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+
+  function paintFindButton(btn) {
+    if (!btn) return;
+    btn.id = "molanFindBtn";
+    btn.className = "icon-btn molan-find-btn";
+    btn.type = "button";
+    if (!btn.querySelector("svg") || btn.classList.contains("chip") || btn.textContent.trim()) {
+      btn.innerHTML = FIND_ICON;
+    }
+  }
+
   function ensureFindButton() {
     const actions = document.querySelector(".reader-actions");
-    if (!actions || document.getElementById("molanFindBtn")) return;
-    const btn = document.createElement("button");
-    btn.id = "molanFindBtn";
-    btn.className = "chip molan-find-btn";
-    btn.type = "button";
-    btn.addEventListener("click", () => openFind());
-    actions.appendChild(btn);
+    let btn = document.getElementById("molanFindBtn");
+    if (!btn && actions) {
+      btn = document.createElement("button");
+      actions.appendChild(btn);
+    }
+    paintFindButton(btn);
+    if (btn && !btn.dataset.bound) {
+      btn.dataset.bound = "1";
+      btn.addEventListener("click", () => openFind());
+    }
   }
 
   function observeFindTarget(root) {
@@ -1299,6 +1313,7 @@
               return vditor;
             },
           };
+          if (options.defaultPreview !== false) setPreview(true);
           options.onReady?.(api);
           resolve(api);
         },
