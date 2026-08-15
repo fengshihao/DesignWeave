@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "sync-molan": "node ./scripts/sync-molan.mjs",
+    "predev": "node ./scripts/sync-molan.mjs",
     "dev": "next dev -p 3100",
+    "prebuild": "node ./scripts/sync-molan.mjs",
     "build": "next build",
     "start": "next start -p 3100",
     "typecheck": "tsc -p tsconfig.json --noEmit"
@@ -13,7 +16,8 @@
     "better-auth": "^1.6.29",
     "next": "^15.2.2",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "vditor": "3.10.9"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",

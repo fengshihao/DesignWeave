@@ -330,6 +330,12 @@ function ProjectHome(props: { user: SessionUser }) {
                         ? r.primaryRepo.split("/").slice(-2).join("/")
                         : "尚未挂代码仓"}
                       {r.relatedRepos.length ? ` · +${r.relatedRepos.length} 个代码仓` : ""}
+                      {r.activeRun &&
+                      (r.activeRun.status === "queued" || r.activeRun.status === "running")
+                        ? " · AI 进行中"
+                        : ""}
+                      {r.lock && !r.lock.youHold ? ` · ${r.lock.holderName}正在编辑` : ""}
+                      {r.lock?.youHold ? " · 你持有编辑权" : ""}
                     </p>
                   </Link>
                 </li>
@@ -344,7 +350,7 @@ function ProjectHome(props: { user: SessionUser }) {
               新建工程
             </h2>
             <p className="muted">
-              这一刀仍沿用现有落盘探针。下一刀会改成专有文档仓 Git。
+              文档目录必须能当版本库（没有就初始化主线）。代码仓只读。
             </p>
             <form onSubmit={onCreate} style={{ display: "grid", gap: 14, marginTop: 16 }}>
               <div className="field">

@@ -16,6 +16,30 @@ export type ClaudeKnownProject = {
   hasClaudeDir: boolean;
 };
 
+export type WorkbenchMode = "coauthor" | "grill" | "feasibility";
+
+export type ProjectLockInfo = {
+  holderId: string;
+  holderName: string;
+  youHold: boolean;
+  editing: boolean;
+  otherDevice: boolean;
+} | null;
+
+export type WorkbenchRun = {
+  id: string;
+  projectId: string;
+  userId: string;
+  userName: string;
+  mode: WorkbenchMode;
+  message: string;
+  status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+  createdAt: string;
+  updatedAt: string;
+  endedAt: string | null;
+  error: string | null;
+};
+
 export type RequirementMeta = {
   id: string;
   title: string;
@@ -26,6 +50,8 @@ export type RequirementMeta = {
   createdAt: string;
   updatedAt: string;
   vaultPath: string;
+  lock?: ProjectLockInfo;
+  activeRun?: WorkbenchRun | null;
 };
 
 export type RequirementBundle = {
@@ -40,6 +66,8 @@ export type RequirementBundle = {
     author: string;
     createdAt: string;
   } | null;
+  lock?: ProjectLockInfo;
+  activeRun?: WorkbenchRun | null;
 };
 
 export type AuthStatus = {
@@ -132,8 +160,10 @@ export const api = {
       { method: "POST", body: JSON.stringify(body) }
     ),
 
-  getRequirement: (id: string) =>
-    request<RequirementBundle>(`/v1/requirements/${id}`),
+  getRequirement: (id: string, clientId?: string) =>
+    request<RequirementBundle>(
+      `/v1/requirements/${id}${clientId ? `?clientId=${encodeURIComponent(clientId)}` : ""}`
+    ),
 
   savePrd: (id: string, content: string) =>
     request<{ prd: string }>(`/v1/requirements/${id}/prd`, {
@@ -150,7 +180,8 @@ export const api = {
   importMarkdown: (
     id: string,
     markdown: string,
-    mode: "replace" | "append" = "replace"
+    mode: "replace" | "append" = "replace",
+    clientId?: string
   ) =>
     request<{
       prd: string;
@@ -158,7 +189,7 @@ export const api = {
       bundle: RequirementBundle;
     }>(`/v1/requirements/${id}/import`, {
       method: "POST",
-      body: JSON.stringify({ markdown, mode }),
+      body: JSON.stringify({ markdown, mode, clientId }),
     }),
 
   chat: (
@@ -196,7 +227,7 @@ export const api = {
       changedFiles: string[];
     }>(`/v1/requirements/${id}/versions`),
 
-  recordVersion: (id: string, message?: string) =>
+  recordVersion: (id: string, message?: string, clientId?: string) =>
     request<{
       version: {
         id: string;
@@ -207,7 +238,7 @@ export const api = {
       message?: string;
     }>(`/v1/requirements/${id}/versions`, {
       method: "POST",
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, clientId }),
     }),
 
   readVersionFile: (id: string, sha: string, filePath = "PRD.md") =>
@@ -215,15 +246,84 @@ export const api = {
       `/v1/requirements/${id}/versions/${sha}/files?path=${encodeURIComponent(filePath)}`
     ),
 
-  restoreFile: (id: string, sha: string, filePath = "PRD.md") =>
-    request<{ path: string; content: string; uncommitted: boolean }>(
+  restoreFile: (id: string, sha: string, filePath = "PRD.md", clientId?: string) =>
+    request<{ path: string; content: string; uncommitted: boolean; etag?: string }>(
       `/v1/requirements/${id}/versions/${sha}/restore`,
-      { method: "POST", body: JSON.stringify({ path: filePath }) }
+      { method: "POST", body: JSON.stringify({ path: filePath, clientId }) }
     ),
 
-  revertLatestAi: (id: string) =>
+  revertLatestAi: (id: string, clientId?: string) =>
     request<{ version: { id: string; message: string } }>(
       `/v1/requirements/${id}/versions/revert-latest-ai`,
-      { method: "POST" }
+      { method: "POST", body: JSON.stringify({ clientId }) }
     ),
+
+  listFiles: (id: string) =>
+    request<{ files: Array<{ path: string; name: string; isDir: boolean }> }>(
+      `/v1/requirements/${id}/tree`
+    ),
+
+  readFile: (id: string, filePath: string) =>
+    request<{ path: string; content: string; etag: string }>(
+      `/v1/requirements/${id}/files?path=${encodeURIComponent(filePath)}`
+    ),
+
+  writeFile: (
+    id: string,
+    filePath: string,
+    content: string,
+    etag: string,
+    clientId?: string
+  ) =>
+    request<{ path: string; content: string; etag: string }>(
+      `/v1/requirements/${id}/files?path=${encodeURIComponent(filePath)}`,
+      {
+        method: "PUT",
+        headers: { "If-Match": etag },
+        body: JSON.stringify({ content, clientId }),
+      }
+    ),
+
+  claimLock: (id: string, clientId: string) =>
+    request<{
+      youHold: boolean;
+      otherDevice: boolean;
+      previewReason?: string;
+      lock: ProjectLockInfo;
+    }>(`/v1/requirements/${id}/lock/claim`, {
+      method: "POST",
+      body: JSON.stringify({ clientId }),
+    }),
+
+  heartbeatLock: (id: string, clientId: string, editing: boolean) =>
+    request<{ lock: ProjectLockInfo }>(`/v1/requirements/${id}/lock/heartbeat`, {
+      method: "POST",
+      body: JSON.stringify({ clientId, editing }),
+    }),
+
+  releaseLock: (id: string, clientId: string) =>
+    request<{ ok: boolean; lock: ProjectLockInfo }>(
+      `/v1/requirements/${id}/lock/release`,
+      { method: "POST", body: JSON.stringify({ clientId }) }
+    ),
+
+  forceReleaseLock: (id: string) =>
+    request<{ ok: boolean }>(`/v1/requirements/${id}/lock/force-release`, {
+      method: "POST",
+    }),
+
+  startRun: (id: string, body: { mode: WorkbenchMode; message: string; clientId: string }) =>
+    request<{ runId: string; run: WorkbenchRun }>(`/v1/requirements/${id}/runs`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  cancelRun: (id: string, runId: string, clientId: string) =>
+    request<{ cancelled: boolean }>(
+      `/v1/requirements/${id}/runs/${runId}/cancel`,
+      { method: "POST", body: JSON.stringify({ clientId }) }
+    ),
+
+  currentRun: (id: string) =>
+    request<{ run: WorkbenchRun | null }>(`/v1/requirements/${id}/runs/current`),
 };

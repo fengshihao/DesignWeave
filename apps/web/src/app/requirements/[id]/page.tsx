@@ -1,104 +1,348 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { api, type RequirementBundle, type SessionUser } from "@/lib/api";
-import { AppHeader } from "@/components/AppHeader";
+import {
+  api,
+  type ProjectLockInfo,
+  type SessionUser,
+  type WorkbenchMode,
+  type WorkbenchRun,
+} from "@/lib/api";
+import { MolanFrame, type MolanHandle } from "@/components/MolanFrame";
 
-type Tab = "guide" | "document" | "gaps";
+const MODES: Array<{ id: WorkbenchMode; label: string; hint: string }> = [
+  { id: "coauthor", label: "共创", hint: "把想法写进 PRD，每次只问几件关键的事。" },
+  { id: "grill", label: "拷问", hint: "找矛盾、缺口、拍不板的假设，写进缺口清单。" },
+  { id: "feasibility", label: "可行性", hint: "只读代码仓，把结论写进调研.md。" },
+];
 
-export default function RequirementPage() {
+function clientId(): string {
+  const key = "dw-workbench-client";
+  try {
+    const existing = sessionStorage.getItem(key);
+    if (existing) return existing;
+    const next = crypto.randomUUID();
+    sessionStorage.setItem(key, next);
+    return next;
+  } catch {
+    return "anonymous";
+  }
+}
+
+type LogItem = { seq: number; kind: string; text: string };
+
+export default function WorkbenchPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
+  const [cid, setCid] = useState("");
+  const molanRef = useRef<MolanHandle>(null);
+  const editingRef = useRef(false);
+  const activeRunRef = useRef<WorkbenchRun | null>(null);
+  const followSeq = useRef(0);
 
-  const [bundle, setBundle] = useState<RequirementBundle | null>(null);
   const [user, setUser] = useState<SessionUser | null>(null);
-  const [tab, setTab] = useState<Tab>("guide");
-  const [prd, setPrd] = useState("");
+  const [title, setTitle] = useState("");
+  const [primaryRepo, setPrimaryRepo] = useState<string | undefined>();
+  const [relatedRepos, setRelatedRepos] = useState<string[]>([]);
+  const [files, setFiles] = useState<Array<{ path: string; name: string; isDir: boolean }>>([]);
+  const [currentPath, setCurrentPath] = useState("PRD.md");
+  const [content, setContent] = useState("");
+  const [etag, setEtag] = useState("");
+  const [lock, setLock] = useState<ProjectLockInfo>(null);
+  const [previewReason, setPreviewReason] = useState("");
+  const [activeRun, setActiveRun] = useState<WorkbenchRun | null>(null);
+  const [mode, setMode] = useState<WorkbenchMode>("feasibility");
   const [message, setMessage] = useState("");
-  const [log, setLog] = useState("");
-  const [importText, setImportText] = useState("");
+  const [log, setLog] = useState<LogItem[]>([]);
+  const [trust, setTrust] = useState("打开工程后，AI 只写文档仓、不改业务代码。");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [preview, setPreview] = useState(true);
+  const [dirty, setDirty] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [uncommitted, setUncommitted] = useState(false);
   const [versions, setVersions] = useState<
     Array<{ id: string; message: string; author: string; createdAt: string }>
   >([]);
-  const [history, setHistory] = useState<{
-    sha: string;
-    content: string;
-    message: string;
-  } | null>(null);
+  const [history, setHistory] = useState<{ sha: string; content: string; message: string } | null>(
+    null
+  );
+  const [compare, setCompare] = useState<{ a: string; b: string; title: string } | null>(null);
+  const [importText, setImportText] = useState("");
+  const [gate, setGate] = useState("");
 
-  async function load() {
-    setError("");
-    try {
-      const me = await api.me();
-      setUser(me.user);
-      const data = await api.getRequirement(id);
-      setBundle(data);
-      setPrd(data.prd);
-      setUncommitted(Boolean(data.uncommitted));
-      setTab(data.requirement.phase === "gaps" ? "gaps" : data.requirement.phase);
-      const ver = await api.listVersions(id);
-      setVersions(ver.versions);
-      setUncommitted(ver.uncommitted);
-      if (data.requirement.phase === "gaps" && !log) {
-        setLog("已导入文档。可以开始追问完善，或先到「文档」查看原文。\n");
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "加载失败");
-    }
-  }
+  activeRunRef.current = activeRun;
+  editingRef.current = editing;
 
-  useEffect(() => {
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  const youHold = Boolean(lock?.youHold);
+  const aiRunning = Boolean(
+    activeRun && (activeRun.status === "queued" || activeRun.status === "running")
+  );
+  const readOnly = !youHold || aiRunning || Boolean(history);
+  const hasCode = Boolean(primaryRepo || relatedRepos.length);
+
+  const refreshVersions = useCallback(async () => {
+    const ver = await api.listVersions(id);
+    setVersions(ver.versions);
+    setUncommitted(ver.uncommitted);
   }, [id]);
 
-  async function switchTab(next: Tab) {
-    setTab(next);
-    try {
-      await api.setPhase(id, next);
-    } catch {
-      /* ignore */
+  const refreshTree = useCallback(async () => {
+    const tree = await api.listFiles(id);
+    setFiles(tree.files.filter((f) => !f.isDir));
+  }, [id]);
+
+  const openFile = useCallback(
+    async (path: string, force = false) => {
+      if (!force && dirty && !readOnly) {
+        const state = await molanRef.current?.getState();
+        if (state?.dirty) {
+          setGate("先保存当前这篇，再打开另一篇。");
+          return;
+        }
+      }
+      const file = await api.readFile(id, path);
+      setCurrentPath(file.path);
+      setContent(file.content);
+      setEtag(file.etag);
+      setDirty(false);
+      setHistory(null);
+    },
+    [dirty, id, readOnly]
+  );
+
+  const bootstrap = useCallback(async () => {
+    setError("");
+    const me = await api.me();
+    setUser(me.user);
+    const data = await api.getRequirement(id, cid);
+    setTitle(data.requirement.title);
+    setPrimaryRepo(data.requirement.primaryRepo);
+    setRelatedRepos(data.requirement.relatedRepos);
+    setUncommitted(Boolean(data.uncommitted));
+    if (data.activeRun) setActiveRun(data.activeRun);
+    const claimed = await api.claimLock(id, cid);
+    setLock(claimed.lock);
+    setPreviewReason(claimed.previewReason || "");
+    const tree = await api.listFiles(id);
+    setFiles(tree.files.filter((f) => !f.isDir));
+    const ver = await api.listVersions(id);
+    setVersions(ver.versions);
+    setUncommitted(ver.uncommitted);
+    const file = await api.readFile(id, "PRD.md");
+    setCurrentPath(file.path);
+    setContent(file.content);
+    setEtag(file.etag);
+    setDirty(false);
+    setHistory(null);
+    if (data.activeRun && (data.activeRun.status === "queued" || data.activeRun.status === "running")) {
+      followSeq.current = 0;
     }
+  }, [cid, id]);
+
+  useEffect(() => {
+    setCid(clientId());
+  }, []);
+
+  useEffect(() => {
+    if (!cid) return;
+    void bootstrap().catch((e) => setError(e instanceof Error ? e.message : "加载失败"));
+  }, [bootstrap, cid]);
+
+  useEffect(() => {
+    if (!cid || !youHold) return;
+    const timer = setInterval(() => {
+      void api.heartbeatLock(id, cid, editingRef.current).then((res) => {
+        setLock(res.lock);
+      }).catch(() => {
+        /* 预览或锁已释放 */
+      });
+    }, 20000);
+    return () => clearInterval(timer);
+  }, [cid, id, youHold]);
+
+  useEffect(() => {
+    if (!cid) return;
+    return () => {
+      if (!activeRunRef.current) {
+        void api.releaseLock(id, cid).catch(() => undefined);
+      }
+    };
+  }, [cid, id]);
+
+  useEffect(() => {
+    if (!readOnly || history) return;
+    const timer = setInterval(() => {
+      void api.readFile(id, currentPath).then((file) => {
+        if (file.etag !== etag) {
+          setContent(file.content);
+          setEtag(file.etag);
+        }
+      }).catch(() => undefined);
+      void refreshTree().catch(() => undefined);
+      void refreshVersions().catch(() => undefined);
+      void api.currentRun(id).then((res) => setActiveRun(res.run)).catch(() => undefined);
+    }, 2500);
+    return () => clearInterval(timer);
+  }, [currentPath, etag, history, id, readOnly, refreshTree, refreshVersions]);
+
+  const appendLog = useCallback((item: LogItem) => {
+    setLog((prev) => {
+      if (prev.some((x) => x.seq === item.seq && item.seq > 0)) return prev;
+      return [...prev, item].slice(-80);
+    });
+  }, []);
+
+  const currentPathRef = useRef(currentPath);
+  currentPathRef.current = currentPath;
+
+  const followRun = useCallback(
+    async (runId: string, after = 0) => {
+      followSeq.current = after;
+      const res = await fetch(
+        `/v1/requirements/${id}/runs/${runId}/stream?after=${after}`,
+        { credentials: "include", cache: "no-store" }
+      );
+      if (!res.ok || !res.body) {
+        throw new Error("无法接上这一轮进度");
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const chunks = buf.split("\n\n");
+        buf = chunks.pop() || "";
+        for (const chunk of chunks) {
+          const eventLine = chunk.split("\n").find((l) => l.startsWith("event:"));
+          const dataLine = chunk.split("\n").find((l) => l.startsWith("data:"));
+          if (!eventLine || !dataLine) continue;
+          const type = eventLine.slice(6).trim();
+          let payload: Record<string, unknown> = {};
+          try {
+            payload = JSON.parse(dataLine.slice(5).trim()) as Record<string, unknown>;
+          } catch {
+            continue;
+          }
+          const seq = Number(payload.seq || 0);
+          if (seq) followSeq.current = seq;
+          if (type === "trust") {
+            setTrust(String(payload.text || ""));
+            appendLog({ seq, kind: "trust", text: String(payload.text || "") });
+          } else if (type === "progress" || type === "text") {
+            appendLog({ seq, kind: type, text: String(payload.text || "") });
+          } else if (type === "tool") {
+            appendLog({ seq, kind: "tool", text: `用了 ${String(payload.name || "工具")}` });
+          } else if (type === "file") {
+            const path = String(payload.path || "");
+            appendLog({ seq, kind: "file", text: `已写入 ${path}` });
+            const openPath = currentPathRef.current;
+            if (path === openPath) {
+              void api.readFile(id, openPath).then((file) => {
+                setContent(file.content);
+                setEtag(file.etag);
+              });
+            }
+            void refreshTree();
+          } else if (type === "error") {
+            appendLog({ seq, kind: "error", text: String(payload.message || "失败") });
+            setError(String(payload.message || "失败"));
+          } else if (type === "done") {
+            appendLog({
+              seq,
+              kind: "done",
+              text: payload.ok ? "这一轮结束。" : "这一轮没有成功结束。",
+            });
+            await refreshVersions();
+            await refreshTree();
+            const cur = await api.currentRun(id);
+            setActiveRun(cur.run);
+            const openPath = currentPathRef.current;
+            const file = await api.readFile(id, openPath);
+            setContent(file.content);
+            setEtag(file.etag);
+          }
+        }
+      }
+    },
+    [appendLog, id, refreshTree, refreshVersions]
+  );
+
+  useEffect(() => {
+    if (!activeRun || (activeRun.status !== "queued" && activeRun.status !== "running")) return;
+    const runId = activeRun.id;
+    void followRun(runId, followSeq.current).catch((e) => {
+      setError(e instanceof Error ? e.message : "进度中断，稍后会自动跟上");
+    });
+    // 只跟这一轮的 id；重连用 after=seq，不要因为回调引用变化另开一条流。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeRun?.id]);
+
+  async function saveCurrent(value?: string) {
+    const state = value ? { value, dirty: true, isPreview: false } : await molanRef.current?.getState();
+    const next = state?.value ?? content;
+    const file = await api.writeFile(id, currentPath, next, etag, cid);
+    setContent(file.content);
+    setEtag(file.etag);
+    setDirty(false);
+    molanRef.current?.markSaved();
+    await refreshVersions();
   }
 
-  async function savePrd() {
+  async function recordVersion() {
+    await api.recordVersion(id, undefined, cid);
+    molanRef.current?.exitEdit();
+    setEditing(false);
+    await api.heartbeatLock(id, cid, false).then((r) => setLock(r.lock)).catch(() => undefined);
+    await refreshVersions();
+  }
+
+  async function saveAndRecord() {
     setBusy(true);
     setError("");
+    setGate("");
     try {
-      const { prd: saved } = await api.savePrd(id, prd);
-      setPrd(saved);
-      const ver = await api.listVersions(id);
-      setUncommitted(ver.uncommitted);
-      setVersions(ver.versions);
+      const state = await molanRef.current?.getState();
+      if (state?.dirty) await saveCurrent(state.value);
+      if (uncommitted || state?.dirty) await recordVersion();
+      else {
+        molanRef.current?.exitEdit();
+        setEditing(false);
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "保存失败");
+      setError(e instanceof Error ? e.message : "没能保存一版");
     } finally {
       setBusy(false);
     }
   }
 
-  async function onChat(e: FormEvent) {
+  async function onSend(e: FormEvent) {
     e.preventDefault();
     const text = message.trim();
-    if (!text || busy) return;
-    setBusy(true);
+    if (!text || busy || aiRunning) return;
+    setGate("");
     setError("");
-    setMessage("");
-    setLog((prev) => `${prev}\n\n你：${text}\n\n助手：`);
+    const state = await molanRef.current?.getState();
+    if (state && (!state.isPreview || state.dirty || editing)) {
+      setGate("先保存一版并退出编辑，再发给 AI。");
+      return;
+    }
+    if (uncommitted) {
+      setGate("先记入版本再发给 AI。");
+      return;
+    }
+    setBusy(true);
     try {
-      const mode = tab === "document" ? "normalize" : tab === "gaps" ? "gaps" : "guide";
-      const res = await api.chat(id, { message: text, mode });
-      setLog((prev) => prev + res.reply + (res.mockMode ? "\n〔演示模式〕" : ""));
-      setPrd(res.prd);
-      setBundle(res.bundle);
+      const started = await api.startRun(id, { mode, message: text, clientId: cid });
+      setMessage("");
+      setActiveRun(started.run);
+      followSeq.current = 0;
+      appendLog({ seq: 0, kind: "you", text: text });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "对话失败");
+      setGate(err instanceof Error ? err.message : "没发出去");
     } finally {
       setBusy(false);
     }
@@ -109,12 +353,11 @@ export default function RequirementPage() {
     setBusy(true);
     setError("");
     try {
-      const res = await api.importMarkdown(id, importText, "replace");
-      setBundle(res.bundle);
-      setPrd(res.prd);
+      await api.importMarkdown(id, importText, "replace", cid);
       setImportText("");
-      setTab("gaps");
-      setLog("已导入 Markdown。请回答追问以完善文档。\n");
+      await refreshTree();
+      await openFile("PRD.md", true);
+      await refreshVersions();
     } catch (e) {
       setError(e instanceof Error ? e.message : "导入失败");
     } finally {
@@ -122,269 +365,234 @@ export default function RequirementPage() {
     }
   }
 
-  if (!bundle && !error) {
+  if (!user && !error) {
     return (
-      <main className="app-shell">
-        <p className="muted">加载需求中…</p>
+      <main className="workbench-loading">
+        <p className="muted">正在打开工程…</p>
       </main>
     );
   }
-
-  if (!bundle) {
-    return (
-      <main className="app-shell">
-        <p style={{ color: "var(--danger)" }}>{error}</p>
-        <Link className="btn" href="/">
-          返回
-        </Link>
-      </main>
-    );
-  }
-
-  const r = bundle.requirement;
 
   return (
-    <main className="app-shell" style={{ maxWidth: 1600 }}>
-      {user ? <AppHeader user={user} /> : null}
-      <header className="topbar">
+    <div className="workbench">
+      <header className="workbench-top">
         <div>
           <Link href="/" className="muted" style={{ fontSize: 13 }}>
             ← 全部工程
           </Link>
-          <div className="brand" style={{ fontSize: 22, marginTop: 4 }}>
-            {r.title}
-          </div>
-          <p className="muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-            主工程：{r.primaryRepo || "inbox"}
-            {r.relatedRepos.length ? ` · 关联 ${r.relatedRepos.length} 个仓` : ""}
+          <h1>{title || "工程"}</h1>
+          <p className="muted" style={{ margin: "4px 0 0", fontSize: 13 }}>
+            {primaryRepo ? `代码仓 ${primaryRepo.split("/").slice(-2).join("/")}` : "尚未挂代码仓"}
+            {relatedRepos.length ? ` · 另有 ${relatedRepos.length} 个只读仓` : ""}
           </p>
-          <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-            {(
-              [
-                ["guide", "引导共创"],
-                ["document", "文档"],
-                ["gaps", "追问完善"],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                className="btn"
-                style={{
-                  background: tab === key ? "var(--accent)" : undefined,
-                  color: tab === key ? "#fff" : undefined,
-                  borderColor: tab === key ? "var(--accent)" : undefined,
-                }}
-                onClick={() => void switchTab(key)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
         </div>
-        <button className="btn ghost" type="button" onClick={() => void load()}>
-          重新加载
-        </button>
+        <div className="workbench-top-meta">
+          {user ? (
+            <span className="muted" style={{ fontSize: 13 }}>
+              {user.name} · {user.roleLabel}
+            </span>
+          ) : null}
+          {uncommitted ? <span className="tag warn">未记入版本</span> : <span className="tag ok">已是最新版本</span>}
+          {aiRunning ? <span className="tag danger">AI 进行中</span> : null}
+          {youHold ? (
+            <span className="tag ok">你可以改</span>
+          ) : (
+            <span className="tag warn">{previewReason || "预览"}</span>
+          )}
+          {user?.role === "architect" && lock && !lock.youHold ? (
+            <button
+              className="btn ghost"
+              type="button"
+              onClick={() => {
+                void api.forceReleaseLock(id).then(() => bootstrap());
+              }}
+            >
+              解除编辑权
+            </button>
+          ) : null}
+          {!youHold && !lock ? (
+            <button className="btn primary" type="button" onClick={() => void bootstrap()}>
+              开始编辑
+            </button>
+          ) : null}
+        </div>
       </header>
 
-      {error && <p style={{ color: "var(--danger)" }}>{error}</p>}
+      {error ? <p className="workbench-banner danger">{error}</p> : null}
+      {gate ? <p className="workbench-banner warn">{gate}</p> : null}
 
-      <div className="project-grid">
-        <section className="panel" style={{ padding: 16 }}>
-          {tab === "document" ? (
-            <>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginBottom: 12,
-                  gap: 8,
+      <div className="workbench-body">
+        <aside className="workbench-col workbench-left">
+          <strong>文档仓</strong>
+          <ul className="file-tree">
+            {files.map((f) => (
+              <li key={f.path}>
+                <button
+                  type="button"
+                  className={f.path === currentPath ? "is-current" : ""}
+                  onClick={() => void openFile(f.path)}
+                >
+                  {f.path}
+                </button>
+              </li>
+            ))}
+          </ul>
+          <div className="field" style={{ marginTop: 16 }}>
+            <label>导入 Markdown（先保真进 PRD）</label>
+            <textarea
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              placeholder="粘贴外部文档…"
+              disabled={readOnly}
+            />
+            <button className="btn" type="button" disabled={readOnly || busy} onClick={() => void onImport()}>
+              导入
+            </button>
+          </div>
+        </aside>
+
+        <section className="workbench-col workbench-center">
+          <div className="molan-toolbar">
+            <strong>{history ? `旧版 · ${history.message}` : currentPath}</strong>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button
+                className="btn ghost"
+                type="button"
+                disabled={readOnly || busy}
+                onClick={() => {
+                  void (async () => {
+                    setBusy(true);
+                    try {
+                      const state = await molanRef.current?.getState();
+                      await saveCurrent(state?.value);
+                    } catch (e) {
+                      setError(e instanceof Error ? e.message : "保存失败");
+                    } finally {
+                      setBusy(false);
+                    }
+                  })();
                 }}
               >
-                <strong>PRD.md</strong>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {uncommitted ? (
-                    <span className="tag warn">未记入版本</span>
-                  ) : (
-                    <span className="tag ok">已是最新版本</span>
-                  )}
-                  <button
-                    className="btn ghost"
-                    type="button"
-                    onClick={() => setPreview((v) => !v)}
-                  >
-                    {preview ? "编辑" : "预览"}
-                  </button>
-                  <button
-                    className="btn primary"
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void savePrd()}
-                  >
-                    保存
-                  </button>
-                  <button
-                    className="btn"
-                    type="button"
-                    disabled={busy || !uncommitted}
-                    onClick={() => {
-                      void (async () => {
-                        setBusy(true);
-                        setError("");
-                        try {
-                          await api.recordVersion(id);
-                          await load();
-                        } catch (e) {
-                          setError(e instanceof Error ? e.message : "版本没记下");
-                        } finally {
-                          setBusy(false);
-                        }
-                      })();
-                    }}
-                  >
-                    记入版本
-                  </button>
-                </div>
-              </div>
-              {preview ? (
-                <pre
-                  style={{
-                    whiteSpace: "pre-wrap",
-                    margin: 0,
-                    lineHeight: 1.55,
-                    fontFamily: "var(--font-body)",
-                  }}
+                保存
+              </button>
+              <button
+                className="btn"
+                type="button"
+                disabled={readOnly || busy || (!uncommitted && !dirty)}
+                onClick={() => void saveAndRecord()}
+              >
+                保存一版
+              </button>
+              {history ? (
+                <button className="btn ghost" type="button" onClick={() => void openFile(currentPath, true)}>
+                  返回纸面
+                </button>
+              ) : null}
+            </div>
+          </div>
+          <div className="molan-host">
+            <MolanFrame
+              ref={molanRef}
+              fileName={currentPath}
+              content={history ? history.content : content}
+              etag={history ? history.sha : etag}
+              readOnly={readOnly}
+              onSave={(value) => {
+                void saveCurrent(value).catch((e) =>
+                  setError(e instanceof Error ? e.message : "保存失败")
+                );
+              }}
+              onDirtyChange={setDirty}
+              onEditingChange={(next) => {
+                setEditing(next);
+                if (youHold) {
+                  void api.heartbeatLock(id, cid, next).then((r) => setLock(r.lock)).catch(() => undefined);
+                }
+              }}
+            />
+          </div>
+        </section>
+
+        <aside className="workbench-col workbench-right">
+          <div className="mode-switch" role="tablist">
+            {MODES.map((m) => {
+              const locked = m.id === "feasibility" && !hasCode;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === m.id}
+                  disabled={locked}
+                  title={locked ? "还没有挂代码仓，可行性不能用。" : m.hint}
+                  onClick={() => setMode(m.id)}
                 >
-                  {history ? history.content : prd}
-                </pre>
-              ) : (
-                <textarea
-                  value={prd}
-                  onChange={(e) => setPrd(e.target.value)}
-                  style={{
-                    width: "100%",
-                    minHeight: 520,
-                    fontFamily:
-                      "ui-monospace, SFMono-Regular, Menlo, monospace",
-                    lineHeight: 1.5,
-                  }}
-                />
-              )}
-              <div style={{ marginTop: 12 }}>
+                  {m.label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="trust-bar">{trust}</p>
+          <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
+            {MODES.find((m) => m.id === mode)?.hint}
+            {mode === "feasibility" && !hasCode ? " 请让架构师先挂只读代码仓。" : ""}
+          </p>
+          <div className="run-log">
+            {log.length === 0 ? (
+              <p className="muted">把任务写在下面。关浏览器不会取消；取消请点按钮。</p>
+            ) : (
+              log.map((item, i) => (
+                <p key={`${item.seq}-${i}`} className={`log-${item.kind}`}>
+                  {item.text}
+                </p>
+              ))
+            )}
+          </div>
+          <form onSubmit={(e) => void onSend(e)} className="run-form">
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder={youHold ? "用中文托付这一轮…" : "预览中不能发给 AI"}
+              disabled={!youHold || aiRunning || busy}
+            />
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="btn primary" type="submit" disabled={!youHold || aiRunning || busy}>
+                {aiRunning ? "进行中…" : "发送"}
+              </button>
+              {aiRunning && youHold && activeRun ? (
                 <button
                   className="btn"
                   type="button"
-                  disabled={busy}
                   onClick={() => {
-                    setMessage("请帮我规整 PRD 章节，保留原意");
-                    setTab("document");
-                    void (async () => {
-                      setBusy(true);
-                      try {
-                        const res = await api.chat(id, {
-                          message: "请帮我规整 PRD 章节，保留原意",
-                          mode: "normalize",
-                        });
-                        setLog((prev) => `${prev}\n\n你：请规整章节\n\n助手：${res.reply}`);
-                        setPrd(res.prd);
-                        setBundle(res.bundle);
-                      } catch (e) {
-                        setError(e instanceof Error ? e.message : "规整失败");
-                      } finally {
-                        setBusy(false);
-                      }
-                    })();
+                    void api.cancelRun(id, activeRun.id, cid).then(() => {
+                      appendLog({ seq: Date.now(), kind: "error", text: "已请求取消。" });
+                    });
                   }}
                 >
-                  让 AI 规整章节
+                  取消这一轮
                 </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <strong>{tab === "guide" ? "引导共创" : "追问完善"}</strong>
-              <p className="muted" style={{ fontSize: 14 }}>
-                {tab === "guide"
-                  ? "每次回答后，AI 会把结论写入 PRD，并继续问 OEM 场景相关问题。"
-                  : "基于已导入/现有文档找缺口，逐轮补全。"}
-              </p>
-              <div
-                style={{
-                  minHeight: 280,
-                  maxHeight: 420,
-                  overflow: "auto",
-                  border: "1px solid var(--line)",
-                  borderRadius: 12,
-                  padding: 12,
-                  background: "#fffdf8",
-                  whiteSpace: "pre-wrap",
-                  lineHeight: 1.55,
-                  fontSize: 14,
-                  marginBottom: 12,
-                }}
-              >
-                {log.trim() ||
-                  (tab === "guide"
-                    ? "发送「开始」或描述你的功能想法。"
-                    : "说明你想优先补哪一块，或直接说「找出文档缺口」。")}
-              </div>
-              <form onSubmit={onChat} style={{ display: "grid", gap: 10 }}>
-                <textarea
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  placeholder="输入回答或想法…"
-                  disabled={busy}
-                />
-                <button className="btn primary" type="submit" disabled={busy}>
-                  {busy ? "处理中…" : "发送"}
-                </button>
-              </form>
+              ) : null}
+            </div>
+          </form>
 
-              {tab === "gaps" && (
-                <div style={{ marginTop: 20 }}>
-                  <div className="field">
-                    <label>再次导入 Markdown（替换 PRD）</label>
-                    <textarea
-                      value={importText}
-                      onChange={(e) => setImportText(e.target.value)}
-                      placeholder="粘贴外部文档…"
-                    />
-                  </div>
-                  <button
-                    className="btn"
-                    type="button"
-                    style={{ marginTop: 8 }}
-                    disabled={busy}
-                    onClick={() => void onImport()}
-                  >
-                    导入并进入追问
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </section>
-
-        <aside className="panel" style={{ padding: 16 }}>
-          <strong>版本时间线</strong>
-          <ul style={{ listStyle: "none", padding: 0, margin: "12px 0 0", display: "grid", gap: 8 }}>
-            {versions.map((v) => (
-              <li key={v.id} style={{ fontSize: 13 }}>
+          <strong style={{ display: "block", marginTop: 16 }}>版本时间线</strong>
+          <ul className="timeline">
+            {versions.map((v, idx) => (
+              <li key={v.id}>
                 <div>
                   {v.author}：{v.message}
                 </div>
                 <div className="muted" style={{ fontSize: 12 }}>
                   {v.createdAt.replace("T", " ").slice(0, 16)}
                 </div>
-                <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
                   <button
                     className="btn ghost"
                     type="button"
                     onClick={() => {
-                      void api.readVersionFile(id, v.id).then((file) => {
+                      void api.readVersionFile(id, v.id, currentPath).then((file) => {
                         setHistory({ sha: v.id, content: file.content, message: v.message });
-                        setPreview(true);
-                      });
+                      }).catch((e) => setError(e instanceof Error ? e.message : "打不开这一版"));
                     }}
                   >
                     打开
@@ -392,87 +600,77 @@ export default function RequirementPage() {
                   <button
                     className="btn ghost"
                     type="button"
+                    disabled={readOnly}
                     onClick={() => {
-                      void (async () => {
-                        setBusy(true);
-                        try {
-                          const restored = await api.restoreFile(id, v.id);
-                          setPrd(restored.content);
-                          setUncommitted(restored.uncommitted);
-                          setHistory(null);
-                        } catch (e) {
-                          setError(e instanceof Error ? e.message : "无法恢复");
-                        } finally {
-                          setBusy(false);
-                        }
-                      })();
+                      void api.restoreFile(id, v.id, currentPath, cid).then(async () => {
+                        await openFile(currentPath, true);
+                        await refreshVersions();
+                      }).catch((e) => setError(e instanceof Error ? e.message : "无法恢复"));
                     }}
                   >
                     恢复这一篇
                   </button>
+                  {idx < versions.length - 1 ? (
+                    <button
+                      className="btn ghost"
+                      type="button"
+                      onClick={() => {
+                        void Promise.all([
+                          api.readVersionFile(id, v.id, currentPath),
+                          api.readVersionFile(id, versions[idx + 1].id, currentPath),
+                        ]).then(([a, b]) => {
+                          setCompare({
+                            a: a.content,
+                            b: b.content,
+                            title: `${v.message} ↔ ${versions[idx + 1].message}`,
+                          });
+                        }).catch((e) => setError(e instanceof Error ? e.message : "对比失败"));
+                      }}
+                    >
+                      对比上一版
+                    </button>
+                  ) : null}
                 </div>
               </li>
             ))}
           </ul>
-          {history && (
-            <p className="muted" style={{ fontSize: 13, marginTop: 12 }}>
-              正在看旧版：{history.message}
-              <button
-                className="btn ghost"
-                type="button"
-                style={{ marginLeft: 8 }}
-                onClick={() => setHistory(null)}
-              >
-                返回编辑
-              </button>
-            </p>
-          )}
-
-          <strong style={{ display: "block", marginTop: 16 }}>当前 PRD 摘要视图</strong>
-          <pre
-            style={{
-              whiteSpace: "pre-wrap",
-              fontSize: 13,
-              lineHeight: 1.5,
-              maxHeight: 360,
-              overflow: "auto",
-              background: "#fffdf8",
-              border: "1px solid var(--line)",
-              borderRadius: 12,
-              padding: 12,
-            }}
-          >
-            {prd.slice(0, 2500)}
-            {prd.length > 2500 ? "\n…（完整内容见「文档」页）" : ""}
-          </pre>
-
-          <strong style={{ display: "block", marginTop: 16 }}>缺口清单</strong>
-          <pre
-            style={{
-              whiteSpace: "pre-wrap",
-              fontSize: 13,
-              lineHeight: 1.5,
-              maxHeight: 220,
-              overflow: "auto",
-              background: "#fffdf8",
-              border: "1px solid var(--line)",
-              borderRadius: 12,
-              padding: 12,
-            }}
-          >
-            {bundle.gaps}
-          </pre>
-
-          {bundle.originalImport && (
-            <>
-              <strong style={{ display: "block", marginTop: 16 }}>已备份导入原文</strong>
-              <p className="muted" style={{ fontSize: 13 }}>
-                见 vault 内 import/original.md
-              </p>
-            </>
-          )}
+          {versions[0]?.author === "AI" && youHold && !aiRunning ? (
+            <button
+              className="btn"
+              type="button"
+              style={{ marginTop: 8 }}
+              onClick={() => {
+                void api.revertLatestAi(id, cid).then(async () => {
+                  await openFile(currentPath, true);
+                  await refreshVersions();
+                }).catch((e) => setError(e instanceof Error ? e.message : "没能撤销"));
+              }}
+            >
+              撤销最新 AI 版
+            </button>
+          ) : null}
+          <p className="muted" style={{ fontSize: 12 }}>
+            整仓回到某一版 · 第一版先留位
+          </p>
         </aside>
       </div>
-    </main>
+
+      {compare ? (
+        <div className="compare-mask" onClick={() => setCompare(null)}>
+          <div className="compare-panel" onClick={(e) => e.stopPropagation()}>
+            <header>
+              <strong>{compare.title}</strong>
+              <button className="btn ghost" type="button" onClick={() => setCompare(null)}>
+                关闭
+              </button>
+            </header>
+            <div className="compare-grid">
+              <pre>{compare.a}</pre>
+              <pre>{compare.b}</pre>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }

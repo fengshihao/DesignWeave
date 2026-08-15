@@ -35,6 +35,7 @@ export async function proxyToAgent(req: NextRequest): Promise<NextResponse> {
     method: req.method,
     headers,
     redirect: "manual",
+    cache: "no-store",
   };
   if (req.method !== "GET" && req.method !== "HEAD") {
     init.body = await req.arrayBuffer();

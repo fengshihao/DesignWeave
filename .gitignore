@@ -21,3 +21,6 @@ apps/vscode-molan/out
 apps/vscode-molan/media/molan.css
 apps/vscode-molan/media/molan-editor.js
 apps/vscode-molan/media/vditor
+apps/web/public/molan/molan.css
+apps/web/public/molan/molan-editor.js
+apps/web/public/molan/vditor
