@@ -66,6 +66,6 @@ apps/vscode-molan/       VS Code / Cursor 扩展（编译时拷入上述核心�
 
 ## 后续：产品设计工作台
 
-DesignWeave 原先面向软件设计师：共创 / 细化 PRD，再衔接架构师技术方案与测试方案。相关代码仍在 `apps/web`、`apps/agent` 与 `packages/`，**当前不作为主路径**。
+给产品 / 设计用的本机服务器工作台（墨览改文档 + Claude Agent 看代码）。**已拍板的架构与第一刀**见 [`doc/09-云端迭代入口.md`](doc/09-云端迭代入口.md)；从那一篇按序读 `doc/`。
 
-待墨览的 Markdown 编辑能力稳定后，再把文档工作流接到这套编辑器上。讨论稿见 [`doc/`](doc/)。
+相关代码仍在 `apps/web`、`apps/agent` 与 `packages/`，当前 Web 只是探针，不是 UX 定稿。
