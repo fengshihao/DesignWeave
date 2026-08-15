@@ -69,10 +69,21 @@ import {
   restoreFile,
   revertLatestAiCommit,
 } from "./gitVault.js";
+import { getActiveRun, ensureRunTables } from "./workbenchRuns.js";
+import {
+  assertWritable,
+  ensureLockTable,
+  getLock,
+  publicLock,
+} from "./projectLocks.js";
+import { registerWorkbenchRoutes } from "./workbenchRoutes.js";
+import { statusOf } from "./httpError.js";
 
 fs.mkdirSync(workspacesRoot(), { recursive: true });
 getDb();
 ensureRequirementsTable();
+ensureLockTable();
+ensureRunTables();
 
 const app = express();
 app.use(
@@ -238,8 +249,13 @@ app.get("/v1/claude/projects", requireArchitect, (_req, res) => {
   res.json(scanClaudeKnownProjects());
 });
 
-app.get("/v1/requirements", (_req, res) => {
-  res.json({ requirements: listRequirements() });
+app.get("/v1/requirements", (req, res) => {
+  const requirements = listRequirements().map((r) => ({
+    ...r,
+    lock: publicLock(getLock(r.id), req.user!.id),
+    activeRun: getActiveRun(r.id),
+  }));
+  res.json({ requirements });
 });
 
 app.post("/v1/requirements", requireArchitect, (req, res) => {
@@ -290,16 +306,23 @@ app.get("/v1/requirements/:id", (req, res) => {
     res.status(404).json({ error: "需求不存在" });
     return;
   }
-  res.json(bundle);
+  const clientId =
+    typeof req.query.clientId === "string" ? req.query.clientId : undefined;
+  res.json({
+    ...bundle,
+    lock: publicLock(getLock(req.params.id), req.user!.id, clientId),
+    activeRun: getActiveRun(req.params.id),
+  });
 });
 
 app.put("/v1/requirements/:id/prd", (req, res) => {
   try {
+    assertWritable(req.params.id, req.user!, String(req.body?.clientId || "") || undefined);
     const content = String(req.body?.content ?? "");
     writePrdMarkdown(req.params.id, content);
     res.json({ prd: readPrdMarkdown(req.params.id) });
   } catch (err) {
-    res.status(404).json({
+    res.status(statusOf(err, 404)).json({
       error: err instanceof Error ? err.message : String(err),
     });
   }
@@ -307,6 +330,7 @@ app.put("/v1/requirements/:id/prd", (req, res) => {
 
 app.post("/v1/requirements/:id/import", (req, res) => {
   try {
+    assertWritable(req.params.id, req.user!, String(req.body?.clientId || "") || undefined);
     const markdown = String(req.body?.markdown || "");
     const mode = req.body?.mode === "append" ? "append" : "replace";
     const result = importMarkdownToRequirement(req.params.id, markdown, mode);
@@ -315,7 +339,7 @@ app.post("/v1/requirements/:id/import", (req, res) => {
       bundle: getRequirementBundle(req.params.id),
     });
   } catch (err) {
-    res.status(400).json({
+    res.status(statusOf(err)).json({
       error: err instanceof Error ? err.message : String(err),
     });
   }
@@ -402,6 +426,11 @@ app.get("/v1/requirements/:id/files", (req, res) => {
 
 app.put("/v1/requirements/:id/files", (req, res) => {
   try {
+    assertWritable(
+      req.params.id,
+      req.user!,
+      String(req.body?.clientId || req.query.clientId || "") || undefined
+    );
     const rel = typeof req.query.path === "string" ? req.query.path : "PRD.md";
     const content = String(req.body?.content ?? "");
     const ifMatch = req.header("if-match") || undefined;
@@ -412,8 +441,7 @@ app.put("/v1/requirements/:id/files", (req, res) => {
     res.setHeader("ETag", file.etag);
     res.json(file);
   } catch (err) {
-    const status = (err as { status?: number }).status === 409 ? 409 : 400;
-    res.status(status).json({
+    res.status(statusOf(err)).json({
       error: err instanceof Error ? err.message : "保存失败",
     });
   }
@@ -438,11 +466,16 @@ app.post("/v1/requirements/:id/versions", (req, res) => {
     res.status(404).json({ error: "工程不存在" });
     return;
   }
-  const custom = String(req.body?.message || "").trim();
-  const files = changedFiles(meta.vaultPath);
-  const message =
-    custom || `我：保存 ${files[0] ? path.basename(files[0]) : "文档"}`;
   try {
+    assertWritable(
+      req.params.id,
+      req.user,
+      String(req.body?.clientId || "") || undefined
+    );
+    const custom = String(req.body?.message || "").trim();
+    const files = changedFiles(meta.vaultPath);
+    const message =
+      custom || `我：保存 ${files[0] ? path.basename(files[0]) : "文档"}`;
     const version = commitAll(meta.vaultPath, message, {
       name: req.user.name,
       email: req.user.email,
@@ -453,7 +486,7 @@ app.post("/v1/requirements/:id/versions", (req, res) => {
     }
     res.status(201).json({ version });
   } catch (err) {
-    res.status(400).json({
+    res.status(statusOf(err)).json({
       error: err instanceof Error ? err.message : "版本没记下，请稍后再试",
     });
   }
@@ -480,16 +513,23 @@ app.post("/v1/requirements/:id/versions/:sha/restore", (req, res) => {
     res.status(404).json({ error: "工程不存在" });
     return;
   }
-  const rel = typeof req.body?.path === "string" ? req.body.path : "PRD.md";
   try {
+    assertWritable(
+      req.params.id,
+      req.user!,
+      String(req.body?.clientId || "") || undefined
+    );
+    const rel = typeof req.body?.path === "string" ? req.body.path : "PRD.md";
     restoreFile(meta.vaultPath, req.params.sha, rel);
+    const file = readDocFile(req.params.id, rel);
     res.json({
       path: rel,
-      content: readPrdMarkdown(req.params.id),
+      content: file.content,
+      etag: file.etag,
       uncommitted: isDirty(meta.vaultPath),
     });
   } catch (err) {
-    res.status(400).json({
+    res.status(statusOf(err)).json({
       error: err instanceof Error ? err.message : "无法恢复这一篇",
     });
   }
@@ -502,17 +542,24 @@ app.post("/v1/requirements/:id/versions/revert-latest-ai", (req, res) => {
     return;
   }
   try {
+    assertWritable(
+      req.params.id,
+      req.user,
+      String(req.body?.clientId || "") || undefined
+    );
     const version = revertLatestAiCommit(meta.vaultPath, {
       name: req.user.name,
       email: req.user.email,
     });
     res.json({ version, bundle: getRequirementBundle(req.params.id) });
   } catch (err) {
-    res.status(400).json({
+    res.status(statusOf(err)).json({
       error: err instanceof Error ? err.message : "这一版没能撤销，当前纸面没变。",
     });
   }
 });
+
+registerWorkbenchRoutes(app);
 
 app.get("/v1/projects", (_req, res) => {
   res.json({ projects: listProjects() });
