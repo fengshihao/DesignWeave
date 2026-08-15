@@ -5,7 +5,7 @@
 网站：https://molan.guoyoutech.cn/extension.html  
 Cursor（Open VSX）：https://open-vsx.org/extension/fengshihao/molan-markdown
 
-![墨览编辑器](media/screenshot.jpg)
+![墨览：打开即阅读，要点再编辑](media/intro.gif)
 
 安装后，点击 `.md` 文件就会进入墨览，不必先面对一屏源码。
 

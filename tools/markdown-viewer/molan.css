@@ -496,7 +496,9 @@
       .molan-find-bar.is-open,
       .molan-find-bar.is-out,
       .type-menu.is-open,
-      .type-menu.is-out {
+      .type-menu.is-out,
+      .theme-menu.is-open,
+      .theme-menu.is-out {
         animation: none;
       }
     }
@@ -537,6 +539,13 @@
 
     .prefs-link:hover {
       border-bottom-color: currentColor;
+    }
+
+    .prefs-links {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
     }
 
     .theme-switch {
@@ -883,8 +892,8 @@
       display: flex;
       flex-direction: column;
       gap: 1px;
-      margin: 0 4px 4px;
-      padding: 4px;
+      margin: 0 var(--list-inset) 4px;
+      padding: var(--list-pad);
       border-radius: 10px;
       background: color-mix(in srgb, var(--accent) 6%, transparent);
     }
@@ -970,6 +979,7 @@
       text-overflow: ellipsis;
       white-space: nowrap;
       word-break: normal;
+      font-size: 0.9rem;
       font-weight: 500;
     }
 
@@ -1005,6 +1015,8 @@
     }
 
     .file-list {
+      --list-inset: 4px;
+      --list-pad: 4px;
       flex: 1 1 auto;
       min-height: 0;
       overflow: auto;
@@ -1021,6 +1033,8 @@
     .doc-list {
       display: grid;
       grid-template-rows: 1fr;
+      margin: 0 var(--list-inset);
+      padding: 0 var(--list-pad);
       transition: grid-template-rows 0.56s var(--ease), opacity 0.44s ease;
     }
 
@@ -1036,7 +1050,7 @@
     }
 
     .file-group-title {
-      margin: 8px 8px 4px;
+      margin: 8px 0 4px;
       font-size: 0.62rem;
       letter-spacing: 0.04em;
       color: var(--sidebar-fg-mute);
@@ -1044,7 +1058,7 @@
     }
 
     .file-item {
-      width: 100%;
+      width: calc(100% - var(--ctrl) - 2px);
       text-align: left;
       background: transparent;
       border: 1px solid transparent;
@@ -1194,6 +1208,22 @@
       flex-wrap: nowrap;
       justify-content: flex-end;
       align-items: center;
+    }
+
+    .reader-actions .type-prefs {
+      margin-inline-start: 8px;
+      position: relative;
+    }
+
+    .reader-actions .type-prefs::before {
+      content: "";
+      position: absolute;
+      inset-inline-start: -6px;
+      top: 8px;
+      bottom: 8px;
+      width: 1px;
+      background: var(--hairline);
+      pointer-events: none;
     }
 
     .reader-actions .icon-btn {
@@ -1488,7 +1518,8 @@
       right: 14px;
     }
 
-    .type-prefs {
+    .type-prefs,
+    .header-prefs {
       position: relative;
       display: flex;
       flex: 0 0 auto;
@@ -1528,10 +1559,62 @@
       animation: molan-prefs-out 0.22s ease both;
     }
 
-    html[dir="rtl"] .type-menu {
+    html[dir="rtl"] .type-menu,
+    html[dir="rtl"] .theme-menu {
       right: auto;
       left: 0;
       transform-origin: 12% 0%;
+    }
+
+    .theme-menu {
+      display: none;
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      z-index: 14;
+      width: max-content;
+      padding: 12px 12px 10px;
+      border-radius: 14px;
+      background: var(--paper-lift);
+      border: 1px solid var(--hairline-strong);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+      color: var(--ink-soft);
+      transform-origin: 88% 0%;
+    }
+
+    .theme-menu.is-open,
+    .theme-menu.is-out {
+      display: block;
+    }
+
+    .theme-menu.is-open {
+      animation: molan-prefs-in 0.42s var(--ease) both;
+    }
+
+    .theme-menu.is-out {
+      animation: molan-prefs-out 0.22s ease both;
+    }
+
+    .theme-menu .type-head {
+      margin-bottom: 8px;
+    }
+
+    .theme-menu .theme-switch button {
+      width: 32px;
+      height: 32px;
+    }
+
+    .theme-menu .theme-switch button svg {
+      width: 32px;
+      height: 32px;
+    }
+
+    #headerPrefsBtn.is-on,
+    #typeBtn.is-on {
+      color: var(--accent);
+      background: var(--surface);
+      border-color: color-mix(in srgb, var(--accent) 45%, transparent);
     }
 
     .type-head {
@@ -1657,12 +1740,6 @@
     .type-reset:focus-visible {
       outline: 2px solid var(--accent-glow);
       outline-offset: 1px;
-    }
-
-    #typeBtn.is-on {
-      color: var(--accent);
-      background: var(--surface);
-      border-color: color-mix(in srgb, var(--accent) 45%, transparent);
     }
 
     .reader-body {
@@ -2221,7 +2298,9 @@
       .molan-find-bar.is-open,
       .molan-find-bar.is-out,
       .type-menu.is-open,
-      .type-menu.is-out {
+      .type-menu.is-out,
+      .theme-menu.is-open,
+      .theme-menu.is-out {
         animation: none;
       }
       .file-item,

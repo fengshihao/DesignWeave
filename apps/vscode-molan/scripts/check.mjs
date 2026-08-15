@@ -46,12 +46,21 @@ assert(js.includes("ant.js"), "ant icon script in webview");
 assert(js.includes("method.min.js"), "preview loads method.min.js");
 assert(js.includes("lute.min.js"), "preload lute in webview");
 assert(js.includes('rel="preload"'), "webview preloads lute");
+assert(js.includes("headerPrefsBtn"), "vscode header has settings button");
+assert(!js.includes('id="themeBtn"'), "vscode has no standalone theme button");
+assert(js.includes("molan-theme"), "webview restores stored theme");
 
 const viewer = join(repoRoot, "tools", "markdown-viewer");
 const html = readFileSync(join(viewer, "index.html"), "utf8");
 assert(html.includes("./molan.css"), "html links molan.css");
 assert(html.includes("./molan-editor.js"), "html loads editor core");
 assert(html.includes("./molan-app.js"), "html loads browser app");
+assert(html.includes('id="themeSwitch"'), "prefs menu has theme switch");
+assert(html.includes("prefsThemeLabel"), "theme stays in prefs menu");
+assert(!html.includes("brand-themes"), "theme is not exposed in sidebar chrome");
+assert(!html.includes('id="themeBtn"'), "web header has no standalone theme button");
+assert(html.includes("vscode:extension/fengshihao.molan-markdown"), "prefs can launch VS Code install");
+assert(html.indexOf('id="molanFindBtn"') < html.indexOf('id="copyBtn"'), "find comes before copy");
 assert(html.includes("./vendor/vditor/dist/method.min.js"), "html loads local method.min.js");
 assert(html.includes("./vendor/vditor/dist/js/lute/lute.min.js"), "html preloads local lute");
 assert(!html.includes("cdn.jsdelivr.net"), "html must not load vditor from jsdelivr");
@@ -78,11 +87,14 @@ assert(app.includes("SCAN_MAX_DEPTH"), "limits folder scan depth");
 assert(app.includes("SCAN_MAX_FILES"), "limits folder scan file count");
 assert(app.includes("pathHasSkippedDir"), "skips node_modules in folder file lists");
 assert(app.includes("isSkippedDirName"), "skips dependency directories by name");
-assert(app.includes("loadThemeFonts"), "loads theme fonts on demand");
+assert(!app.includes("loadThemeFonts"), "theme fonts live in editor core");
 
 const editorSource = readFileSync(join(viewer, "molan-editor.js"), "utf8");
 assert(editorSource.includes("initType"), "reader type controls");
+assert(editorSource.includes("initTheme"), "reader theme controls");
 assert(editorSource.includes("molan-type"), "persists type settings");
+assert(editorSource.includes("molan-theme"), "persists theme");
+assert(editorSource.includes("loadThemeFonts"), "loads theme fonts on demand");
 assert(editorSource.includes("global.MolanEditor"), "exports MolanEditor");
 assert(editorSource.includes("create("), "has create()");
 assert(editorSource.includes("setPreview"), "preview mode API");
@@ -100,7 +112,7 @@ assert(bridge.includes("value !== baseline"), "ignores Vditor setValue round-tri
 assert(bridge.includes("openRelative"), "webview opens relative markdown links");
 
 const readme = readFileSync(join(root, "README.md"), "utf8");
-assert(readme.includes("![墨览编辑器](media/screenshot.jpg)"), "store screenshot");
+assert(readme.includes("![墨览：打开即阅读，要点再编辑](media/intro.gif)"), "store intro gif");
 assert(readme.includes("默认就是**预览**") || readme.includes("默认就是预览"), "user-facing preview default");
 assert(!readme.includes("pnpm --filter"), "README must not contain packaging commands");
 assert(!readme.includes("viewType"), "README must not contain implementation jargon");

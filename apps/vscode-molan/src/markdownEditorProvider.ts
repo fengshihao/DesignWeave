@@ -285,6 +285,16 @@ export class MolanEditorProvider implements vscode.CustomEditorProvider<MolanDoc
   <meta http-equiv="Content-Security-Policy" content="${csp}" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>墨览</title>
+  <script nonce="${nonce}">
+    (function () {
+      try {
+        var t = localStorage.getItem("molan-theme");
+        if (t === "night" || t === "hack" || t === "rose" || t === "xuan") {
+          document.documentElement.setAttribute("data-theme", t);
+        }
+      } catch (e) {}
+    })();
+  </script>
   <link rel="preload" href="${vditorLuteJs}" as="script" />
   <link rel="preload" href="${vditorMethodJs}" as="script" />
   <link rel="stylesheet" href="${vditorCss}" />
@@ -299,24 +309,50 @@ export class MolanEditorProvider implements vscode.CustomEditorProvider<MolanDoc
           <h2 id="readerTitle">墨览</h2>
         </div>
         <div class="reader-actions">
-          <button class="icon-btn is-preview" id="modeBtn" type="button" title="编辑" aria-label="编辑">
-            <svg class="icon-edit" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg>
-            <svg class="icon-preview" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.8-7 9.5-7 9.5 7 9.5 7-3.8 7-9.5 7-9.5-7-9.5-7z"/><circle cx="12" cy="12" r="3"/></svg>
-          </button>
-          <button class="icon-btn" id="copyBtn" type="button" title="复制原文" aria-label="复制原文">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2"/><rect x="4" y="8" width="12" height="12" rx="2"/></svg>
-          </button>
-          <div class="type-prefs" id="typePrefs">
-            <button class="icon-btn" id="typeBtn" type="button" title="调节字号与行距" aria-label="排版" aria-expanded="false" aria-haspopup="dialog" aria-controls="typeMenu">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.6 19L8.2 5.5h1.7L14.5 19"/><path d="M5.4 13.6h7.2"/><path d="M16.4 19l2.6-8h1.1L22.6 19"/><path d="M17.5 15.6h4.1"/></svg>
-            </button>
-          </div>
           <button class="icon-btn molan-find-btn" id="molanFindBtn" type="button" title="在文档中查找" aria-label="在文档中查找">
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
               <path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
             </svg>
           </button>
+          <button class="icon-btn" id="copyBtn" type="button" title="复制原文" aria-label="复制原文">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2"/><rect x="4" y="8" width="12" height="12" rx="2"/></svg>
+          </button>
+          <button class="icon-btn is-preview" id="modeBtn" type="button" title="编辑" aria-label="编辑">
+            <svg class="icon-edit" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg>
+            <svg class="icon-preview" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.8-7 9.5-7 9.5 7 9.5 7-3.8 7-9.5 7-9.5-7-9.5-7z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+          <div class="type-prefs" id="typePrefs">
+            <button class="icon-btn" id="typeBtn" type="button" title="调节字号与行距" aria-label="排版" aria-expanded="false" aria-haspopup="dialog" aria-controls="typeMenu">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.6 19L8.2 5.5h1.7L14.5 19"/><path d="M5.4 13.6h7.2"/><path d="M16.4 19l2.6-8h1.1L22.6 19"/><path d="M17.5 15.6h4.1"/></svg>
+            </button>
+          </div>
+          <div class="header-prefs" id="headerPrefs">
+            <button class="icon-btn" id="headerPrefsBtn" type="button" title="界面配置" aria-label="界面配置" aria-expanded="false" aria-haspopup="dialog" aria-controls="headerPrefsMenu">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M4 7.5h16M4 16.5h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                <circle cx="9" cy="7.5" r="2.1" fill="currentColor"/>
+                <circle cx="15" cy="16.5" r="2.1" fill="currentColor"/>
+              </svg>
+            </button>
+            <div class="theme-menu" id="headerPrefsMenu" hidden role="dialog" aria-label="界面配置">
+              <div class="type-head">纸面</div>
+              <div class="theme-switch" id="themeSwitch" role="radiogroup" aria-label="界面样式">
+                <button type="button" role="radio" data-theme="xuan" title="宣纸 · 暖色纸面" aria-label="宣纸" aria-checked="false">
+                  <svg viewBox="0 0 32 32" aria-hidden="true"><circle class="theme-ring" cx="16" cy="16" r="14.25"/><circle class="theme-fill" cx="16" cy="16" r="10"/></svg>
+                </button>
+                <button type="button" role="radio" data-theme="night" title="墨夜 · 暗色夜读" aria-label="墨夜" aria-checked="true">
+                  <svg viewBox="0 0 32 32" aria-hidden="true"><circle class="theme-ring" cx="16" cy="16" r="14.25"/><circle class="theme-fill" cx="16" cy="16" r="10"/></svg>
+                </button>
+                <button type="button" role="radio" data-theme="hack" title="终端 · 程序员" aria-label="终端" aria-checked="false">
+                  <svg viewBox="0 0 32 32" aria-hidden="true"><circle class="theme-ring" cx="16" cy="16" r="14.25"/><circle class="theme-fill" cx="16" cy="16" r="10"/></svg>
+                </button>
+                <button type="button" role="radio" data-theme="rose" title="胭脂 · 柔粉纸面" aria-label="胭脂" aria-checked="false">
+                  <svg viewBox="0 0 32 32" aria-hidden="true"><circle class="theme-ring" cx="16" cy="16" r="14.25"/><circle class="theme-fill" cx="16" cy="16" r="10"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </header>
       <div class="reader-body">
