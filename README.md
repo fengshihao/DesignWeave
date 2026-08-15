@@ -52,6 +52,7 @@ pnpm molan:stop
 pnpm vscode:molan             # 编译
 pnpm vscode:molan:package     # 生成 .vsix
 pnpm vscode:molan:install     # 打包并安装到本机 Cursor / VS Code
+pnpm molan:publish            # 腾讯云 + Open VSX；打开 VS Code 商店管理页
 ```
 
 仓库根目录按 `F5`（「运行墨览扩展」）。开发说明见 [`apps/vscode-molan/DEV.md`](apps/vscode-molan/DEV.md)。

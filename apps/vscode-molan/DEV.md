@@ -18,6 +18,7 @@ pnpm vscode:molan
 ```bash
 pnpm vscode:molan:package   # 生成 .vsix
 pnpm vscode:molan:install   # 打包后装到本机 Cursor / VS Code
+pnpm molan:publish          # 网站 + Open VSX；打开 VS Code 商店管理页
 ```
 
 `.vsix` 落在 `apps/vscode-molan/`。也可手动安装：
@@ -36,6 +37,10 @@ cursor --install-extension apps/vscode-molan/molan-markdown-0.1.6.vsix
 - 打开默认预览：先加载 `method.min.js` + 预载 Lute；点「编辑」再加载完整 `index.min.js`
 - 撤销由 Vditor 处理；VS Code 负责脏状态、保存、热退出备份
 - 打开默认预览；点「编辑」再改。`setValue`/`getValue` 往返不标脏，只有真正编辑才询问保存
+
+## 待做
+
+- **输入 `/` 弹出插入菜单**（类 Notion / BlockNote）。Vditor 没有内置 slash 菜单，可用 `hint.extend`（`key: "/"`）做自动补全列表，选中后用 `value` 替换 `/…`。实现时：只在行首触发（避免 `https://` 误弹）、`delay` 调低、`value` 不要以 `/` 开头。入口在 `tools/markdown-viewer/molan-editor.js` 的 `hint` 配置。
 
 填表与发布见 `MARKETPLACE.md`。
 

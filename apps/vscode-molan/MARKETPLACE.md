@@ -35,7 +35,17 @@
 
 商店 README 里的截图**不会**从 vsix 里读，而是去拉 GitHub 上的公开 HTTPS 地址。本扩展在仓库子目录，打包时必须带 `--baseImagesUrl .../apps/vscode-molan`（已写进 `package.json` 脚本）。仓库需为 Public，商店才能显示截图。
 
-## 发布命令
+## 发布
+
+日常发版用仓库根目录：
+
+```bash
+pnpm molan:publish
+```
+
+会打包 `.vsix`、同步腾讯云网站、发到 Open VSX（Cursor），并打开 [VS Code Marketplace 管理页](https://marketplace.visualstudio.com/manage/publishers/fengshihao) 让你人工上传。需要本机已设置 `OVSX_PAT`。
+
+## 发布命令（手工）
 
 1. 打开 https://marketplace.visualstudio.com/manage ，Publisher ID 为 `fengshihao`。
 2. 在 Azure DevOps 建 PAT：Organization 选 **All accessible organizations**，Scope 选 **Marketplace → Manage**。

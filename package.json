@@ -16,7 +16,8 @@
     "typecheck": "pnpm -r typecheck",
     "vscode:molan": "bash scripts/vscode-molan.sh",
     "vscode:molan:package": "bash scripts/vscode-molan.sh package",
-    "vscode:molan:install": "bash scripts/vscode-molan.sh install"
+    "vscode:molan:install": "bash scripts/vscode-molan.sh install",
+    "molan:publish": "bash scripts/molan-publish.sh"
   },
   "engines": {
     "node": ">=20"
