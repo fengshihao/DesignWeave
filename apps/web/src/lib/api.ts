@@ -212,8 +212,23 @@ export const api = {
     request<{
       path: string;
       parent: string | null;
+      home: string;
       entries: Array<{ name: string; path: string; isDir: boolean }>;
     }>(`/v1/fs/browse${dir ? `?path=${encodeURIComponent(dir)}` : ""}`),
+
+  mkdirFs: (parent: string, name: string) =>
+    request<{
+      path: string;
+      listing: {
+        path: string;
+        parent: string | null;
+        home: string;
+        entries: Array<{ name: string; path: string; isDir: boolean }>;
+      };
+    }>("/v1/fs/mkdir", {
+      method: "POST",
+      body: JSON.stringify({ parent, name }),
+    }),
 
   listVersions: (id: string) =>
     request<{

@@ -58,7 +58,7 @@ import {
   importMarkdownToRequirement,
 } from "./requirements.js";
 import { runRequirementChat } from "./requirementChat.js";
-import { browseDir } from "./fsBrowse.js";
+import { browseDir, mkdirUnder } from "./fsBrowse.js";
 import { listDocTree, readDocFile, writeDocFile } from "./files.js";
 import {
   changedFiles,
@@ -397,6 +397,23 @@ app.get("/v1/fs/browse", requireArchitect, (req, res) => {
   } catch (err) {
     res.status(400).json({
       error: err instanceof Error ? err.message : "无法浏览目录",
+    });
+  }
+});
+
+app.post("/v1/fs/mkdir", requireArchitect, (req, res) => {
+  try {
+    const parent = String(req.body?.parent || "").trim();
+    const name = String(req.body?.name || "").trim();
+    if (!parent || !name) {
+      res.status(400).json({ error: "请提供当前目录和新文件夹名字" });
+      return;
+    }
+    const created = mkdirUnder(parent, name);
+    res.status(201).json({ ...created, listing: browseDir(parent) });
+  } catch (err) {
+    res.status(statusOf(err)).json({
+      error: err instanceof Error ? err.message : "没法新建这个文件夹",
     });
   }
 });
