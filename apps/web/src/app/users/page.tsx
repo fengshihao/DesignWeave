@@ -15,6 +15,13 @@ export default function UsersPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [created, setCreated] = useState<{
+    name: string;
+    email: string;
+    password: string;
+    origin: string;
+  } | null>(null);
+  const [copied, setCopied] = useState(false);
 
   async function load() {
     setError("");
@@ -42,6 +49,13 @@ export default function UsersPage() {
     setError("");
     try {
       await api.createUser({ name, email, password });
+      setCreated({
+        name,
+        email,
+        password,
+        origin: window.location.origin,
+      });
+      setCopied(false);
       setName("");
       setEmail("");
       setPassword("");
@@ -108,6 +122,26 @@ export default function UsersPage() {
             {busy ? "创建中…" : "创建账号"}
           </button>
         </form>
+        {created ? (
+          <div className="created-block">
+            <strong>交给对方这一段</strong>
+            <pre>{`工作台：${created.origin}
+姓名：${created.name}
+邮箱：${created.email}
+密码：${created.password}`}</pre>
+            <button
+              className="btn"
+              type="button"
+              style={{ marginTop: 10 }}
+              onClick={() => {
+                const text = `工作台：${created.origin}\n姓名：${created.name}\n邮箱：${created.email}\n密码：${created.password}`;
+                void navigator.clipboard.writeText(text).then(() => setCopied(true));
+              }}
+            >
+              {copied ? "已复制" : "复制"}
+            </button>
+          </div>
+        ) : null}
       </section>
 
       <section className="panel" style={{ padding: 24, marginTop: 20 }}>

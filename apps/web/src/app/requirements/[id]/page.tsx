@@ -11,12 +11,19 @@ import {
   type WorkbenchRun,
 } from "@/lib/api";
 import { MolanFrame, type MolanHandle } from "@/components/MolanFrame";
-
-const MODES: Array<{ id: WorkbenchMode; label: string; hint: string }> = [
-  { id: "coauthor", label: "共创", hint: "把想法写进 PRD，每次只问几件关键的事。" },
-  { id: "grill", label: "拷问", hint: "找矛盾、缺口、拍不板的假设，写进缺口清单。" },
-  { id: "feasibility", label: "可行性", hint: "只读代码仓，把结论写进调研.md。" },
-];
+import { EntrustLayer, type LogItem } from "@/components/EntrustLayer";
+import { VersionDrawer } from "@/components/VersionDrawer";
+import { DocTree } from "@/components/DocTree";
+import {
+  lastEntrustSize,
+  lastEntrustWidth,
+  lastFile,
+  rememberEntrustSize,
+  rememberEntrustWidth,
+  rememberFile,
+  rememberProject,
+  type EntrustSize,
+} from "@/lib/remember";
 
 function clientId(): string {
   const key = "dw-workbench-client";
@@ -30,8 +37,6 @@ function clientId(): string {
     return "anonymous";
   }
 }
-
-type LogItem = { seq: number; kind: string; text: string };
 
 export default function WorkbenchPage() {
   const params = useParams<{ id: string }>();
@@ -71,6 +76,11 @@ export default function WorkbenchPage() {
   const [compare, setCompare] = useState<{ a: string; b: string; title: string } | null>(null);
   const [importText, setImportText] = useState("");
   const [gate, setGate] = useState("");
+  const [showVersions, setShowVersions] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [entrustSize, setEntrustSize] = useState<EntrustSize>("collapsed");
+  const [entrustWidth, setEntrustWidth] = useState(420);
 
   activeRunRef.current = activeRun;
   editingRef.current = editing;
@@ -82,6 +92,16 @@ export default function WorkbenchPage() {
   const readOnly = !youHold || aiRunning || Boolean(history);
   const hasCode = Boolean(primaryRepo || relatedRepos.length);
 
+  function changeEntrustSize(next: EntrustSize) {
+    setEntrustSize(next);
+    rememberEntrustSize(id, next);
+  }
+
+  function changeEntrustWidth(next: number) {
+    setEntrustWidth(next);
+    rememberEntrustWidth(id, next);
+  }
+
   const refreshVersions = useCallback(async () => {
     const ver = await api.listVersions(id);
     setVersions(ver.versions);
@@ -90,7 +110,7 @@ export default function WorkbenchPage() {
 
   const refreshTree = useCallback(async () => {
     const tree = await api.listFiles(id);
-    setFiles(tree.files.filter((f) => !f.isDir));
+    setFiles(tree.files);
   }, [id]);
 
   const openFile = useCallback(
@@ -108,6 +128,7 @@ export default function WorkbenchPage() {
       setEtag(file.etag);
       setDirty(false);
       setHistory(null);
+      rememberFile(id, file.path);
     },
     [dirty, id, readOnly]
   );
@@ -125,12 +146,18 @@ export default function WorkbenchPage() {
     const claimed = await api.claimLock(id, cid);
     setLock(claimed.lock);
     setPreviewReason(claimed.previewReason || "");
+    rememberProject(id);
     const tree = await api.listFiles(id);
-    setFiles(tree.files.filter((f) => !f.isDir));
+    setFiles(tree.files);
     const ver = await api.listVersions(id);
     setVersions(ver.versions);
     setUncommitted(ver.uncommitted);
-    const file = await api.readFile(id, "PRD.md");
+    const remembered = lastFile(id);
+    const startPath =
+      remembered && tree.files.some((f) => f.path === remembered && !f.isDir)
+        ? remembered
+        : "PRD.md";
+    const file = await api.readFile(id, startPath);
     setCurrentPath(file.path);
     setContent(file.content);
     setEtag(file.etag);
@@ -138,6 +165,14 @@ export default function WorkbenchPage() {
     setHistory(null);
     if (data.activeRun && (data.activeRun.status === "queued" || data.activeRun.status === "running")) {
       followSeq.current = 0;
+    }
+    const savedSize = lastEntrustSize(id);
+    const savedWidth = lastEntrustWidth(id);
+    if (savedWidth) setEntrustWidth(savedWidth);
+    if (!claimed.lock?.youHold) {
+      setEntrustSize(savedSize || "half");
+    } else if (savedSize) {
+      setEntrustSize(savedSize);
     }
   }, [cid, id]);
 
@@ -341,6 +376,7 @@ export default function WorkbenchPage() {
       setActiveRun(started.run);
       followSeq.current = 0;
       appendLog({ seq: 0, kind: "you", text: text });
+      if (entrustSize === "collapsed") changeEntrustSize("half");
     } catch (err) {
       setGate(err instanceof Error ? err.message : "没发出去");
     } finally {
@@ -365,6 +401,24 @@ export default function WorkbenchPage() {
     }
   }
 
+  useEffect(() => {
+    if (editing) {
+      setEntrustSize("collapsed");
+      rememberEntrustSize(id, "collapsed");
+    }
+  }, [editing, id]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "s" || e.key === "S")) {
+        e.preventDefault();
+        if (!readOnly && !busy) void saveAndRecord();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
   if (!user && !error) {
     return (
       <main className="workbench-loading">
@@ -382,7 +436,11 @@ export default function WorkbenchPage() {
           </Link>
           <h1>{title || "工程"}</h1>
           <p className="muted" style={{ margin: "4px 0 0", fontSize: 13 }}>
-            {primaryRepo ? `代码仓 ${primaryRepo.split("/").slice(-2).join("/")}` : "尚未挂代码仓"}
+            {primaryRepo
+              ? user?.role === "architect"
+                ? `代码仓 ${primaryRepo.split("/").slice(-2).join("/")}`
+                : "已挂代码仓"
+              : "尚未挂代码仓"}
             {relatedRepos.length ? ` · 另有 ${relatedRepos.length} 个只读仓` : ""}
           </p>
         </div>
@@ -399,6 +457,16 @@ export default function WorkbenchPage() {
           ) : (
             <span className="tag warn">{previewReason || "预览"}</span>
           )}
+          <button className="btn ghost" type="button" onClick={() => setShowVersions(true)}>
+            版本
+          </button>
+          <button
+            className="btn ghost"
+            type="button"
+            onClick={() => changeEntrustSize(entrustSize === "collapsed" ? "half" : "collapsed")}
+          >
+            {entrustSize === "collapsed" ? "展开 AI" : "收起 AI"}
+          </button>
           {user?.role === "architect" && lock && !lock.youHold ? (
             <button
               className="btn ghost"
@@ -419,36 +487,29 @@ export default function WorkbenchPage() {
       </header>
 
       {error ? <p className="workbench-banner danger">{error}</p> : null}
-      {gate ? <p className="workbench-banner warn">{gate}</p> : null}
 
-      <div className="workbench-body">
-        <aside className="workbench-col workbench-left">
-          <strong>文档仓</strong>
-          <ul className="file-tree">
-            {files.map((f) => (
-              <li key={f.path}>
-                <button
-                  type="button"
-                  className={f.path === currentPath ? "is-current" : ""}
-                  onClick={() => void openFile(f.path)}
-                >
-                  {f.path}
-                </button>
-              </li>
-            ))}
-          </ul>
-          <div className="field" style={{ marginTop: 16 }}>
-            <label>导入 Markdown（先保真进 PRD）</label>
-            <textarea
-              value={importText}
-              onChange={(e) => setImportText(e.target.value)}
-              placeholder="粘贴外部文档…"
-              disabled={readOnly}
-            />
-            <button className="btn" type="button" disabled={readOnly || busy} onClick={() => void onImport()}>
-              导入
+      <div className={`workbench-body${leftCollapsed ? " is-left-collapsed" : ""}`}>
+        <aside className={`workbench-col workbench-left${leftCollapsed ? " is-collapsed" : ""}`}>
+          {leftCollapsed ? (
+            <button className="left-rail" type="button" onClick={() => setLeftCollapsed(false)}>
+              文档仓
             </button>
-          </div>
+          ) : (
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <strong>文档仓</strong>
+                <button className="btn ghost" type="button" onClick={() => setLeftCollapsed(true)}>
+                  收起
+                </button>
+              </div>
+              <DocTree
+                files={files}
+                currentPath={currentPath}
+                onOpen={(path) => void openFile(path)}
+                onImport={() => setShowImport(true)}
+              />
+            </>
+          )}
         </aside>
 
         <section className="workbench-col workbench-center">
@@ -490,169 +551,54 @@ export default function WorkbenchPage() {
               ) : null}
             </div>
           </div>
-          <div className="molan-host">
-            <MolanFrame
-              ref={molanRef}
-              fileName={currentPath}
-              content={history ? history.content : content}
-              etag={history ? history.sha : etag}
-              readOnly={readOnly}
-              onSave={(value) => {
-                void saveCurrent(value).catch((e) =>
-                  setError(e instanceof Error ? e.message : "保存失败")
-                );
+          <div className={`molan-stage${entrustSize === "collapsed" ? " has-collapsed-entrust" : ""}`}>
+            <div className="molan-host">
+              <MolanFrame
+                ref={molanRef}
+                fileName={currentPath}
+                content={history ? history.content : content}
+                etag={history ? history.sha : etag}
+                readOnly={readOnly}
+                onSave={(value) => {
+                  void saveCurrent(value).catch((e) =>
+                    setError(e instanceof Error ? e.message : "保存失败")
+                  );
+                }}
+                onDirtyChange={setDirty}
+                onEditingChange={(next) => {
+                  setEditing(next);
+                  if (youHold) {
+                    void api.heartbeatLock(id, cid, next).then((r) => setLock(r.lock)).catch(() => undefined);
+                  }
+                }}
+              />
+            </div>
+            <EntrustLayer
+              size={entrustSize}
+              width={entrustWidth}
+              onSizeChange={changeEntrustSize}
+              onWidthChange={changeEntrustWidth}
+              mode={mode}
+              onModeChange={setMode}
+              hasCode={hasCode}
+              trust={trust}
+              log={log}
+              message={message}
+              onMessageChange={setMessage}
+              onSend={(e) => void onSend(e)}
+              onCancel={() => {
+                if (!activeRun) return;
+                void api.cancelRun(id, activeRun.id, cid).then(() => {
+                  appendLog({ seq: Date.now(), kind: "error", text: "已请求取消。" });
+                });
               }}
-              onDirtyChange={setDirty}
-              onEditingChange={(next) => {
-                setEditing(next);
-                if (youHold) {
-                  void api.heartbeatLock(id, cid, next).then((r) => setLock(r.lock)).catch(() => undefined);
-                }
-              }}
+              youHold={youHold}
+              aiRunning={aiRunning}
+              busy={busy}
+              activeRun={activeRun}
             />
           </div>
         </section>
-
-        <aside className="workbench-col workbench-right">
-          <div className="mode-switch" role="tablist">
-            {MODES.map((m) => {
-              const locked = m.id === "feasibility" && !hasCode;
-              return (
-                <button
-                  key={m.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={mode === m.id}
-                  disabled={locked}
-                  title={locked ? "还没有挂代码仓，可行性不能用。" : m.hint}
-                  onClick={() => setMode(m.id)}
-                >
-                  {m.label}
-                </button>
-              );
-            })}
-          </div>
-          <p className="trust-bar">{trust}</p>
-          <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
-            {MODES.find((m) => m.id === mode)?.hint}
-            {mode === "feasibility" && !hasCode ? " 请让架构师先挂只读代码仓。" : ""}
-          </p>
-          <div className="run-log">
-            {log.length === 0 ? (
-              <p className="muted">把任务写在下面。关浏览器不会取消；取消请点按钮。</p>
-            ) : (
-              log.map((item, i) => (
-                <p key={`${item.seq}-${i}`} className={`log-${item.kind}`}>
-                  {item.text}
-                </p>
-              ))
-            )}
-          </div>
-          <form onSubmit={(e) => void onSend(e)} className="run-form">
-            <textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder={youHold ? "用中文托付这一轮…" : "预览中不能发给 AI"}
-              disabled={!youHold || aiRunning || busy}
-            />
-            <div style={{ display: "flex", gap: 8 }}>
-              <button className="btn primary" type="submit" disabled={!youHold || aiRunning || busy}>
-                {aiRunning ? "进行中…" : "发送"}
-              </button>
-              {aiRunning && youHold && activeRun ? (
-                <button
-                  className="btn"
-                  type="button"
-                  onClick={() => {
-                    void api.cancelRun(id, activeRun.id, cid).then(() => {
-                      appendLog({ seq: Date.now(), kind: "error", text: "已请求取消。" });
-                    });
-                  }}
-                >
-                  取消这一轮
-                </button>
-              ) : null}
-            </div>
-          </form>
-
-          <strong style={{ display: "block", marginTop: 16 }}>版本时间线</strong>
-          <ul className="timeline">
-            {versions.map((v, idx) => (
-              <li key={v.id}>
-                <div>
-                  {v.author}：{v.message}
-                </div>
-                <div className="muted" style={{ fontSize: 12 }}>
-                  {v.createdAt.replace("T", " ").slice(0, 16)}
-                </div>
-                <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
-                  <button
-                    className="btn ghost"
-                    type="button"
-                    onClick={() => {
-                      void api.readVersionFile(id, v.id, currentPath).then((file) => {
-                        setHistory({ sha: v.id, content: file.content, message: v.message });
-                      }).catch((e) => setError(e instanceof Error ? e.message : "打不开这一版"));
-                    }}
-                  >
-                    打开
-                  </button>
-                  <button
-                    className="btn ghost"
-                    type="button"
-                    disabled={readOnly}
-                    onClick={() => {
-                      void api.restoreFile(id, v.id, currentPath, cid).then(async () => {
-                        await openFile(currentPath, true);
-                        await refreshVersions();
-                      }).catch((e) => setError(e instanceof Error ? e.message : "无法恢复"));
-                    }}
-                  >
-                    恢复这一篇
-                  </button>
-                  {idx < versions.length - 1 ? (
-                    <button
-                      className="btn ghost"
-                      type="button"
-                      onClick={() => {
-                        void Promise.all([
-                          api.readVersionFile(id, v.id, currentPath),
-                          api.readVersionFile(id, versions[idx + 1].id, currentPath),
-                        ]).then(([a, b]) => {
-                          setCompare({
-                            a: a.content,
-                            b: b.content,
-                            title: `${v.message} ↔ ${versions[idx + 1].message}`,
-                          });
-                        }).catch((e) => setError(e instanceof Error ? e.message : "对比失败"));
-                      }}
-                    >
-                      对比上一版
-                    </button>
-                  ) : null}
-                </div>
-              </li>
-            ))}
-          </ul>
-          {versions[0]?.author === "AI" && youHold && !aiRunning ? (
-            <button
-              className="btn"
-              type="button"
-              style={{ marginTop: 8 }}
-              onClick={() => {
-                void api.revertLatestAi(id, cid).then(async () => {
-                  await openFile(currentPath, true);
-                  await refreshVersions();
-                }).catch((e) => setError(e instanceof Error ? e.message : "没能撤销"));
-              }}
-            >
-              撤销最新 AI 版
-            </button>
-          ) : null}
-          <p className="muted" style={{ fontSize: 12 }}>
-            整仓回到某一版 · 第一版先留位
-          </p>
-        </aside>
       </div>
 
       {compare ? (
@@ -667,6 +613,105 @@ export default function WorkbenchPage() {
             <div className="compare-grid">
               <pre>{compare.a}</pre>
               <pre>{compare.b}</pre>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <VersionDrawer
+        open={showVersions}
+        versions={versions}
+        readOnly={readOnly}
+        canRevertAi={versions[0]?.author === "AI" && youHold && !aiRunning}
+        onClose={() => setShowVersions(false)}
+        onOpen={(sha, message) => {
+          void api.readVersionFile(id, sha, currentPath).then((file) => {
+            setHistory({ sha, content: file.content, message });
+            setShowVersions(false);
+          }).catch((e) => setError(e instanceof Error ? e.message : "打不开这一版"));
+        }}
+        onRestore={(sha) => {
+          void api.restoreFile(id, sha, currentPath, cid).then(async () => {
+            await openFile(currentPath, true);
+            await refreshVersions();
+            setShowVersions(false);
+          }).catch((e) => setError(e instanceof Error ? e.message : "无法恢复"));
+        }}
+        onCompare={(newer, older) => {
+          void Promise.all([
+            api.readVersionFile(id, newer.id, currentPath),
+            api.readVersionFile(id, older.id, currentPath),
+          ]).then(([a, b]) => {
+            setCompare({
+              a: a.content,
+              b: b.content,
+              title: `${newer.message} ↔ ${older.message}`,
+            });
+            setShowVersions(false);
+          }).catch((e) => setError(e instanceof Error ? e.message : "对比失败"));
+        }}
+        onRevertAi={() => {
+          void api.revertLatestAi(id, cid).then(async () => {
+            await openFile(currentPath, true);
+            await refreshVersions();
+            setShowVersions(false);
+          }).catch((e) => setError(e instanceof Error ? e.message : "没能撤销"));
+        }}
+      />
+
+      {gate ? (
+        <div className="gate-mask" onClick={() => setGate("")}>
+          <div className="gate-panel" onClick={(e) => e.stopPropagation()}>
+            <p>{gate}</p>
+            <div className="gate-actions">
+              <button
+                className="btn primary"
+                type="button"
+                disabled={busy || readOnly}
+                onClick={() => void saveAndRecord()}
+              >
+                保存一版
+              </button>
+              <button className="btn ghost" type="button" onClick={() => setGate("")}>
+                先不发
+              </button>
+            </div>
+            <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>
+              「保存一版」只记入并退出编辑，不会把输入框里那句话发出去。
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {showImport ? (
+        <div className="import-mask" onClick={() => setShowImport(false)}>
+          <div className="import-panel" onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ marginTop: 0, fontFamily: "var(--font-display)", fontWeight: 500 }}>
+              导入 Markdown
+            </h2>
+            <p className="muted">先保真写进 PRD.md。</p>
+            <div className="field">
+              <textarea
+                value={importText}
+                onChange={(e) => setImportText(e.target.value)}
+                placeholder="粘贴外部文档…"
+                disabled={readOnly}
+              />
+            </div>
+            <div className="gate-actions">
+              <button
+                className="btn primary"
+                type="button"
+                disabled={readOnly || busy || !importText.trim()}
+                onClick={() => {
+                  void onImport().then(() => setShowImport(false));
+                }}
+              >
+                导入
+              </button>
+              <button className="btn ghost" type="button" onClick={() => setShowImport(false)}>
+                取消
+              </button>
             </div>
           </div>
         </div>
