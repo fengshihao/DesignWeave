@@ -305,7 +305,6 @@ export class MolanEditorProvider implements vscode.CustomEditorProvider<MolanDoc
     <main class="main">
       <header class="reader-header">
         <div class="reader-title">
-          <div class="eyebrow" id="readerEyebrow">准备就绪</div>
           <h2 id="readerTitle">墨览</h2>
         </div>
         <div class="reader-actions">

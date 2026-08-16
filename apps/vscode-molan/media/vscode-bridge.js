@@ -8,7 +8,6 @@
   const countWords = (text) => window.MolanEditor.countWords(text);
 
   const readerTitle = document.getElementById("readerTitle");
-  const readerEyebrow = document.getElementById("readerEyebrow");
   const statusLeft = document.getElementById("statusLeft");
   const statusRight = document.getElementById("statusRight");
   const copyBtn = document.getElementById("copyBtn");
@@ -27,11 +26,9 @@
       readerTitle.textContent = fileName.replace(/\.(md|markdown|mdx|mdown)$/i, "");
     }
     if (typeof isDirty === "boolean") dirty = isDirty;
-    readerEyebrow.classList.toggle("dirty", dirty);
-    readerEyebrow.textContent = dirty ? "未保存" : "已同步";
     statusLeft.textContent = currentFileName || "墨览";
     const text = value ?? (editorApi ? editorApi.getValue() : "");
-    statusRight.textContent = `${countWords(text)} 字 · ${dirty ? "未保存" : "已同步"}`;
+    statusRight.textContent = `${countWords(text)} 字`;
     syncModeButton();
   }
 
