@@ -48,6 +48,7 @@ import {
 } from "./claudeRuntime.js";
 import {
   createRequirement,
+  deleteRequirement,
   ensureRequirementsTable,
   getRequirement,
   getRequirementBundle,
@@ -69,10 +70,11 @@ import {
   restoreFile,
   revertLatestAiCommit,
 } from "./gitVault.js";
-import { getActiveRun, ensureRunTables } from "./workbenchRuns.js";
+import { getActiveRun, ensureRunTables, deleteRunsForProject } from "./workbenchRuns.js";
 import {
   assertWritable,
   ensureLockTable,
+  forceReleaseLock,
   getLock,
   publicLock,
 } from "./projectLocks.js";
@@ -293,6 +295,24 @@ app.post("/v1/requirements", requireArchitect, (req, res) => {
       requirement,
       bundle: getRequirementBundle(requirement.id),
     });
+  } catch (err) {
+    res.status(400).json({
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+app.delete("/v1/requirements/:id", requireArchitect, (req, res) => {
+  try {
+    const id = req.params.id;
+    if (!getRequirement(id)) {
+      res.status(404).json({ error: "工程不存在" });
+      return;
+    }
+    deleteRunsForProject(id);
+    forceReleaseLock(id);
+    const requirement = deleteRequirement(id);
+    res.json({ ok: true, requirement });
   } catch (err) {
     res.status(400).json({
       error: err instanceof Error ? err.message : String(err),

@@ -381,6 +381,24 @@ function touchRequirement(id: string): void {
   }
 }
 
+function isManagedVault(vaultPath: string): boolean {
+  const resolved = path.resolve(vaultPath);
+  const inbox = path.resolve(inboxRoot());
+  if (resolved === inbox || resolved.startsWith(inbox + path.sep)) return true;
+  const marker = `${path.sep}.designweave${path.sep}requirements${path.sep}`;
+  return resolved.includes(marker);
+}
+
+export function deleteRequirement(id: string): RequirementMeta {
+  const meta = getRequirement(id);
+  if (!meta) throw new Error("工程不存在");
+  getDb().prepare(`DELETE FROM requirements WHERE id = ?`).run(id);
+  if (isManagedVault(meta.vaultPath) && fs.existsSync(meta.vaultPath)) {
+    fs.rmSync(meta.vaultPath, { recursive: true, force: true });
+  }
+  return meta;
+}
+
 export function importMarkdownToRequirement(
   id: string,
   markdown: string,

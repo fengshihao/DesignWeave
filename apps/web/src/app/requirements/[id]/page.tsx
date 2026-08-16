@@ -38,6 +38,11 @@ function clientId(): string {
   }
 }
 
+function repoLeaf(path: string) {
+  const segs = path.split("/").filter(Boolean);
+  return segs[segs.length - 1] || path;
+}
+
 export default function WorkbenchPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
@@ -81,6 +86,7 @@ export default function WorkbenchPage() {
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [entrustSize, setEntrustSize] = useState<EntrustSize>("collapsed");
   const [entrustWidth, setEntrustWidth] = useState(420);
+  const [toast, setToast] = useState("");
 
   activeRunRef.current = activeRun;
   editingRef.current = editing;
@@ -91,6 +97,22 @@ export default function WorkbenchPage() {
   );
   const readOnly = !youHold || aiRunning || Boolean(history);
   const hasCode = Boolean(primaryRepo || relatedRepos.length);
+  const codeRepos = [
+    ...(primaryRepo
+      ? [{ path: primaryRepo, note: "主仓 · AI 只读，不改业务代码" }]
+      : []),
+    ...relatedRepos.map((path) => ({
+      path,
+      note: "关联仓 · AI 只读，不改业务代码",
+    })),
+  ];
+  const editBlockedReason = history
+    ? "这是旧版，返回纸面后再改。"
+    : aiRunning
+      ? "AI 进行中，暂时不能改。"
+      : youHold
+        ? ""
+        : previewReason || "现在是预览，不能编辑。";
 
   function changeEntrustSize(next: EntrustSize) {
     setEntrustSize(next);
@@ -419,6 +441,12 @@ export default function WorkbenchPage() {
     return () => window.removeEventListener("keydown", onKey);
   });
 
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(""), 2800);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
   if (!user && !error) {
     return (
       <main className="workbench-loading">
@@ -429,128 +457,112 @@ export default function WorkbenchPage() {
 
   return (
     <div className="workbench">
-      <header className="workbench-top">
-        <div>
-          <Link href="/" className="muted" style={{ fontSize: 13 }}>
-            ← 全部工程
-          </Link>
-          <h1>{title || "工程"}</h1>
-          <p className="muted" style={{ margin: "4px 0 0", fontSize: 13 }}>
-            {primaryRepo
-              ? user?.role === "architect"
-                ? `代码仓 ${primaryRepo.split("/").slice(-2).join("/")}`
-                : "已挂代码仓"
-              : "尚未挂代码仓"}
-            {relatedRepos.length ? ` · 另有 ${relatedRepos.length} 个只读仓` : ""}
-          </p>
-        </div>
-        <div className="workbench-top-meta">
-          {user ? (
-            <span className="muted" style={{ fontSize: 13 }}>
-              {user.name} · {user.roleLabel}
-            </span>
-          ) : null}
-          {uncommitted ? <span className="tag warn">未记入版本</span> : <span className="tag ok">已是最新版本</span>}
-          {aiRunning ? <span className="tag danger">AI 进行中</span> : null}
-          {youHold ? (
-            <span className="tag ok">你可以改</span>
-          ) : (
-            <span className="tag warn">{previewReason || "预览"}</span>
-          )}
-          <button className="btn ghost" type="button" onClick={() => setShowVersions(true)}>
-            版本
-          </button>
-          <button
-            className="btn ghost"
-            type="button"
-            onClick={() => changeEntrustSize(entrustSize === "collapsed" ? "half" : "collapsed")}
-          >
-            {entrustSize === "collapsed" ? "展开 AI" : "收起 AI"}
-          </button>
-          {user?.role === "architect" && lock && !lock.youHold ? (
-            <button
-              className="btn ghost"
-              type="button"
-              onClick={() => {
-                void api.forceReleaseLock(id).then(() => bootstrap());
-              }}
-            >
-              解除编辑权
-            </button>
-          ) : null}
-          {!youHold && !lock ? (
-            <button className="btn primary" type="button" onClick={() => void bootstrap()}>
-              开始编辑
-            </button>
-          ) : null}
-        </div>
-      </header>
-
       {error ? <p className="workbench-banner danger">{error}</p> : null}
+      {toast ? (
+        <div className="workbench-toast" role="status">
+          {toast}
+        </div>
+      ) : null}
 
       <div className={`workbench-body${leftCollapsed ? " is-left-collapsed" : ""}`}>
         <aside className={`workbench-col workbench-left${leftCollapsed ? " is-collapsed" : ""}`}>
           {leftCollapsed ? (
             <button className="left-rail" type="button" onClick={() => setLeftCollapsed(false)}>
-              文档仓
+              {title || "文档仓"}
             </button>
           ) : (
             <>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <strong>文档仓</strong>
-                <button className="btn ghost" type="button" onClick={() => setLeftCollapsed(true)}>
-                  收起
-                </button>
+              <div className="workbench-brand">
+                <Link href="/">← 全部工程</Link>
+                <h1>{title || "工程"}</h1>
               </div>
-              <DocTree
-                files={files}
-                currentPath={currentPath}
-                onOpen={(path) => void openFile(path)}
-                onImport={() => setShowImport(true)}
-              />
+              <div className="workbench-side-scroll">
+                <div className="workbench-left-head">
+                  <span className="side-kicker">文档仓</span>
+                  <button className="side-text" type="button" onClick={() => setLeftCollapsed(true)}>
+                    收起
+                  </button>
+                </div>
+                <DocTree
+                  files={files}
+                  currentPath={currentPath}
+                  onOpen={(path) => void openFile(path)}
+                  onImport={() => setShowImport(true)}
+                />
+                <div className="workbench-repos">
+                  <span className="side-kicker">代码仓</span>
+                  {codeRepos.length ? (
+                    <ul className="repo-list">
+                      {codeRepos.map((repo) => (
+                        <li key={repo.path}>
+                          <div className="name">{repoLeaf(repo.path)}</div>
+                          <p className="path" title={repo.path}>
+                            {repo.path}
+                          </p>
+                          <p className="note">{repo.note}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="muted" style={{ fontSize: 12, margin: "8px 0 0" }}>
+                      尚未挂代码仓。可行性分析需要架构师先挂只读仓。
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="workbench-side-foot">
+                {user ? (
+                  <span>
+                    {user.name} · {user.roleLabel}
+                  </span>
+                ) : null}
+                {uncommitted ? <span className="tag warn">未记入版本</span> : null}
+                {aiRunning ? <span className="tag">AI 进行中</span> : null}
+                <button className="side-text" type="button" onClick={() => setShowVersions(true)}>
+                  版本
+                </button>
+                <button
+                  className="side-text"
+                  type="button"
+                  disabled={readOnly || busy || (!uncommitted && !dirty)}
+                  onClick={() => void saveAndRecord()}
+                >
+                  保存一版
+                </button>
+                {history ? (
+                  <button className="side-text" type="button" onClick={() => void openFile(currentPath, true)}>
+                    返回纸面
+                  </button>
+                ) : null}
+                <button
+                  className="side-text"
+                  type="button"
+                  onClick={() => changeEntrustSize(entrustSize === "collapsed" ? "half" : "collapsed")}
+                >
+                  {entrustSize === "collapsed" ? "展开 AI" : "收起 AI"}
+                </button>
+                {user?.role === "architect" && lock && !lock.youHold ? (
+                  <button
+                    className="side-text"
+                    type="button"
+                    onClick={() => {
+                      void api.forceReleaseLock(id).then(() => bootstrap());
+                    }}
+                  >
+                    解除编辑权
+                  </button>
+                ) : null}
+                {!youHold && !lock ? (
+                  <button className="btn primary" type="button" onClick={() => void bootstrap()}>
+                    开始编辑
+                  </button>
+                ) : null}
+              </div>
             </>
           )}
         </aside>
 
         <section className="workbench-col workbench-center">
-          <div className="molan-toolbar">
-            <strong>{history ? `旧版 · ${history.message}` : currentPath}</strong>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button
-                className="btn ghost"
-                type="button"
-                disabled={readOnly || busy}
-                onClick={() => {
-                  void (async () => {
-                    setBusy(true);
-                    try {
-                      const state = await molanRef.current?.getState();
-                      await saveCurrent(state?.value);
-                    } catch (e) {
-                      setError(e instanceof Error ? e.message : "保存失败");
-                    } finally {
-                      setBusy(false);
-                    }
-                  })();
-                }}
-              >
-                保存
-              </button>
-              <button
-                className="btn"
-                type="button"
-                disabled={readOnly || busy || (!uncommitted && !dirty)}
-                onClick={() => void saveAndRecord()}
-              >
-                保存一版
-              </button>
-              {history ? (
-                <button className="btn ghost" type="button" onClick={() => void openFile(currentPath, true)}>
-                  返回纸面
-                </button>
-              ) : null}
-            </div>
-          </div>
           <div className={`molan-stage${entrustSize === "collapsed" ? " has-collapsed-entrust" : ""}`}>
             <div className="molan-host">
               <MolanFrame
@@ -570,6 +582,9 @@ export default function WorkbenchPage() {
                   if (youHold) {
                     void api.heartbeatLock(id, cid, next).then((r) => setLock(r.lock)).catch(() => undefined);
                   }
+                }}
+                onBlockedEdit={() => {
+                  setToast(editBlockedReason || "现在不能编辑。");
                 }}
               />
             </div>

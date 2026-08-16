@@ -251,6 +251,19 @@ export function endRunAbort(runId: string): void {
   live.delete(runId);
 }
 
+export function deleteRunsForProject(projectId: string): void {
+  ensureRunTables();
+  const rows = getDb()
+    .prepare(`SELECT id FROM workbench_runs WHERE project_id = ?`)
+    .all(projectId) as Array<{ id: string }>;
+  for (const row of rows) {
+    live.get(row.id)?.abort();
+    live.delete(row.id);
+    getDb().prepare(`DELETE FROM run_events WHERE run_id = ?`).run(row.id);
+  }
+  getDb().prepare(`DELETE FROM workbench_runs WHERE project_id = ?`).run(projectId);
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

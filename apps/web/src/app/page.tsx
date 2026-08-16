@@ -11,7 +11,7 @@ import {
 import { authClient } from "@/lib/auth-client";
 import { AppHeader } from "@/components/AppHeader";
 import { HostFolderPicker } from "@/components/HostFolderPicker";
-import { lastProjectId } from "@/lib/remember";
+import { lastProjectId, forgetProject } from "@/lib/remember";
 
 export default function HomePage() {
   const [boot, setBoot] = useState<"loading" | "setup" | "login" | "ready">(
@@ -294,6 +294,19 @@ function ProjectHome(props: { user: SessionUser }) {
   const continueProject = requirements.find((r) => r.id === continueId);
   const others = requirements.filter((r) => r.id !== continueId);
 
+  async function onDelete(r: RequirementMeta) {
+    if (!window.confirm(`要从工作台去掉「${r.title}」吗？`)) return;
+    setError("");
+    try {
+      await api.deleteRequirement(r.id);
+      forgetProject(r.id);
+      setRememberedId((prev) => (prev === r.id ? null : prev));
+      setRequirements((prev) => prev.filter((x) => x.id !== r.id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "没能去掉这个工程");
+    }
+  }
+
   return (
     <main className="app-shell home-shell">
       <AppHeader user={props.user} title="打开工程，把对照代码的调研托付给 AI" />
@@ -500,26 +513,48 @@ function ProjectHome(props: { user: SessionUser }) {
         </section>
       ) : (
         <>
-          <Link href={`/requirements/${continueProject.id}`} className="panel continue-card">
-            <p className="continue-kicker">继续上次</p>
-            <h2>{continueProject.title}</h2>
-            <p className="muted" style={{ margin: "0 0 16px" }}>
-              {projectStatus(continueProject)}
-            </p>
-            <span className="btn primary">打开工作台</span>
-          </Link>
+          <div className="panel continue-card">
+            <Link href={`/requirements/${continueProject.id}`}>
+              <p className="continue-kicker">继续上次</p>
+              <h2>{continueProject.title}</h2>
+              <p className="muted" style={{ margin: "0 0 16px" }}>
+                {projectStatus(continueProject)}
+              </p>
+              <span className="btn primary">打开工作台</span>
+            </Link>
+            {isArchitect ? (
+              <button
+                className="project-remove"
+                type="button"
+                onClick={() => void onDelete(continueProject)}
+              >
+                去掉
+              </button>
+            ) : null}
+          </div>
           {others.length ? (
             <section>
               <h3 style={{ fontFamily: "var(--font-display)", fontWeight: 500 }}>其他工程</h3>
               <ul className="project-list">
                 {others.map((r) => (
                   <li key={r.id}>
-                    <Link href={`/requirements/${r.id}`} className="panel">
-                      <strong>{r.title}</strong>
-                      <p className="muted" style={{ margin: "8px 0 0", fontSize: 13 }}>
-                        {projectStatus(r)}
-                      </p>
-                    </Link>
+                    <div className="panel project-card">
+                      <Link href={`/requirements/${r.id}`}>
+                        <strong>{r.title}</strong>
+                        <p className="muted" style={{ margin: "8px 0 0", fontSize: 13 }}>
+                          {projectStatus(r)}
+                        </p>
+                      </Link>
+                      {isArchitect ? (
+                        <button
+                          className="project-remove"
+                          type="button"
+                          onClick={() => void onDelete(r)}
+                        >
+                          去掉
+                        </button>
+                      ) : null}
+                    </div>
                   </li>
                 ))}
               </ul>

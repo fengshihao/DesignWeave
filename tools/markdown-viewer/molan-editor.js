@@ -1754,6 +1754,11 @@
     }
     paintThemeSwitch(next);
     try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: "theme", theme: next }, window.location.origin);
+      }
+    } catch (_) { /* ignore */ }
+    try {
       scheduleMermaidThemeRefresh();
     } catch (_) { /* ignore */ }
   }

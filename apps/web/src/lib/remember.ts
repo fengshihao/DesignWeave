@@ -16,6 +16,19 @@ export function lastProjectId(): string | null {
   }
 }
 
+export function forgetProject(id: string) {
+  try {
+    if (localStorage.getItem(LAST_PROJECT) === id) {
+      localStorage.removeItem(LAST_PROJECT);
+    }
+    localStorage.removeItem(`dw-last-file-${id}`);
+    localStorage.removeItem(`dw-entrust-size-${id}`);
+    localStorage.removeItem(`dw-entrust-width-${id}`);
+  } catch {
+    /* 隐私模式 */
+  }
+}
+
 export function rememberFile(projectId: string, path: string) {
   try {
     localStorage.setItem(`dw-last-file-${projectId}`, path);

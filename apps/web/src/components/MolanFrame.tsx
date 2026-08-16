@@ -43,6 +43,7 @@ export const MolanFrame = forwardRef<
     onSave: (value: string) => void;
     onDirtyChange: (dirty: boolean) => void;
     onEditingChange: (editing: boolean) => void;
+    onBlockedEdit?: () => void;
     onOpenRelative?: (path: string) => void;
   }
 >(function MolanFrame(props, ref) {
@@ -127,6 +128,17 @@ export const MolanFrame = forwardRef<
       }
       if (msg.type === "previewChange") {
         propsRef.current.onEditingChange(msg.isPreview === false);
+        return;
+      }
+      if (msg.type === "wantEdit") {
+        propsRef.current.onBlockedEdit?.();
+        return;
+      }
+      if (msg.type === "theme" && typeof msg.theme === "string") {
+        const theme = msg.theme;
+        if (theme === "night" || theme === "hack" || theme === "rose" || theme === "xuan") {
+          document.documentElement.setAttribute("data-theme", theme);
+        }
         return;
       }
       if (msg.type === "state" && typeof msg.requestId === "number") {

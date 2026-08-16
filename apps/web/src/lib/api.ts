@@ -160,6 +160,11 @@ export const api = {
       { method: "POST", body: JSON.stringify(body) }
     ),
 
+  deleteRequirement: (id: string) =>
+    request<{ ok: boolean; requirement: RequirementMeta }>(`/v1/requirements/${id}`, {
+      method: "DELETE",
+    }),
+
   getRequirement: (id: string, clientId?: string) =>
     request<RequirementBundle>(
       `/v1/requirements/${id}${clientId ? `?clientId=${encodeURIComponent(clientId)}` : ""}`

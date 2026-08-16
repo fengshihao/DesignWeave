@@ -185,7 +185,11 @@
   });
 
   modeBtn?.addEventListener("click", async () => {
-    if (!editorApi || readOnly) return;
+    if (!editorApi) return;
+    if (readOnly) {
+      post({ type: "wantEdit" });
+      return;
+    }
     const nextPreview = !editorApi.isPreview();
     await editorApi.setPreview(nextPreview);
     syncModeButton();
