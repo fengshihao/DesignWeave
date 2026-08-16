@@ -60,25 +60,26 @@ export default function SettingsPage() {
           ← 全部工程
         </Link>
       </p>
-      <section className="panel" style={{ padding: 24 }}>
-        <h2 style={{ marginTop: 0, fontFamily: "var(--font-display)" }}>Claude</h2>
+      <section className="panel judgment">
+        <p className="continue-kicker" style={{ marginTop: 0 }}>
+          {health?.mockMode ? "还不能找 AI" : "能找 AI"}
+        </p>
+        <h2>{health?.mockMode ? "演示模式" : "本机 Claude 已就绪"}</h2>
         <p>
           {health?.mockMode
-            ? "这台工作台还不能找 AI。请在托管机完成本机 Claude 登录。"
-            : "已找到本机 Claude，MCP 默认全部打开。"}
+            ? "没有 API Key 时仍能改文档、记版本。要让 AI 真写调研，请在托管机完成本机 Claude 登录。"
+            : "已找到本机 Claude。MCP 默认全部打开，产品经理看不见这一页。"}
         </p>
-        <p className="muted" style={{ fontSize: 13 }}>
+        <p className="muted" style={{ fontSize: 13, marginBottom: 0 }}>
           语言：{config?.language || "（未写）"} · 配置文件：
           {config?.settingsFound ? "已找到" : "未找到"}
         </p>
       </section>
       <section className="panel" style={{ padding: 24, marginTop: 20 }}>
         <h2 style={{ marginTop: 0, fontFamily: "var(--font-display)" }}>MCP / skills</h2>
-        <p className="muted">产品经理看不见这一页。关闭开关下一刀再接到磁盘配置上。</p>
-        <p>
-          MCP：{mcps.length ? mcps.join("、") : "（无）"}
-        </p>
-        <p>
+        <p className="muted">关闭开关下一刀再接到磁盘配置上。现在只读。</p>
+        <p>MCP：{mcps.length ? mcps.join("、") : "（无）"}</p>
+        <p style={{ marginBottom: 0 }}>
           Skills：{skills.length ? skills.join("、") : "（无）"}
         </p>
       </section>
