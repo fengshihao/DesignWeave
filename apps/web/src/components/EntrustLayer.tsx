@@ -1,15 +1,15 @@
 "use client";
 
-import { FormEvent, PointerEvent as ReactPointerEvent, useRef } from "react";
+import { FormEvent, PointerEvent as ReactPointerEvent, useEffect, useRef } from "react";
 import type { WorkbenchMode, WorkbenchRun } from "@/lib/api";
 import type { EntrustSize } from "@/lib/remember";
 
 export type LogItem = { seq: number; kind: string; text: string };
 
-const MODES: Array<{ id: WorkbenchMode; label: string; hint: string }> = [
-  { id: "coauthor", label: "共创", hint: "把想法写进 PRD，每次只问几件关键的事。" },
-  { id: "grill", label: "拷问", hint: "找矛盾、缺口、拍不板的假设，写进缺口清单。" },
-  { id: "feasibility", label: "可行性", hint: "只读代码仓，把结论写进调研.md。" },
+const MODES: Array<{ id: WorkbenchMode; label: string }> = [
+  { id: "coauthor", label: "共创" },
+  { id: "grill", label: "拷问" },
+  { id: "feasibility", label: "可行性" },
 ];
 
 function groupTurns(log: LogItem[]) {
@@ -48,7 +48,6 @@ export function EntrustLayer(props: {
   mode: WorkbenchMode;
   onModeChange: (mode: WorkbenchMode) => void;
   hasCode: boolean;
-  trust: string;
   log: LogItem[];
   message: string;
   onMessageChange: (value: string) => void;
@@ -60,25 +59,52 @@ export function EntrustLayer(props: {
   activeRun: WorkbenchRun | null;
 }) {
   const overlayRef = useRef<HTMLElement>(null);
+  const dragRef = useRef<{ pointerId: number; startX: number; startW: number } | null>(null);
   const turns = groupTurns(props.log);
-  const hint = MODES.find((m) => m.id === props.mode)?.hint || "";
   const floating = props.size !== "collapsed";
 
-  function onResizeStart(e: ReactPointerEvent) {
+  useEffect(() => {
+    return () => {
+      document.body.classList.remove("is-col-resizing");
+    };
+  }, []);
+
+  function endResize(el: HTMLDivElement, pointerId: number) {
+    if (el.hasPointerCapture(pointerId)) {
+      el.releasePointerCapture(pointerId);
+    }
+    dragRef.current = null;
+    overlayRef.current?.classList.remove("is-resizing");
+    document.body.classList.remove("is-col-resizing");
+  }
+
+  function onResizeStart(e: ReactPointerEvent<HTMLDivElement>) {
+    if (e.button !== 0) return;
     e.preventDefault();
-    const startX = e.clientX;
-    const startW = props.width;
+    e.stopPropagation();
+    const handle = e.currentTarget;
+    handle.setPointerCapture(e.pointerId);
+    dragRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startW: overlayRef.current?.offsetWidth || props.width,
+    };
+    overlayRef.current?.classList.add("is-resizing");
+    document.body.classList.add("is-col-resizing");
+  }
+
+  function onResizeMove(e: ReactPointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
     const parentW = overlayRef.current?.parentElement?.clientWidth || 800;
-    function move(ev: PointerEvent) {
-      const next = Math.min(parentW * 0.92, Math.max(280, startW + (startX - ev.clientX)));
-      props.onWidthChange(next);
-    }
-    function up() {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-    }
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
+    const next = Math.min(parentW * 0.92, Math.max(280, drag.startW + (drag.startX - e.clientX)));
+    props.onWidthChange(next);
+  }
+
+  function onResizeEnd(e: ReactPointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    endResize(e.currentTarget, e.pointerId);
   }
 
   return (
@@ -88,7 +114,17 @@ export function EntrustLayer(props: {
       style={floating ? { width: props.width } : undefined}
     >
       {floating ? (
-        <div className="entrust-resize" onPointerDown={onResizeStart} aria-label="拖动调整宽度" />
+        <div
+          className="entrust-resize"
+          onPointerDown={onResizeStart}
+          onPointerMove={onResizeMove}
+          onPointerUp={onResizeEnd}
+          onPointerCancel={onResizeEnd}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="拖动调整宽度"
+          title="拖动调整宽度"
+        />
       ) : null}
       <div className={floating ? "entrust-head" : "entrust-bar"}>
         <div className="mode-switch" role="tablist">
@@ -101,7 +137,6 @@ export function EntrustLayer(props: {
                 role="tab"
                 aria-selected={props.mode === m.id}
                 disabled={locked}
-                title={locked ? "还没有挂代码仓，可行性不能用。" : m.hint}
                 onClick={() => props.onModeChange(m.id)}
               >
                 {m.label}
@@ -118,42 +153,24 @@ export function EntrustLayer(props: {
         </button>
       </div>
       {floating ? (
-        <>
-          <p className="trust-bar" style={{ margin: "10px 12px 0" }}>
-            {props.trust}
-          </p>
-          <p className="muted" style={{ fontSize: 13, margin: "6px 14px 0" }}>
-            {hint}
-            {props.mode === "feasibility" && !props.hasCode ? " 请让架构师先挂只读代码仓。" : ""}
-          </p>
-          <div className="entrust-body">
-            {turns.length === 0 ? (
-              <p className="muted">把任务写在下面。关浏览器不会取消；取消请点按钮。</p>
-            ) : (
-              turns.map((turn, i) => (
-                <div className="turn" key={`${turn.you || "t"}-${i}`}>
-                  {turn.you ? <div className="turn-you">{turn.you}</div> : null}
-                  {turn.items.map((item, j) => (
-                    <p key={`${item.seq}-${j}`} className={`log-${item.kind}`}>
-                      {item.text}
-                    </p>
-                  ))}
-                </div>
-              ))
-            )}
-          </div>
-        </>
-      ) : (
-        <p className="muted" style={{ margin: "0 12px 6px", fontSize: 12 }}>
-          {props.aiRunning ? props.trust : hint}
-        </p>
-      )}
+        <div className="entrust-body">
+          {turns.map((turn, i) => (
+            <div className="turn" key={`${turn.you || "t"}-${i}`}>
+              {turn.you ? <div className="turn-you">{turn.you}</div> : null}
+              {turn.items.map((item, j) => (
+                <p key={`${item.seq}-${j}`} className={`log-${item.kind}`}>
+                  {item.text}
+                </p>
+              ))}
+            </div>
+          ))}
+        </div>
+      ) : null}
       {props.youHold ? (
         <form onSubmit={props.onSend} className="entrust-composer">
           <textarea
             value={props.message}
             onChange={(e) => props.onMessageChange(e.target.value)}
-            placeholder="用中文托付这一轮…"
             disabled={props.aiRunning || props.busy}
             rows={floating ? 3 : 1}
           />
@@ -168,11 +185,7 @@ export function EntrustLayer(props: {
             ) : null}
           </div>
         </form>
-      ) : (
-        <p className="muted" style={{ margin: "8px 12px 12px", fontSize: 13 }}>
-          预览中。你能看进度，不能发送或取消。
-        </p>
-      )}
+      ) : null}
     </aside>
   );
 }

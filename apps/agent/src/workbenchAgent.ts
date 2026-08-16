@@ -5,6 +5,9 @@ import { config } from "./config.js";
 import { buildClaudeQueryOptions } from "./claudeRuntime.js";
 import { commitAll, isDirty } from "./gitVault.js";
 import { getRequirement, type RequirementMeta } from "./requirements.js";
+import { listDocTree } from "./files.js";
+import { getDb } from "./db.js";
+import { isArchitect, ROLE_LABELS, type AppRole } from "./roles.js";
 import {
   appendEvent,
   beginRunAbort,
@@ -81,10 +84,46 @@ function modeLabel(mode: WorkbenchMode): string {
   return "共创";
 }
 
-function systemPrompt(meta: RequirementMeta, mode: WorkbenchMode): string {
+function audienceOf(userId: string): { role: AppRole; label: string } {
+  const row = getDb()
+    .prepare(`SELECT role FROM user WHERE id = ?`)
+    .get(userId) as { role?: string } | undefined;
+  const role: AppRole = isArchitect(row?.role) ? "architect" : "designer";
+  return { role, label: ROLE_LABELS[role] };
+}
+
+function vaultDocInventory(projectId: string): string {
+  const files = listDocTree(projectId).filter((f) => !f.isDir);
+  const names = new Set(files.map((f) => f.path));
+  const core = ["PRD.md", "gaps.md", "调研.md"];
+  const lines = core.map((p) => `- ${p}${names.has(p) ? "（已有）" : "（还没有）"}`);
+  const extra = files.filter((f) => !core.includes(f.path)).map((f) => f.path);
+  if (extra.length) lines.push(`- 其他：${extra.join("、")}`);
+  return lines.join("\n");
+}
+
+function audienceHint(role: AppRole, mode: WorkbenchMode): string {
+  if (role === "architect") {
+    return `写给架构师。可以写到模块边界、接口、仓与仓的职责；仍不要贴大段代码或堆文件路径。`;
+  }
+  const forPm =
+    mode === "feasibility"
+      ? `调研结论是给产品经理做判断用的，不是给开发看的设计说明书。`
+      : `面向产品经理写文档、提问。`;
+  return `${forPm}
+- 少写实现细节：不要罗列类名、函数名、调用链、目录树、框架内部结构。
+- 可以用产品经理本来就懂的词：接口、权限、登录态、机型、缓存、兼容、版本。
+- 不要用比喻、故事、拟人来解释问题。直接说影响：谁用不了、哪一步会断、要拍什么板。`;
+}
+
+function systemPrompt(
+  meta: RequirementMeta,
+  mode: WorkbenchMode,
+  audience: { role: AppRole; label: string }
+): string {
   const roots = codeRootsOf(meta);
   const codeHint = roots.length
-    ? `代码仓（只读，禁止写入）：\n${roots.map((r) => `- ${r}`).join("\n")}`
+    ? `代码仓只读（禁止写入），路径如下：\n${roots.map((r) => `- ${r}`).join("\n")}`
     : "本工程还没有挂代码仓。不要假装读过代码。";
 
   const modeHint =
@@ -92,17 +131,24 @@ function systemPrompt(meta: RequirementMeta, mode: WorkbenchMode): string {
       ? `档位：可行性。只读代码仓，只把结论写进文档仓的「调研.md」（已有能力 / 缺口 / 风险 / 建议）。不要改 PRD，除非用户明确要求。`
       : mode === "grill"
         ? `档位：拷问。像严厉的产品负责人追问矛盾、缺口、隐含假设。把问题写入 gaps.md。确认过的内容可以补进 PRD.md。`
-        : `档位：共创。根据产品经理的话更新 PRD.md，每次只问 1～3 个关键问题，并把未决写入 gaps.md。`;
+        : `档位：共创。根据对方的话更新 PRD.md，每次只问 1～3 个关键问题，并把未决写入 gaps.md。`;
 
   return `
-你是 DesignWeave 工作台里的文档助手。产品经理把「对照代码做调研、补 PRD」托付给你。
+你是 DesignWeave 工作台里的文档助手。这一轮由${audience.label}托付。
 
 ## 语言
 始终使用简体中文写文档、报进度、提问。
 
-## 目录
-当前工作目录是文档仓，你可以读写这里的 Markdown。
+## 工作目录
+cwd 是文档仓（可读写 Markdown）：${meta.vaultPath}
 ${codeHint}
+
+文档仓此刻有：
+${vaultDocInventory(meta.id)}
+
+## 每一轮都是冷启动
+你并没有预先读过这个产品。动手前先 Read / Glob 文档仓里已有的 Markdown，至少覆盖存在的 PRD.md、gaps.md、调研.md。
+若同一主题已经有调研章节或阶段性结论：先写明「已经有什么」，再只补缺口或纠正过时判断，不要整篇重写。
 
 ## 硬规则
 - 禁止修改代码仓里的任何文件。代码仓只用来 Read / Glob / Grep。
@@ -110,22 +156,30 @@ ${codeHint}
 - 进行中就可以把章节落到磁盘；不要等全部写完才第一次 Write。
 - 不要输出「请把下面粘贴到文件」——直接用工具写文件。
 
+## 写给谁
+${audienceHint(audience.role, mode)}
+
 ${modeHint}
 
 工程标题：${meta.title}
 `.trim();
 }
 
-function userPrompt(meta: RequirementMeta, mode: WorkbenchMode, message: string): string {
+function userPrompt(
+  meta: RequirementMeta,
+  mode: WorkbenchMode,
+  message: string,
+  audience: { label: string }
+): string {
   return `
 工程：${meta.title}
 档位：${modeLabel(mode)}
 文档仓：${meta.vaultPath}
 
-产品经理说：
+${audience.label}说：
 ${message}
 
-请开始。先用中文说明你在做什么，再读写文件。
+请开始。先读文档仓里已有的 Markdown，再用中文说明你在做什么，然后读写文件。
 `.trim();
 }
 
@@ -226,6 +280,7 @@ async function runClaude(
   meta: RequirementMeta,
   mode: WorkbenchMode,
   message: string,
+  audience: { role: AppRole; label: string },
   signal: AbortSignal
 ): Promise<void> {
   const roots = codeRootsOf(meta);
@@ -236,13 +291,13 @@ async function runClaude(
       : ["Read", "Write", "Edit", "Glob", "Grep"];
 
   const q = query({
-    prompt: userPrompt(meta, mode, message),
+    prompt: userPrompt(meta, mode, message, audience),
     options: buildClaudeQueryOptions({
       cwd: meta.vaultPath,
       allowedTools,
       permissionMode: "acceptEdits",
       additionalDirectories: roots,
-      appendSystemPrompt: systemPrompt(meta, mode),
+      appendSystemPrompt: systemPrompt(meta, mode, audience),
     }),
   });
 
@@ -314,7 +369,7 @@ export async function executeWorkbenchRun(runId: string): Promise<void> {
     if (!config.anthropicApiKey) {
       await runMock(runId, meta, run.mode, run.message, controller.signal);
     } else {
-      await runClaude(runId, meta, run.mode, run.message, controller.signal);
+      await runClaude(runId, meta, run.mode, run.message, audienceOf(run.userId), controller.signal);
     }
 
     if (controller.signal.aborted) {

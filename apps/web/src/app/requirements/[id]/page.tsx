@@ -66,7 +66,6 @@ export default function WorkbenchPage() {
   const [mode, setMode] = useState<WorkbenchMode>("feasibility");
   const [message, setMessage] = useState("");
   const [log, setLog] = useState<LogItem[]>([]);
-  const [trust, setTrust] = useState("打开工程后，AI 只写文档仓、不改业务代码。");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -98,13 +97,8 @@ export default function WorkbenchPage() {
   const readOnly = !youHold || aiRunning || Boolean(history);
   const hasCode = Boolean(primaryRepo || relatedRepos.length);
   const codeRepos = [
-    ...(primaryRepo
-      ? [{ path: primaryRepo, note: "主仓 · AI 只读，不改业务代码" }]
-      : []),
-    ...relatedRepos.map((path) => ({
-      path,
-      note: "关联仓 · AI 只读，不改业务代码",
-    })),
+    ...(primaryRepo ? [primaryRepo] : []),
+    ...relatedRepos,
   ];
   const editBlockedReason = history
     ? "这是旧版，返回纸面后再改。"
@@ -287,7 +281,6 @@ export default function WorkbenchPage() {
           const seq = Number(payload.seq || 0);
           if (seq) followSeq.current = seq;
           if (type === "trust") {
-            setTrust(String(payload.text || ""));
             appendLog({ seq, kind: "trust", text: String(payload.text || "") });
           } else if (type === "progress" || type === "text") {
             appendLog({ seq, kind: type, text: String(payload.text || "") });
@@ -493,21 +486,16 @@ export default function WorkbenchPage() {
                   <span className="side-kicker">代码仓</span>
                   {codeRepos.length ? (
                     <ul className="repo-list">
-                      {codeRepos.map((repo) => (
-                        <li key={repo.path}>
-                          <div className="name">{repoLeaf(repo.path)}</div>
-                          <p className="path" title={repo.path}>
-                            {repo.path}
+                      {codeRepos.map((path) => (
+                        <li key={path}>
+                          <div className="name">{repoLeaf(path)}</div>
+                          <p className="path" title={path}>
+                            {path}
                           </p>
-                          <p className="note">{repo.note}</p>
                         </li>
                       ))}
                     </ul>
-                  ) : (
-                    <p className="muted" style={{ fontSize: 12, margin: "8px 0 0" }}>
-                      尚未挂代码仓。可行性分析需要架构师先挂只读仓。
-                    </p>
-                  )}
+                  ) : null}
                 </div>
               </div>
               <div className="workbench-side-foot">
@@ -596,7 +584,6 @@ export default function WorkbenchPage() {
               mode={mode}
               onModeChange={setMode}
               hasCode={hasCode}
-              trust={trust}
               log={log}
               message={message}
               onMessageChange={setMessage}
