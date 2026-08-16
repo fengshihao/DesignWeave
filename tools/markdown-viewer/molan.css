@@ -3215,11 +3215,15 @@
     }
 
     body.molan-host-vscode .reader-header {
-      min-height: 56px;
+      min-height: 48px;
       padding: 8px 16px;
       flex-direction: row;
       flex-wrap: nowrap;
       align-items: center;
+    }
+
+    body.molan-host-vscode .reader-title .eyebrow {
+      display: none;
     }
 
     body.molan-host-vscode .reader-title h2 {
