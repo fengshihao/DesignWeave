@@ -44,4 +44,4 @@ cursor --install-extension apps/vscode-molan/molan-markdown-0.1.6.vsix
 
 填表与发布见 `MARKETPLACE.md`。
 
-商店截图依赖 GitHub 公开地址。打包脚本已带 `--baseImagesUrl`（指向 `apps/vscode-molan`）。仓库若保持 Private，市场页仍然看不到图，需要把仓库改为 Public。
+商店介绍动画用 `https://molan.guoyoutech.cn/intro.gif`。打包脚本 `--baseImagesUrl` 指向该站点。更新 GIF 后先 `bash tools/markdown-viewer/deploy/upload.sh`，再发新版扩展。看访问量：`bash tools/markdown-viewer/deploy/intro-stats.sh`。

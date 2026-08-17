@@ -1,8 +1,8 @@
 {
   "name": "molan-markdown",
   "displayName": "墨览 Markdown",
-  "description": "用墨览打开 Markdown：点开即可阅读，需要时再编辑，保存写回原文件。",
-  "version": "0.1.10",
+  "description": "打开即阅读，要点再编辑。Open to read, click to edit. Abre para leer, pulsa para editar.",
+  "version": "0.1.12",
   "publisher": "fengshihao",
   "license": "MIT",
   "icon": "icon.png",
@@ -153,8 +153,8 @@
     "watch": "tsc -watch -p ./",
     "typecheck": "tsc -p ./ --noEmit",
     "check": "pnpm compile && node ./scripts/check.mjs",
-    "package": "pnpm compile && npx --yes @vscode/vsce package --no-dependencies --baseContentUrl https://github.com/fengshihao/DesignWeave/blob/main/apps/vscode-molan --baseImagesUrl https://github.com/fengshihao/DesignWeave/raw/main/apps/vscode-molan",
-    "publish": "pnpm compile && npx --yes @vscode/vsce publish --no-dependencies --baseContentUrl https://github.com/fengshihao/DesignWeave/blob/main/apps/vscode-molan --baseImagesUrl https://github.com/fengshihao/DesignWeave/raw/main/apps/vscode-molan"
+    "package": "pnpm compile && npx --yes @vscode/vsce package --no-dependencies --baseContentUrl https://github.com/fengshihao/DesignWeave/blob/main/apps/vscode-molan --baseImagesUrl https://molan.guoyoutech.cn",
+    "publish": "pnpm compile && npx --yes @vscode/vsce publish --no-dependencies --baseContentUrl https://github.com/fengshihao/DesignWeave/blob/main/apps/vscode-molan --baseImagesUrl https://molan.guoyoutech.cn"
   },
   "dependencies": {
     "vditor": "3.10.9"
@@ -167,6 +167,6 @@
   "vsce": {
     "dependencies": false,
     "baseContentUrl": "https://github.com/fengshihao/DesignWeave/blob/main/apps/vscode-molan",
-    "baseImagesUrl": "https://github.com/fengshihao/DesignWeave/raw/main/apps/vscode-molan"
+    "baseImagesUrl": "https://molan.guoyoutech.cn"
   }
 }

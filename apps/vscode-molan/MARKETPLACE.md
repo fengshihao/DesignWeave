@@ -9,10 +9,10 @@
 | Publisher ID | `fengshihao` |
 | Extension ID / name | `molan-markdown` |
 | Display name / 显示名称 | 墨览 Markdown |
-| Short description / 简短说明 | 用墨览打开 Markdown：点开即可阅读，需要时再编辑，保存写回原文件。 |
+| Short description / 简短说明 | 打开即阅读，要点再编辑。Open to read, click to edit. Abre para leer, pulsa para editar. |
 | Categories / 分类 | Other |
 | Tags / 标签 | markdown, vditor, wysiwyg, 墨览, mermaid, typora |
-| Version | 0.1.10 |
+| Version | 0.1.12 |
 | License | MIT |
 | Repository | https://github.com/fengshihao/DesignWeave.git |
 | Homepage | https://molan.guoyoutech.cn/extension.html |
@@ -26,14 +26,14 @@
 |------|------|------|
 | 扩展图标（必填） | `icon.png` | 128×128 PNG |
 | 高清原图（备用） | `media/icon-1024.png` | 1024×1024，市场网页若要更大图用这个 |
-| 商店介绍动画 | `media/intro.gif` | 1280×800，约 2MB，写入 README |
+| 商店介绍动画 | https://molan.guoyoutech.cn/intro.gif | 1280×800，约 2MB；源文件 `media/intro.gif`，Nginx 限流并记访问日志 |
 | 商店截图 | `media/screenshot.jpg` | 已压缩 JPEG，备用静帧 |
 | 许可证 | `LICENSE` | MIT |
 | 更新日志 | `CHANGELOG.md` | 0.1.10 |
 
 完整介绍就是 `README.md`（面向普通用户，市场详情页会自动用它）。开发调试见 `DEV.md`。
 
-商店 README 里的截图**不会**从 vsix 里读，而是去拉 GitHub 上的公开 HTTPS 地址。本扩展在仓库子目录，打包时必须带 `--baseImagesUrl .../apps/vscode-molan`（已写进 `package.json` 脚本）。仓库需为 Public，商店才能显示截图。
+商店 README 里的截图**不会**从 vsix 里读，而是去拉 README 里的公开 HTTPS 地址。介绍动画用 `https://molan.guoyoutech.cn/intro.gif`（已写进 README 和 `baseImagesUrl`）。服务器对这张 GIF 按 IP 限流，访问记在 `/var/log/nginx/molan.intro.log`；看统计：`bash tools/markdown-viewer/deploy/intro-stats.sh`。
 
 ## 发布
 
@@ -55,7 +55,7 @@ pnpm molan:publish
 cd apps/vscode-molan
 pnpm compile
 # 有令牌后：
-npx @vscode/vsce publish --no-dependencies --baseContentUrl https://github.com/fengshihao/DesignWeave/blob/main/apps/vscode-molan --baseImagesUrl https://github.com/fengshihao/DesignWeave/raw/main/apps/vscode-molan -p "$VSCE_PAT"
+npx @vscode/vsce publish --no-dependencies --baseContentUrl https://github.com/fengshihao/DesignWeave/blob/main/apps/vscode-molan --baseImagesUrl https://molan.guoyoutech.cn -p "$VSCE_PAT"
 ```
 
 只打包不发布：
@@ -64,4 +64,4 @@ npx @vscode/vsce publish --no-dependencies --baseContentUrl https://github.com/f
 pnpm --filter molan-markdown package
 ```
 
-Cursor 用户走 Open VSX（另一套账号）：https://open-vsx.org/ ，用 `npx ovsx publish molan-markdown-0.1.10.vsix -p "$OVSX_PAT"`。
+Cursor 用户走 Open VSX（另一套账号）：https://open-vsx.org/ ，用 `npx ovsx publish molan-markdown-0.1.12.vsix -p "$OVSX_PAT"`。

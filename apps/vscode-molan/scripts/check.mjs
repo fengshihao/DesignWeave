@@ -68,6 +68,8 @@ assert(existsSync(join(viewer, "molan.css")), "viewer molan.css");
 assert(existsSync(join(viewer, "molan-editor.js")), "viewer molan-editor.js");
 assert(existsSync(join(viewer, "molan-app.js")), "viewer molan-app.js");
 assert(existsSync(join(viewer, "serve.mjs")), "viewer gzip static server");
+assert(existsSync(join(viewer, "intro.gif")), "viewer intro.gif for molan.guoyoutech.cn");
+assert(readFileSync(join(viewer, "serve.mjs"), "utf8").includes('".gif": "image/gif"'), "local server gif mime");
 assert(existsSync(join(viewer, "vendor/vditor/dist/method.min.js")), "viewer vendored method.min.js");
 assert(existsSync(join(viewer, "vendor/vditor/dist/js/lute/lute.min.js")), "viewer vendored lute");
 
@@ -117,14 +119,23 @@ assert(bridge.includes("value !== baseline"), "ignores Vditor setValue round-tri
 assert(bridge.includes("openRelative"), "webview opens relative markdown links");
 
 const readme = readFileSync(join(root, "README.md"), "utf8");
-assert(readme.includes("![墨览：打开即阅读，要点再编辑](media/intro.gif)"), "store intro gif");
-assert(readme.includes("默认就是**预览**") || readme.includes("默认就是预览"), "user-facing preview default");
+assert(
+  readme.includes("![墨览：打开即阅读，要点再编辑](https://molan.guoyoutech.cn/intro.gif)"),
+  "store intro gif hosted on molan.guoyoutech.cn",
+);
+assert(
+  !/github\.com\/\S*intro\.gif|raw\.githubusercontent\.com\S*intro\.gif/.test(readme),
+  "store intro gif must not use GitHub raw",
+);
+assert(readme.includes("打开即阅读"), "store copy has Chinese");
+assert(readme.includes("Open to read"), "store copy has English");
+assert(readme.includes("Abre para leer"), "store copy has Spanish");
 assert(!readme.includes("pnpm --filter"), "README must not contain packaging commands");
 assert(!readme.includes("viewType"), "README must not contain implementation jargon");
 assert(existsSync(join(root, "DEV.md")), "developer docs live in DEV.md");
 assert(
-  pkg.vsce?.baseImagesUrl?.includes("apps/vscode-molan"),
-  "vsce baseImagesUrl must include apps/vscode-molan so Marketplace screenshots resolve",
+  pkg.vsce?.baseImagesUrl === "https://molan.guoyoutech.cn",
+  "vsce baseImagesUrl must point at molan.guoyoutech.cn so Marketplace screenshots resolve",
 );
 
 console.log("molan-markdown extension check ok");

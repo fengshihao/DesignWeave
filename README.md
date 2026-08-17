@@ -13,7 +13,7 @@
 
 许可证：[MIT](apps/vscode-molan/LICENSE)
 
-![墨览：打开即阅读，要点再编辑](apps/vscode-molan/media/intro.gif)
+![墨览：打开即阅读，要点再编辑](https://molan.guoyoutech.cn/intro.gif)
 
 ### 能力
 

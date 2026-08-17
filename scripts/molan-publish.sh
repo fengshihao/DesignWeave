@@ -42,7 +42,7 @@ echo "==> 墨览 ${VERSION}"
 if command -v git >/dev/null 2>&1 && git -C "${ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   local_ahead="$(git -C "${ROOT}" rev-list --count "@{upstream}..HEAD" 2>/dev/null || echo 0)"
   if [[ "${local_ahead}" != "0" ]]; then
-    echo "注意：本地比远程超前 ${local_ahead} 个提交。商店 README 图片从 GitHub 拉取，发 VS Code 前请先 git push。"
+    echo "注意：本地比远程超前 ${local_ahead} 个提交。发版前建议先 git push。"
   fi
 fi
 
