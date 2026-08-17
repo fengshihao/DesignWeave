@@ -44,7 +44,9 @@ pnpm molan            # http://127.0.0.1:5500/
 pnpm molan:stop
 ```
 
-工作室源码在 [`tools/markdown-viewer`](tools/markdown-viewer)。
+工作室源码在 [`tools/markdown-viewer`](tools/markdown-viewer)。浏览器教程：https://molan.guoyoutech.cn/guide.html
+
+![墨览工作室：试读示例，切换纸面](tools/markdown-viewer/studio-intro.gif)
 
 ### 开发扩展
 

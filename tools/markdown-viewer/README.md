@@ -2,7 +2,7 @@
 
 所见即所得（Vditor IR，类 Typora）编辑本地 Markdown。打开文档默认**预览**（只阅读）；点顶栏「编辑」再改。公式、Mermaid 流程图、表格与任务列表均可编辑；Chrome / Edge 可写回原文件。
 
-打开本目录下的 `index.html`（或用本地静态服务器）。侧栏「打开文件夹」会打开本地目录：Chrome / Edge 可写回原文件；Cursor 内置浏览器自动改用兼容选择。样例：`sample.md`。
+打开本目录下的 `index.html`（或用本地静态服务器）。侧栏「打开文件夹」会打开本地目录：Chrome / Edge 可写回原文件；Cursor 内置浏览器自动改用兼容选择。开卷页也可点「试读示例」加载 `demo/` 里的样例。公开教程：<https://molan.guoyoutech.cn/guide.html>。
 
 侧栏设置可切换四种纸面：**宣纸**（暖色纸面）、**墨夜**（默认暗色夜读）、**终端**（磷光绿，程序员）、**胭脂**（柔粉衬线）。设置里也可一键安装 VS Code / Cursor 插件。选择会记在本机。
 
@@ -16,8 +16,18 @@ pnpm molan:stop       # 仅停止
 MOLAN_PORT=5600 pnpm molan   # 自定义端口
 ```
 
+介绍动画与教程截图（需本机 Chrome）：
+
+```bash
+MOLAN_URL=http://127.0.0.1:5500/ node tools/markdown-viewer/scripts/record-studio-intro.mjs
+```
+
 ```text
 index.html        页面结构
+guide.html        浏览器工作室教程（含介绍动画与截图）
+studio-intro.gif  工作室介绍动画
+demo/             试读示例文档
+scripts/          录制介绍动画
 molan.css         纸面样式与 Vditor 主题（浏览器与 VS Code 共用）
 molan-i18n.js     界面多语言
 molan-aphorisms.js 开卷一则：无署名短句（中文自撰 + 宋词 + 公版歌词；其他语言哲人句）
@@ -30,3 +40,5 @@ vendor/vditor     裁剪后的 Vditor（`pnpm molan` / 编译扩展时同步，�
 ## VS Code / Cursor 扩展
 
 编译扩展时把 `molan.css` 和 `molan-editor.js` 拷进 webview，点击 Markdown 即可打开。见 [`apps/vscode-molan/README.md`](../../apps/vscode-molan/README.md)。
+
+网站发布走仓库根目录 `pnpm molan:publish`（会调用本机 `deploy/upload.sh` 同步到 https://molan.guoyoutech.cn/）。只更新网站、不发商店时，直接运行该上传脚本即可。

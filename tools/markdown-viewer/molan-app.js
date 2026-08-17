@@ -9,6 +9,7 @@
   const fileList = document.getElementById("fileList");
   const welcome = document.getElementById("welcome");
   const welcomePickBtn = document.getElementById("welcomePickBtn");
+  const welcomeDemoBtn = document.getElementById("welcomeDemoBtn");
   const aphorismText = document.getElementById("aphorismText");
   const editorWrap = document.getElementById("editorWrap");
   const readerBody = document.getElementById("readerBody");
@@ -764,7 +765,51 @@
     dirInput.click();
   }
 
-  function setFiles(list) {
+  function wantsDemo() {
+    try {
+      const q = new URLSearchParams(location.search);
+      if (q.has("demo") && q.get("demo") !== "0") return true;
+    } catch (_) { /* ignore */ }
+    return false;
+  }
+
+  async function loadDemoLibrary() {
+    if (!confirmDiscardIfDirty()) return;
+    const folder = t("demoFolder");
+    const docs = [
+      { file: "软件架构.md" },
+      { file: "开卷.md" },
+    ];
+    statusLeft.textContent = t("openingName", { name: folder });
+    try {
+      const list = [];
+      for (const doc of docs) {
+        const res = await fetch("./demo/" + encodeURIComponent(doc.file));
+        if (!res.ok) throw new Error(doc.file);
+        const text = await res.text();
+        list.push({
+          path: `${folder}/${doc.file}`,
+          name: doc.file,
+          dir: folder,
+          size: new Blob([text]).size,
+          text,
+        });
+      }
+      folderName = folder;
+      folderSource = "legacy";
+      folderHandle = null;
+      currentFolderId = null;
+      setFiles(list, `${folder}/软件架构.md`);
+      statusRight.textContent = t("demoHint");
+      toast(t("demoLoaded"));
+    } catch (err) {
+      console.warn(err);
+      statusLeft.textContent = t("readFail");
+      toast(t("readFailToast"));
+    }
+  }
+
+  function setFiles(list, openPath) {
     files = list.sort((a, b) => a.path.localeCompare(b.path, locale()));
     searchInput.value = "";
     statusLeft.textContent = files.length ? t("indexed", { n: files.length }) : t("noMarkdown");
@@ -777,7 +822,9 @@
     openSeq += 1;
     applyingRemote = false;
     renderSidebarList();
-    if (files.length) openFile(files[0].path);
+    const preferred = openPath && files.some((f) => f.path === openPath) ? openPath : null;
+    if (preferred) openFile(preferred);
+    else if (files.length) openFile(files[0].path);
     else {
       showWelcome();
       toast(t("noDocsInFolder"));
@@ -1465,6 +1512,11 @@
     pickFolder();
   });
 
+  welcomeDemoBtn?.addEventListener("click", () => {
+    markPickHintSeen();
+    void loadDemoLibrary();
+  });
+
   aphorismText?.addEventListener("click", () => advanceAphorism(true));
   aphorismText?.addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === " ") {
@@ -1648,6 +1700,9 @@
   }
 
   refreshRecentFolders()
-    .then(() => renderSidebarList())
+    .then(() => {
+      renderSidebarList();
+      if (wantsDemo()) return loadDemoLibrary();
+    })
     .catch((err) => console.warn(err));
 })();

@@ -59,7 +59,12 @@ assert(html.includes('id="themeSwitch"'), "prefs menu has theme switch");
 assert(html.includes("prefsThemeLabel"), "theme stays in prefs menu");
 assert(!html.includes("brand-themes"), "theme is not exposed in sidebar chrome");
 assert(!html.includes('id="themeBtn"'), "web header has no standalone theme button");
-assert(html.includes("vscode:extension/fengshihao.molan-markdown"), "prefs can launch VS Code install");
+assert(html.includes('id="welcomeDemoBtn"'), "welcome has try-sample");
+assert(html.includes("./guide.html"), "prefs links to the web guide");
+assert(existsSync(join(viewer, "guide.html")), "web studio guide page");
+assert(existsSync(join(viewer, "demo/软件架构.md")), "demo architecture doc");
+assert(existsSync(join(viewer, "studio-intro.gif")), "web studio intro gif");
+assert(existsSync(join(viewer, "shots/edit-table.jpg")), "table editing screenshot");
 assert(html.indexOf('id="molanFindBtn"') < html.indexOf('id="copyBtn"'), "find comes before copy");
 assert(html.includes("./vendor/vditor/dist/method.min.js"), "html loads local method.min.js");
 assert(html.includes("./vendor/vditor/dist/js/lute/lute.min.js"), "html preloads local lute");
@@ -85,6 +90,7 @@ for (const path of [
 
 const app = readFileSync(join(viewer, "molan-app.js"), "utf8");
 assert(app.includes("openLocalMarkdownLink"), "browser opens in-folder markdown links");
+assert(app.includes("loadDemoLibrary"), "browser can open built-in samples");
 assert(app.includes("SCAN_MAX_DEPTH"), "limits folder scan depth");
 assert(app.includes("SCAN_MAX_FILES"), "limits folder scan file count");
 assert(app.includes("pathHasSkippedDir"), "skips node_modules in folder file lists");
