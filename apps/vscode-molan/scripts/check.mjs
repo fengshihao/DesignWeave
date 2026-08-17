@@ -64,7 +64,7 @@ assert(html.includes("./guide.html"), "prefs links to the web guide");
 assert(existsSync(join(viewer, "guide.html")), "web studio guide page");
 assert(existsSync(join(viewer, "demo/软件架构.md")), "demo architecture doc");
 assert(existsSync(join(viewer, "studio-intro.gif")), "web studio intro gif");
-assert(existsSync(join(viewer, "shots/preview-xuan.jpg")), "xuan paper screenshot");
+assert(existsSync(join(viewer, "shots/edit-table.jpg")), "table editing screenshot");
 assert(html.indexOf('id="molanFindBtn"') < html.indexOf('id="copyBtn"'), "find comes before copy");
 assert(html.includes("./vendor/vditor/dist/method.min.js"), "html loads local method.min.js");
 assert(html.includes("./vendor/vditor/dist/js/lute/lute.min.js"), "html preloads local lute");

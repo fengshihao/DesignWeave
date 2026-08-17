@@ -161,18 +161,30 @@ async function main() {
     });
   }
 
-  async function moveTo(sel, ms = 520) {
-    const target = await centerOf(sel);
+  async function moveToPoint(x, y, ms = 520) {
     const n = Math.max(4, Math.round(ms / frameMs));
     const x0 = cursor.x;
     const y0 = cursor.y;
     for (let i = 1; i <= n; i++) {
       const t = i / n;
       const e = 1 - (1 - t) * (1 - t);
-      await setCursor(x0 + (target.x - x0) * e, y0 + (target.y - y0) * e);
+      await setCursor(x0 + (x - x0) * e, y0 + (y - y0) * e);
       await grab();
       await sleep(frameMs);
     }
+  }
+
+  async function moveTo(sel, ms = 520) {
+    const target = await centerOf(sel);
+    await moveToPoint(target.x, target.y, ms);
+  }
+
+  async function clickNow() {
+    await setCursor(cursor.x, cursor.y, true);
+    await grab();
+    await page.mouse.click(cursor.x, cursor.y);
+    await sleep(80);
+    await setCursor(cursor.x, cursor.y, false);
   }
 
   async function clickSel(sel) {
@@ -183,12 +195,24 @@ async function main() {
     await setCursor(cursor.x, cursor.y, false);
   }
 
-  async function waitMermaid() {
+  async function typeVisible(text, delay = 90) {
+    for (const ch of [...text]) {
+      await page.keyboard.type(ch);
+      await grab();
+      await sleep(Math.max(frameMs, delay));
+    }
+  }
+
+  async function waitDocReady() {
     await page.waitForFunction(() => {
-      const svg = document.querySelector("#molanPreviewBody svg");
-      return !!(svg && svg.getBoundingClientRect().height > 24);
+      const preview = document.querySelector("#molanPreviewBody");
+      if (!preview) return false;
+      const table = preview.querySelector("table");
+      const code = preview.querySelector("pre code, code.language-typescript");
+      const r = table?.getBoundingClientRect();
+      return !!(code && r && r.width > 40);
     }, { timeout: 20000 });
-    await sleep(280);
+    await sleep(360);
   }
 
   async function shot(name) {
@@ -240,8 +264,8 @@ async function main() {
   await hold(220);
   await clickSel("#welcomeDemoBtn");
   await page.waitForSelector(".file-item", { timeout: 15000 });
-  await waitMermaid();
-  await hold(1400);
+  await waitDocReady();
+  await hold(1100);
   await shot("preview-night");
 
   await moveTo("#prefsToggle", 640);
@@ -263,27 +287,80 @@ async function main() {
     await hold(120);
     await clickSel(sel);
     await sleep(420);
-    await waitMermaid();
-    await hold(900);
+    await hold(520);
     await shot(name);
   }
 
   await page.mouse.click(900, 80);
-  await sleep(280);
-  await hold(280);
+  await sleep(220);
+  await hold(220);
 
-  await moveTo("#modeBtn", 560);
-  await hold(160);
+  await moveTo("#modeBtn", 520);
+  await hold(140);
   await clickSel("#modeBtn");
+  await page.waitForSelector(".vditor-ir h1.vditor-ir__node", { timeout: 15000 });
   await sleep(700);
-  await hold(1100);
+  await hold(500);
   await shot("edit");
 
-  await moveTo("#modeBtn", 420);
+  const heading = await page.$eval(".vditor-ir h1.vditor-ir__node", (el) => {
+    const r = el.getBoundingClientRect();
+    return { x: r.left + 168, y: r.top + r.height / 2 };
+  });
+  await moveToPoint(heading.x, heading.y, 480);
+  await hold(120);
+  await clickNow();
+  await page.keyboard.press("End");
+  await hold(160);
+  await typeVisible("草案", 140);
+  await hold(500);
+  await shot("edit-title");
+
+  const codeTop = await page.$eval('.vditor-ir [data-type="code-block"]', (el) => {
+    const r = el.getBoundingClientRect();
+    return { x: r.left + 28, y: r.top + 10 };
+  });
+  await moveToPoint(codeTop.x, codeTop.y, 480);
+  await hold(120);
+  await clickNow();
+  await page.waitForSelector('.vditor-ir [data-type="code-block"].vditor-ir__node--expand', { timeout: 4000 });
+  await hold(360);
+  const codeSrc = await page.evaluate(() => {
+    const code = document.querySelector('.vditor-ir [data-type="code-block"].vditor-ir__node--expand .vditor-ir__marker--pre code')
+      || document.querySelector('.vditor-ir [data-type="code-block"].vditor-ir__node--expand .vditor-ir__marker--pre');
+    const r = code.getBoundingClientRect();
+    return { x: r.left + 48, y: r.bottom - 12 };
+  });
+  await moveToPoint(codeSrc.x, codeSrc.y, 280);
+  await clickNow();
+  await page.keyboard.press("End");
+  await hold(120);
+  await typeVisible("\nconsole.log(open(doc));", 42);
+  await hold(480);
+  await shot("edit-code");
+
+  const cell = await page.evaluate(() => {
+    const tds = [...document.querySelectorAll(".vditor-ir table td")];
+    const el = tds.find((td) => (td.textContent || "").includes("Vue 3"));
+    const r = el.getBoundingClientRect();
+    return { x: r.left + r.width - 10, y: r.top + r.height / 2 };
+  });
+  await moveToPoint(cell.x, cell.y, 480);
+  await hold(120);
+  await clickNow();
+  await page.keyboard.press("End");
+  await hold(140);
+  await typeVisible(", Pinia", 70);
+  await hold(520);
+  await shot("edit-table");
+
+  await moveTo("#modeBtn", 480);
   await hold(120);
   await clickSel("#modeBtn");
-  await waitMermaid();
-  await hold(1200);
+  await page.waitForSelector("#molanPreviewBody h1", { timeout: 8000 });
+  await sleep(500);
+  await hold(1400);
+  await shot("preview-edited");
 
   await browser.close();
   console.log("frames", frame);
