@@ -2059,6 +2059,67 @@
         0 0 0 5px var(--accent-soft);
     }
 
+    .welcome-demo {
+      appearance: none;
+      position: absolute;
+      z-index: 2;
+      left: 26px;
+      bottom: 22px;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: none;
+      color: var(--ink-muted);
+      font-family: var(--font-display);
+      font-size: 0.92rem;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .welcome-demo::after {
+      content: "";
+      display: block;
+      width: 100%;
+      height: 1px;
+      margin-top: 4px;
+      background: color-mix(in srgb, var(--ink-muted) 55%, transparent);
+      transform: scaleX(0.42);
+      transform-origin: left center;
+      transition: transform 0.22s var(--ease), background 0.22s ease;
+    }
+
+    .welcome-demo:hover {
+      color: var(--accent-deep);
+    }
+
+    .welcome-demo:hover::after {
+      transform: scaleX(1);
+      background: var(--accent);
+    }
+
+    .welcome-demo:focus-visible {
+      outline: none;
+      color: var(--accent-deep);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+      border-radius: 4px;
+    }
+
+    html[dir="rtl"] .welcome-demo {
+      left: auto;
+      right: 26px;
+    }
+
+    html[dir="rtl"] .welcome-demo::after {
+      transform-origin: right center;
+    }
+
+    html[data-theme="hack"] .welcome-demo {
+      font-family: var(--font-mono);
+      letter-spacing: 0.08em;
+    }
+
     html[dir="rtl"] .aphorism { text-align: right; }
 
     html[data-theme="night"] .welcome-cta,
@@ -2070,6 +2131,14 @@
     html[data-theme="night"] .welcome-folio::after {
       mix-blend-mode: overlay;
       opacity: 0.3;
+    }
+
+    html[data-theme="night"] .welcome-demo {
+      color: var(--accent-soft);
+    }
+
+    html[data-theme="night"] .welcome-demo::after {
+      background: color-mix(in srgb, var(--accent-soft) 55%, transparent);
     }
 
     html[data-theme="hack"] .aphorism {
