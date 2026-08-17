@@ -130,6 +130,12 @@ assert(
 assert(readme.includes("打开即阅读"), "store copy has Chinese");
 assert(readme.includes("Open to read"), "store copy has English");
 assert(readme.includes("Abre para leer"), "store copy has Spanish");
+assert(readme.includes("所见即所得"), "store copy mentions WYSIWYG");
+assert(readme.includes("Mermaid"), "store copy mentions Mermaid");
+assert(readme.includes("字号"), "store copy mentions type size");
+assert(readme.includes("行距"), "store copy mentions line height");
+assert(readme.includes("表格"), "store copy mentions tables");
+assert(readme.includes("公式"), "store copy mentions math");
 assert(!readme.includes("pnpm --filter"), "README must not contain packaging commands");
 assert(!readme.includes("viewType"), "README must not contain implementation jargon");
 assert(existsSync(join(root, "DEV.md")), "developer docs live in DEV.md");

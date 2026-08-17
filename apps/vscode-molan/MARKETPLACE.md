@@ -9,10 +9,10 @@
 | Publisher ID | `fengshihao` |
 | Extension ID / name | `molan-markdown` |
 | Display name / 显示名称 | 墨览 Markdown |
-| Short description / 简短说明 | 打开即阅读，要点再编辑。Open to read, click to edit. Abre para leer, pulsa para editar. |
+| Short description / 简短说明 | 打开即阅读，要点再编辑。所见即所得：主题、表格、Mermaid、公式。Open to read, click to edit. WYSIWYG with themes, tables, Mermaid, math. |
 | Categories / 分类 | Other |
 | Tags / 标签 | markdown, vditor, wysiwyg, 墨览, mermaid, typora |
-| Version | 0.1.12 |
+| Version | 0.1.13 |
 | License | MIT |
 | Repository | https://github.com/fengshihao/DesignWeave.git |
 | Homepage | https://molan.guoyoutech.cn/extension.html |
@@ -64,4 +64,4 @@ npx @vscode/vsce publish --no-dependencies --baseContentUrl https://github.com/f
 pnpm --filter molan-markdown package
 ```
 
-Cursor 用户走 Open VSX（另一套账号）：https://open-vsx.org/ ，用 `npx ovsx publish molan-markdown-0.1.12.vsix -p "$OVSX_PAT"`。
+Cursor 用户走 Open VSX（另一套账号）：https://open-vsx.org/ ，用 `npx ovsx publish molan-markdown-0.1.13.vsix -p "$OVSX_PAT"`。
