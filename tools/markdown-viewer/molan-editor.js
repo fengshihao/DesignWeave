@@ -1169,11 +1169,39 @@
     positionTablePicker(picker, anchor);
   }
 
+  function currentIrBlock(ir) {
+    if (!ir) return null;
+    const sel = window.getSelection();
+    let node = sel?.anchorNode;
+    if (node?.nodeType === 3) node = node.parentElement;
+    if (!node || !ir.contains(node)) return ir.lastElementChild;
+    while (node && node.parentElement !== ir) node = node.parentElement;
+    return node;
+  }
+
   function insertPickedTable(vditor, rows, cols) {
-    if (!vditor || typeof vditor.insertValue !== "function") return;
     hideTablePicker();
+    const md = buildTableMarkdown(rows, cols);
+    const iv = vditor?.vditor || vditor;
+    const ir = iv?.ir?.element;
+    const lute = iv?.lute;
+    if (ir && lute && typeof lute.Md2VditorIRDOM === "function") {
+      const html = lute.Md2VditorIRDOM(`\n${md}\n`);
+      const block = currentIrBlock(ir);
+      if (block) block.insertAdjacentHTML("afterend", html);
+      else ir.insertAdjacentHTML("beforeend", html);
+      const inserted = (block?.nextElementSibling) || ir.lastElementChild;
+      const table = inserted?.tagName === "TABLE" ? inserted : inserted?.querySelector?.("table");
+      const firstCell = table?.querySelector?.("th, td");
+      if (firstCell) focusTableCell(firstCell);
+      notifyTableEdit(vditor, ir.closest("#vditor") || ir);
+      scheduleFitTables(ir.closest("#vditor") || ir);
+      return;
+    }
     try { vditor.focus(); } catch (_) { /* ignore */ }
-    vditor.insertValue(`\n${buildTableMarkdown(rows, cols)}\n`);
+    if (vditor && typeof vditor.insertValue === "function") {
+      vditor.insertValue(`\n\n${md}\n\n`);
+    }
   }
 
   function bindTableInsertPicker(root, getVditor) {

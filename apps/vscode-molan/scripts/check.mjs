@@ -85,6 +85,7 @@ for (const path of [
   join(viewer, "molan-editor.js"),
   join(viewer, "molan-app.js"),
   join(viewer, "serve.mjs"),
+  join(viewer, "scripts/table-e2e.mjs"),
   join(root, "media/vscode-bridge.js"),
 ]) {
   const result = spawnSync(process.execPath, ["--check", path], { encoding: "utf8" });

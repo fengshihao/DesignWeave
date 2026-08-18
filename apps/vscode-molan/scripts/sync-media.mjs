@@ -41,7 +41,7 @@ function vendorVditor(destDist) {
     "js/highlight.js/highlight.min.js",
     "js/highlight.js/third-languages.js",
     "js/highlight.js/styles/kimbie-dark.min.css",
-    "js/i18n/zh_CN.js",
+    "js/i18n",
     "js/icons/ant.js",
     "css/content-theme/light.css",
     "images/img-loading.svg",
