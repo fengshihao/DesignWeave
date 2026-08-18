@@ -2500,6 +2500,7 @@
     .vditor-wysiwyg,
     .vditor-sv,
     .vditor-preview:not(.molan-preview) {
+      position: relative;
       min-height: 0;
       height: 100%;
       overflow: auto;
@@ -3027,6 +3028,89 @@
     .molan-diagram-toolbar .icon-btn[data-molan-action="edit"]:hover {
       background: var(--surface-solid);
       color: var(--accent);
+    }
+
+    .molan-table-toolbar {
+      position: fixed;
+      z-index: 8;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      padding: 3px 4px;
+      border-radius: 999px;
+      background: var(--toolbar-bg);
+      border: 1px solid var(--hairline);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(6px);
+      pointer-events: auto;
+    }
+
+    .molan-table-toolbar[hidden] {
+      display: none !important;
+    }
+
+    .molan-table-toolbar__sep {
+      width: 1px;
+      height: 16px;
+      margin: 0 4px;
+      background: var(--hairline);
+      flex: 0 0 auto;
+    }
+
+    .molan-table-toolbar .icon-btn.is-disabled,
+    .molan-table-toolbar .icon-btn:disabled {
+      opacity: 0.35;
+      pointer-events: none;
+      transform: none;
+    }
+
+    .molan-table-picker {
+      position: fixed;
+      z-index: 40;
+      padding: 10px;
+      border-radius: 12px;
+      border: 1px solid var(--hairline);
+      background: var(--toolbar-bg);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(8px);
+      min-width: 0;
+    }
+
+    .molan-table-picker[hidden] {
+      display: none !important;
+    }
+
+    .molan-table-picker__grid {
+      display: grid;
+      gap: 3px;
+    }
+
+    .molan-table-picker__cell {
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      padding: 0;
+      border-radius: 3px;
+      border: 1px solid var(--table-line);
+      background: var(--table-bg);
+      cursor: pointer;
+    }
+
+    .molan-table-picker__cell.is-on {
+      background: color-mix(in srgb, var(--accent) 72%, var(--table-bg));
+      border-color: var(--accent);
+    }
+
+    .molan-table-picker__cell:hover {
+      border-color: var(--accent);
+    }
+
+    .molan-table-picker__label {
+      margin-top: 8px;
+      text-align: center;
+      font-size: 0.75rem;
+      letter-spacing: 0.02em;
+      color: var(--ink-soft);
     }
 
     .lightbox-actions .icon-btn {

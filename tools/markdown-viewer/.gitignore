@@ -2,3 +2,5 @@
 .env*
 deploy/
 vendor/
+.table-e2e.html
+.table-e2e-shots/
