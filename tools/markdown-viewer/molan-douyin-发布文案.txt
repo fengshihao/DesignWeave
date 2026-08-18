@@ -1,0 +1,32 @@
+墨览 · 抖音 / TikTok 发布文案
+==============================
+
+【标题 / 封面字】
+打开即阅读，要点再编辑
+
+【正文】
+本地 Markdown，浏览器就能用。
+
+选个文件夹 → 打开就预览
+四种纸面随便切：宣纸 / 墨夜 / 终端 / 胭脂
+字号、行距、段距记在本机
+标题、表格点进去就能改，所见即所得
+写回本地，不上云
+
+网页：https://molan.guoyoutech.cn
+Cursor / VS Code 搜：墨览 Markdown
+
+【话题】
+#墨览 #Markdown #本地笔记 #所见即所得 #Typora替代 #程序员 #效率工具 #开源软件 #VSCode #Cursor
+
+TikTok 英文补充（可选）
+Open to read. Click to edit.
+Local Markdown studio — themes, type, WYSIWYG tables.
+https://molan.guoyoutech.cn
+#markdown #opensource #typography #localfirst
+
+【建议】
+- 用竖屏 9:16 文件：molan-douyin-9x16.mp4（约 80 秒）
+- 封面可截片头「墨览 / 打开即阅读」
+- 横屏备用：molan-web-demo-16x9.mp4
+- 我无法登录你的抖音 / TikTok 账号代发，下载后在 App 里上传即可

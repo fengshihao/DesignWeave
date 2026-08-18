@@ -2,7 +2,7 @@
 
 所见即所得（Vditor IR，类 Typora）编辑本地 Markdown。打开文档默认**预览**（只阅读）；点顶栏「编辑」再改。公式、Mermaid 流程图、表格与任务列表均可编辑；Chrome / Edge 可写回原文件。
 
-打开本目录下的 `index.html`（或用本地静态服务器）。侧栏「打开文件夹」会打开本地目录：Chrome / Edge 可写回原文件；Cursor 内置浏览器自动改用兼容选择。开卷页也可点「试读示例」加载 `demo/` 里的样例。公开教程：<https://molan.guoyoutech.cn/guide.html>。
+打开本目录下的 `index.html`（或用本地静态服务器）。侧栏「打开文件夹」会打开本地目录：Chrome / Edge 可写回原文件；Cursor 内置浏览器自动改用兼容选择。开卷页也可点「试读示例」加载 `demo/` 里的样例。公开教程：<https://molan.guoyoutech.cn/guide.html>。网页版演示视频：[抖音竖屏](./molan-douyin-9x16.mp4)、[横屏](./molan-web-demo-16x9.mp4)、[发布文案](./molan-douyin-发布文案.txt)。
 
 侧栏设置可切换四种纸面：**宣纸**（暖色纸面）、**墨夜**（默认暗色夜读）、**终端**（磷光绿，程序员）、**胭脂**（柔粉衬线）。设置里也可一键安装 VS Code / Cursor 插件。选择会记在本机。
 
