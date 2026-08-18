@@ -40,7 +40,7 @@ cursor --install-extension apps/vscode-molan/molan-markdown-0.1.6.vsix
 
 ## 待做
 
-- **输入 `/` 弹出插入菜单**（类 Notion / BlockNote）。Vditor 没有内置 slash 菜单，可用 `hint.extend`（`key: "/"`）做自动补全列表，选中后用 `value` 替换 `/…`。实现时：只在行首触发（避免 `https://` 误弹）、`delay` 调低、`value` 不要以 `/` 开头。入口在 `tools/markdown-viewer/molan-editor.js` 的 `hint` 配置。
+- **输入 `/` 弹出插入菜单**（类 Notion / BlockNote）。Vditor 没有内置 slash 菜单，可用 `hint.extend`（`key: "/"`）做自动补全列表，选中后用 `value` 替换 `/…`。实现时：只在行首触发（避免 `https://` 误弹）、`delay` 调低、`value` 不要以 `/` 开头。入口在 `tools/markdown-viewer/molan-editor.js` 的 `hint` 配置。行首「+」不能靠 hint 冒充（没有程序化打开 API）；社区是编辑器外一个悬停跟随的手柄，点开后 `insertMD`。对照与推荐顺序见 [doc/14-行首加号插入块调研.md](../../doc/14-行首加号插入块调研.md)。
 
 填表与发布见 `MARKETPLACE.md`。
 
