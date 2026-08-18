@@ -70,6 +70,9 @@ assert(html.includes("./vendor/vditor/dist/method.min.js"), "html loads local me
 assert(html.includes("./vendor/vditor/dist/js/lute/lute.min.js"), "html preloads local lute");
 assert(!html.includes("cdn.jsdelivr.net"), "html must not load vditor from jsdelivr");
 assert(existsSync(join(viewer, "molan.css")), "viewer molan.css");
+assert(readFileSync(join(viewer, "molan.css"), "utf8").includes(".molan-table-toolbar"), "css for table toolbar");
+assert(readFileSync(join(viewer, "molan.css"), "utf8").includes(".molan-table-picker"), "css for table size picker");
+assert(readFileSync(join(viewer, "molan-i18n.js"), "utf8").includes("insertRowBelow"), "i18n has table row actions");
 assert(existsSync(join(viewer, "molan-editor.js")), "viewer molan-editor.js");
 assert(existsSync(join(viewer, "molan-app.js")), "viewer molan-app.js");
 assert(existsSync(join(viewer, "serve.mjs")), "viewer gzip static server");
@@ -99,6 +102,23 @@ assert(!app.includes("loadThemeFonts"), "theme fonts live in editor core");
 
 const editorSource = readFileSync(join(viewer, "molan-editor.js"), "utf8");
 assert(editorSource.includes("initType"), "reader type controls");
+assert(editorSource.includes("molan-table-toolbar"), "table structure toolbar");
+assert(editorSource.includes("molan-table-picker"), "table size picker");
+assert(editorSource.includes("bindTableControls"), "table row/column controls");
+assert(editorSource.includes("bindTableInsertPicker"), "table insert size picker");
+assert(editorSource.includes("function buildTableMarkdown"), "custom table markdown insert");
+
+{
+  const match = editorSource.match(/function buildTableMarkdown\(rows, cols\) \{[\s\S]*?\n  \}/);
+  assert(match, "extract buildTableMarkdown");
+  const buildTableMarkdown = new Function(`${match[0]}; return buildTableMarkdown;`)();
+  const md = buildTableMarkdown(3, 4);
+  const lines = md.split("\n");
+  assert(lines.length === 4, "3-row table is header + sep + 2 body rows");
+  assert(lines[0].split("|").filter(Boolean).length === 4, "4 columns in header");
+  assert(lines[1].includes("---"), "alignment row");
+  assert(buildTableMarkdown(1, 2).split("\n").length === 2, "1-row table is header + sep");
+}
 assert(editorSource.includes("initTheme"), "reader theme controls");
 assert(editorSource.includes("molan-type"), "persists type settings");
 assert(editorSource.includes("molan-theme"), "persists theme");
