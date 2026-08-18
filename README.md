@@ -48,6 +48,8 @@ pnpm molan:stop
 
 ![墨览工作室：试读示例，切换纸面](tools/markdown-viewer/studio-intro.gif)
 
+网页版演示（选文件夹、切纸面、调字号、改标题/表格）：[抖音竖屏](tools/markdown-viewer/molan-douyin-9x16.mp4) · [横屏](tools/markdown-viewer/molan-web-demo-16x9.mp4) · [发布文案](tools/markdown-viewer/molan-douyin-发布文案.txt)
+
 ### 开发扩展
 
 ```bash
