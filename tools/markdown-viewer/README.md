@@ -1,6 +1,6 @@
 # 墨览 · 本地 Markdown 工作室
 
-所见即所得（Vditor IR，类 Typora）编辑本地 Markdown。打开文档默认**预览**（只阅读）；点顶栏「编辑」再改。公式、Mermaid 流程图、表格与任务列表均可编辑；Chrome / Edge 可写回原文件。
+所见即所得（Vditor IR，类 Typora）编辑本地 Markdown。打开文档默认**预览**（只阅读）；点顶栏「编辑」再改。公式、Mermaid 流程图、表格与任务列表均可编辑；Chrome / Edge 可写回原文件。预览时把鼠标移到段落左侧会出现「+」，点开即可插入标题、列表、代码、表格等，不必手写语法。
 
 打开本目录下的 `index.html`（或用本地静态服务器）。侧栏「打开文件夹」会打开本地目录：Chrome / Edge 可写回原文件；Cursor 内置浏览器自动改用兼容选择。开卷页也可点「试读示例」加载 `demo/` 里的样例。公开教程：<https://molan.guoyoutech.cn/guide.html>。
 

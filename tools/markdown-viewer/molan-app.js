@@ -602,7 +602,6 @@
 
   function onEditorInput() {
     if (applyingRemote || !activePath) return;
-    if (editorApi?.isPreview?.()) return;
     scheduleEditorIdleWork();
   }
 

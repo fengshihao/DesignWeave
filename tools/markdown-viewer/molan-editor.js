@@ -121,6 +121,24 @@
       themeSwitched: "已切换为「{name}」",
       prefsAria: "界面配置",
       placeholder: "开始编辑 Markdown…",
+      insertBlock: "插入块",
+      insertGroupText: "文本",
+      insertGroupList: "列表",
+      insertGroupInsert: "插入",
+      insertH1: "标题 1",
+      insertH2: "标题 2",
+      insertH3: "标题 3",
+      insertUl: "无序列表",
+      insertOl: "有序列表",
+      insertTask: "任务列表",
+      insertQuote: "引用",
+      insertHr: "分割线",
+      insertCode: "代码块",
+      insertTable: "表格",
+      insertMath: "公式",
+      insertMermaid: "流程图",
+      insertImage: "图片",
+      insertLink: "链接",
     };
     let s = fallback[key] || key;
     if (vars) s = s.replace(/\{(\w+)\}/g, (_, k) => (vars[k] == null ? "" : String(vars[k])));
@@ -166,6 +184,7 @@
   }
 
   let toastEl = null;
+  let activeBlockInsert = null;
   let diagramObserver = null;
   let lightboxBound = false;
 
@@ -903,6 +922,9 @@
     applyFindI18n();
     applyTypeI18n();
     applyThemeI18n();
+    if (activeBlockInsert && typeof activeBlockInsert.refreshI18n === "function") {
+      activeBlockInsert.refreshI18n();
+    }
   }
 
   const findState = {
@@ -1926,6 +1948,505 @@
     return { wrap, host, body };
   }
 
+  const INSERT_ITEMS = [
+    { id: "h1", group: "text", key: "insertH1", md: "# 标题" },
+    { id: "h2", group: "text", key: "insertH2", md: "## 标题" },
+    { id: "h3", group: "text", key: "insertH3", md: "### 标题" },
+    { id: "quote", group: "text", key: "insertQuote", md: "> " },
+    { id: "hr", group: "text", key: "insertHr", md: "---" },
+    { id: "ul", group: "list", key: "insertUl", md: "- " },
+    { id: "ol", group: "list", key: "insertOl", md: "1. " },
+    { id: "task", group: "list", key: "insertTask", md: "- [ ] " },
+    { id: "code", group: "insert", key: "insertCode", md: "```\n\n```" },
+    { id: "table", group: "insert", key: "insertTable", md: "| 列 1 | 列 2 |\n| --- | --- |\n|  |  |" },
+    { id: "math", group: "insert", key: "insertMath", md: "$$\n\n$$" },
+    { id: "mermaid", group: "insert", key: "insertMermaid", md: "```mermaid\nflowchart TD\n  A[开始] --> B[结束]\n```" },
+    { id: "image", group: "insert", key: "insertImage", md: "![]()" },
+    { id: "link", group: "insert", key: "insertLink", md: "[]()" },
+  ];
+
+  const INSERT_GROUPS = [
+    { id: "text", key: "insertGroupText" },
+    { id: "list", key: "insertGroupList" },
+    { id: "insert", key: "insertGroupInsert" },
+  ];
+
+  function isFenceLine(line) {
+    return /^ {0,3}(`{3,}|~{3,})/.test(line);
+  }
+
+  function fenceClose(line, mark, len) {
+    const m = line.match(/^ {0,3}(`{3,}|~{3,})\s*$/);
+    return !!(m && m[1][0] === mark && m[1].length >= len);
+  }
+
+  function splitMdBlocks(md) {
+    const lines = String(md || "").replace(/\r\n/g, "\n").split("\n");
+    const blocks = [];
+    let i = 0;
+    const push = (start, end) => {
+      const text = lines.slice(start, end).join("\n");
+      if (text.trim() === "") return;
+      blocks.push({ start, end, text });
+    };
+    while (i < lines.length) {
+      if (lines[i].trim() === "") {
+        i++;
+        continue;
+      }
+      const trimmed = lines[i].replace(/^ {0,3}/, "");
+      if (isFenceLine(lines[i])) {
+        const open = trimmed.match(/^(`{3,}|~{3,})/);
+        const mark = open[1][0];
+        const len = open[1].length;
+        const start = i++;
+        while (i < lines.length && !fenceClose(lines[i], mark, len)) i++;
+        if (i < lines.length) i++;
+        push(start, i);
+        continue;
+      }
+      if (/^(#{1,6})(?:\s|$)/.test(trimmed)) {
+        push(i, i + 1);
+        i++;
+        continue;
+      }
+      if (/^([-*_])\s*\1\s*\1(?:\s*\1)*\s*$/.test(trimmed) && !/^[-*+] /.test(trimmed)) {
+        push(i, i + 1);
+        i++;
+        continue;
+      }
+      if (/^>/.test(trimmed)) {
+        const start = i++;
+        while (i < lines.length) {
+          const next = lines[i].replace(/^ {0,3}/, "");
+          if (lines[i].trim() === "") {
+            if (i + 1 < lines.length && /^>/.test(lines[i + 1].replace(/^ {0,3}/, ""))) {
+              i++;
+              continue;
+            }
+            break;
+          }
+          if (!/^>/.test(next)) break;
+          i++;
+        }
+        push(start, i);
+        continue;
+      }
+      if (/^([-*+]|\d+[.)])(?:\s\[.?\])?\s/.test(trimmed) || /^[-*+] \[[ xX]\]\s/.test(trimmed)) {
+        const start = i++;
+        while (i < lines.length) {
+          if (lines[i].trim() === "") {
+            const peek = lines[i + 1] || "";
+            if (/^\s+/.test(peek) || /^ {0,3}([-*+]|\d+[.)])\s/.test(peek)) {
+              i++;
+              continue;
+            }
+            break;
+          }
+          if (/^ {0,3}([-*+]|\d+[.)])\s/.test(lines[i]) || /^\s+\S/.test(lines[i])) {
+            i++;
+            continue;
+          }
+          break;
+        }
+        push(start, i);
+        continue;
+      }
+      if (/\|/.test(lines[i]) && i + 1 < lines.length && /^\s*\|?[\s:|-]*-{3,}/.test(lines[i + 1])) {
+        const start = i;
+        i += 2;
+        while (i < lines.length && /\|/.test(lines[i]) && lines[i].trim() !== "") i++;
+        push(start, i);
+        continue;
+      }
+      const start = i++;
+      while (i < lines.length && lines[i].trim() !== "") {
+        const next = lines[i].replace(/^ {0,3}/, "");
+        if (/^(#{1,6})\s/.test(next) || isFenceLine(lines[i]) || /^>/.test(next)
+          || /^([-*+]|\d+[.)])\s/.test(next)) break;
+        i++;
+      }
+      push(start, i);
+    }
+    return blocks;
+  }
+
+  function isEmptyMdBlock(text) {
+    return !String(text || "").replace(/[\u200b\s]/g, "");
+  }
+
+  function insertSnippetInMarkdown(md, blockIndex, snippet, replaceEmpty) {
+    const piece = String(snippet || "").replace(/^\n+/, "").replace(/\n+$/, "");
+    const blocks = splitMdBlocks(md);
+    if (!blocks.length) return piece + "\n";
+    const idx = Math.max(0, Math.min(blockIndex, blocks.length - 1));
+    if (replaceEmpty && isEmptyMdBlock(blocks[idx].text)) {
+      blocks[idx] = { ...blocks[idx], text: piece };
+    } else {
+      blocks.splice(idx + 1, 0, { text: piece });
+    }
+    return blocks.map((b) => b.text).join("\n\n").replace(/\n{3,}/g, "\n\n") + "\n";
+  }
+
+  function topLevelBlocks(root) {
+    if (!root) return [];
+    return [...root.children].filter((el) => {
+      if (el.nodeType !== 1) return false;
+      if (el.classList.contains("molan-block-insert") || el.classList.contains("molan-insert-menu")) {
+        return false;
+      }
+      const tag = el.tagName;
+      if (tag === "BR") return false;
+      return true;
+    });
+  }
+
+  function closestTopBlock(node, root) {
+    if (!node || !root) return null;
+    let el = node.nodeType === 1 ? node : node.parentElement;
+    while (el && el !== root) {
+      if (el.parentElement === root) return el;
+      el = el.parentElement;
+    }
+    return null;
+  }
+
+  function blockLooksEmpty(el) {
+    if (!el) return true;
+    const clone = el.cloneNode(true);
+    clone.querySelectorAll?.(".vditor-ir__preview, .molan-diagram-toolbar, .vditor-ir__marker").forEach((n) => n.remove());
+    return !String(clone.textContent || "").replace(/[\u200b\s]/g, "");
+  }
+
+  function placeCaretAfter(el) {
+    const editable = el?.closest?.("[contenteditable='true']");
+    if (!editable) return false;
+    try { editable.focus(); } catch (_) { /* ignore */ }
+    const range = document.createRange();
+    if (blockLooksEmpty(el)) {
+      range.selectNodeContents(el);
+      range.collapse(true);
+    } else {
+      range.setStartAfter(el);
+      range.collapse(true);
+    }
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    return true;
+  }
+
+  function bindBlockInsert(ctx) {
+    const wrap = ctx.getWrap();
+    if (!wrap) return { sync() {}, hide() {}, refreshI18n() {} };
+
+    let handle = wrap.querySelector(":scope > .molan-block-insert");
+    if (!handle) {
+      handle = document.createElement("div");
+      handle.className = "molan-block-insert";
+      handle.hidden = true;
+      handle.innerHTML = `<button type="button" class="molan-block-plus" aria-haspopup="menu" aria-expanded="false">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>
+      </button>`;
+      wrap.appendChild(handle);
+    }
+    const plusBtn = handle.querySelector(".molan-block-plus");
+
+    let menu = wrap.querySelector(":scope > .molan-insert-menu");
+    if (!menu) {
+      menu = document.createElement("div");
+      menu.className = "molan-insert-menu";
+      menu.hidden = true;
+      menu.setAttribute("role", "menu");
+      wrap.appendChild(menu);
+    }
+
+    let hover = null;
+    let menuOpen = false;
+    let activeIndex = 0;
+    let hideTimer = 0;
+    let moveRaf = 0;
+
+    const items = () => INSERT_ITEMS;
+
+    function paintMenu() {
+      const parts = [];
+      INSERT_GROUPS.forEach((group) => {
+        const rows = INSERT_ITEMS.filter((item) => item.group === group.id);
+        if (!rows.length) return;
+        parts.push(`<div class="molan-insert-group" role="none">${t(group.key)}</div>`);
+        rows.forEach((item) => {
+          parts.push(`<button type="button" class="molan-insert-item" role="menuitem" data-insert-id="${item.id}">
+            <span class="molan-insert-item-label">${t(item.key)}</span>
+          </button>`);
+        });
+      });
+      menu.innerHTML = parts.join("");
+      plusBtn.setAttribute("aria-label", t("insertBlock"));
+      plusBtn.setAttribute("title", t("insertBlock"));
+      menu.setAttribute("aria-label", t("insertBlock"));
+    }
+
+    function visibleItems() {
+      return [...menu.querySelectorAll(".molan-insert-item")];
+    }
+
+    function paintActive() {
+      visibleItems().forEach((el, i) => el.classList.toggle("is-active", i === activeIndex));
+    }
+
+    function contentRoot() {
+      if (ctx.getPreviewing()) return ctx.getPreviewBody();
+      const vditorRoot = ctx.getVditorRoot();
+      return vditorRoot?.querySelector(".vditor-ir pre.vditor-reset")
+        || vditorRoot?.querySelector(".vditor-ir .vditor-reset")
+        || null;
+    }
+
+    function hideHandle() {
+      if (menuOpen) return;
+      handle.hidden = true;
+      handle.classList.remove("is-visible");
+      hover = null;
+    }
+
+    function hideMenu() {
+      menuOpen = false;
+      menu.hidden = true;
+      plusBtn.setAttribute("aria-expanded", "false");
+    }
+
+    function positionHandle(el) {
+      if (!el) {
+        hideHandle();
+        return;
+      }
+      const wrapRect = wrap.getBoundingClientRect();
+      const rect = el.getBoundingClientRect();
+      if (rect.bottom < wrapRect.top + 8 || rect.top > wrapRect.bottom - 8) {
+        handle.hidden = true;
+        return;
+      }
+      const rtl = document.documentElement.dir === "rtl";
+      const size = 26;
+      const top = rect.top - wrapRect.top + Math.min(Math.max((Math.min(rect.height, 32) - size) / 2, 0), 8);
+      let left = rtl
+        ? rect.right - wrapRect.left + 8
+        : rect.left - wrapRect.left - size - 8;
+      left = Math.max(4, Math.min(left, wrapRect.width - size - 4));
+      handle.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
+      handle.hidden = false;
+      handle.classList.add("is-visible");
+    }
+
+    function positionMenu() {
+      const wrapRect = wrap.getBoundingClientRect();
+      const btnRect = plusBtn.getBoundingClientRect();
+      menu.hidden = false;
+      const menuRect = menu.getBoundingClientRect();
+      let left = btnRect.left - wrapRect.left;
+      let top = btnRect.bottom - wrapRect.top + 6;
+      if (left + menuRect.width > wrapRect.width - 8) {
+        left = Math.max(8, wrapRect.width - menuRect.width - 8);
+      }
+      if (top + menuRect.height > wrapRect.height - 8) {
+        top = Math.max(8, btnRect.top - wrapRect.top - menuRect.height - 6);
+      }
+      menu.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
+    }
+
+    function setHover(next) {
+      hover = next;
+      if (!next || !next.el) {
+        hideHandle();
+        return;
+      }
+      positionHandle(next.el);
+    }
+
+    function hitFromPoint(clientX, clientY) {
+      const root = contentRoot();
+      if (!root) return null;
+      const blocks = topLevelBlocks(root);
+      const rootRect = root.getBoundingClientRect();
+      const x = Math.min(rootRect.right - 8, Math.max(rootRect.left + 12, rootRect.left + 36));
+      const hitNode = document.elementFromPoint(x, clientY);
+      if (hitNode && (hitNode.closest(".molan-block-insert") || hitNode.closest(".molan-insert-menu"))) {
+        return hover;
+      }
+      let el = closestTopBlock(hitNode, root);
+      if (!el && blocks.length) {
+        for (let i = 0; i < blocks.length; i++) {
+          const r = blocks[i].getBoundingClientRect();
+          if (clientY >= r.top && clientY <= r.bottom) {
+            el = blocks[i];
+            break;
+          }
+        }
+        if (!el) {
+          const last = blocks[blocks.length - 1];
+          const first = blocks[0];
+          if (clientY > last.getBoundingClientRect().bottom) el = last;
+          else if (clientY < first.getBoundingClientRect().top) el = first;
+        }
+      }
+      if (!el && !blocks.length) {
+        return { el: root, index: 0, emptyDoc: true };
+      }
+      if (!el) return null;
+      const index = Math.max(0, blocks.indexOf(el));
+      return { el, index, empty: blockLooksEmpty(el) };
+    }
+
+    function onMove(event) {
+      if (menuOpen) return;
+      if (moveRaf) cancelAnimationFrame(moveRaf);
+      const { clientX, clientY } = event;
+      moveRaf = requestAnimationFrame(() => {
+        moveRaf = 0;
+        const next = hitFromPoint(clientX, clientY);
+        if (!next) {
+          if (hideTimer) clearTimeout(hideTimer);
+          hideTimer = window.setTimeout(hideHandle, 180);
+          return;
+        }
+        if (hideTimer) {
+          clearTimeout(hideTimer);
+          hideTimer = 0;
+        }
+        setHover(next);
+      });
+    }
+
+    function onLeave(event) {
+      if (menuOpen) return;
+      const to = event.relatedTarget;
+      if (to && (handle.contains(to) || menu.contains(to))) return;
+      if (hideTimer) clearTimeout(hideTimer);
+      hideTimer = window.setTimeout(hideHandle, 220);
+    }
+
+    function openMenu() {
+      if (!hover) return;
+      paintMenu();
+      menuOpen = true;
+      activeIndex = 0;
+      plusBtn.setAttribute("aria-expanded", "true");
+      positionHandle(hover.el);
+      positionMenu();
+      paintActive();
+      const first = visibleItems()[0];
+      first?.focus();
+    }
+
+    function applyItem(id) {
+      const item = items().find((row) => row.id === id);
+      if (!item || !hover) return;
+      hideMenu();
+      ctx.insertSnippet(item.md, hover);
+      hideHandle();
+    }
+
+    plusBtn.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    plusBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (menuOpen) hideMenu();
+      else openMenu();
+    });
+    handle.addEventListener("mouseenter", () => {
+      if (hideTimer) {
+        clearTimeout(hideTimer);
+        hideTimer = 0;
+      }
+    });
+    menu.addEventListener("click", (event) => {
+      const btn = event.target.closest(".molan-insert-item");
+      if (!btn) return;
+      event.preventDefault();
+      applyItem(btn.getAttribute("data-insert-id"));
+    });
+    menu.addEventListener("mouseover", (event) => {
+      const btn = event.target.closest(".molan-insert-item");
+      if (!btn) return;
+      const rows = visibleItems();
+      activeIndex = Math.max(0, rows.indexOf(btn));
+      paintActive();
+    });
+
+    document.addEventListener("pointerdown", (event) => {
+      if (!menuOpen) return;
+      if (menu.contains(event.target) || handle.contains(event.target)) return;
+      hideMenu();
+    }, true);
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && menuOpen) {
+        event.preventDefault();
+        hideMenu();
+        plusBtn.focus();
+        return;
+      }
+      if (!menuOpen) return;
+      const rows = visibleItems();
+      if (!rows.length) return;
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const delta = event.key === "ArrowDown" ? 1 : -1;
+        activeIndex = (activeIndex + delta + rows.length) % rows.length;
+        paintActive();
+        rows[activeIndex]?.focus();
+      } else if (event.key === "Enter") {
+        event.preventDefault();
+        const id = rows[activeIndex]?.getAttribute("data-insert-id");
+        if (id) applyItem(id);
+      }
+    });
+
+    wrap.addEventListener("mousemove", onMove);
+    wrap.addEventListener("mouseleave", onLeave);
+    const onScroll = () => {
+      if (hover?.el) positionHandle(hover.el);
+      if (menuOpen) positionMenu();
+    };
+    wrap.addEventListener("scroll", onScroll, true);
+    const scrollBound = new WeakSet();
+    function watchScroller(el) {
+      if (!el || scrollBound.has(el)) return;
+      scrollBound.add(el);
+      el.addEventListener("scroll", onScroll, { passive: true });
+    }
+
+    paintMenu();
+    watchScroller(ctx.getPreviewBody());
+
+    return {
+      sync() {
+        watchScroller(ctx.getPreviewBody());
+        watchScroller(ctx.getVditorRoot()?.querySelector(".vditor-ir"));
+        if (menuOpen && hover?.el) {
+          positionHandle(hover.el);
+          positionMenu();
+        } else if (!menuOpen) {
+          hideHandle();
+        }
+      },
+      hide() {
+        hideMenu();
+        hideHandle();
+      },
+      refreshI18n() {
+        paintMenu();
+        if (menuOpen) {
+          paintActive();
+          positionMenu();
+        }
+      },
+    };
+  }
+
   function create(options = {}) {
     const elementId = options.elementId || "vditor";
     const cdn = options.cdn || DEFAULT_CDN;
@@ -1952,6 +2473,7 @@
     let previewSeq = 0;
     let muteInput = false;
     const previewListeners = [];
+    let blockInsert = { sync() {}, hide() {}, refreshI18n() {} };
 
     setMermaidMarkdownProvider(() => {
       if (previewing) return markdown;
@@ -2020,6 +2542,7 @@
               previewBody.scrollTop = restoreScroll;
             }
             if (findState.open) runFind({ keepIndex: true, reveal: false });
+            blockInsert.sync();
           },
         });
       };
@@ -2051,7 +2574,6 @@
           placeholder,
           cache: { enable: false },
           undoDelay: 200,
-          // 待做：hint.extend（key: "/"）做斜杠插入菜单，见 apps/vscode-molan/DEV.md
           hint: { delay: 400 },
           toolbar: [
             "headings", "bold", "italic", "strike", "|",
@@ -2094,6 +2616,7 @@
             watchMermaidPreviews(previewRoot);
             watchTables(vditorRoot);
             revealVditorIcons();
+            blockInsert.sync();
             resolve(vditor);
           },
         });
@@ -2103,6 +2626,56 @@
       });
       return vditorReady;
     };
+
+    const applySnippet = (snippet, hover) => {
+      const piece = String(snippet || "").replace(/^\n+/, "").replace(/\n+$/, "");
+      if (!piece) return;
+      maybePreloadMermaid(cdn, piece);
+      if (previewing || !vditor) {
+        const next = insertSnippetInMarkdown(
+          markdown,
+          hover?.emptyDoc ? 0 : (hover?.index ?? 0),
+          piece,
+          !!(hover?.empty || hover?.emptyDoc),
+        );
+        markdown = next;
+        renderLitePreview(markdown);
+        try { options.onInput?.(); } catch (_) { /* ignore */ }
+        return;
+      }
+      const irRoot = vditorRoot.querySelector(".vditor-ir pre.vditor-reset")
+        || vditorRoot.querySelector(".vditor-ir .vditor-reset");
+      if (hover?.el && irRoot && irRoot.contains(hover.el)) {
+        placeCaretAfter(hover.el);
+      }
+      try { vditor.focus(); } catch (_) { /* ignore */ }
+      const md = (hover?.empty || hover?.emptyDoc) ? piece : `\n\n${piece}\n`;
+      if (typeof vditor.insertMD === "function") {
+        vditor.insertMD(md);
+      } else if (typeof vditor.insertValue === "function") {
+        vditor.insertValue(md, true);
+      } else {
+        const next = insertSnippetInMarkdown(
+          vditor.getValue(),
+          hover?.index ?? 0,
+          piece,
+          !!(hover?.empty || hover?.emptyDoc),
+        );
+        muteInput = true;
+        vditor.setValue(next, false);
+        setTimeout(() => { muteInput = false; }, 200);
+        try { options.onInput?.(); } catch (_) { /* ignore */ }
+      }
+    };
+
+    blockInsert = bindBlockInsert({
+      getWrap: () => wrap,
+      getPreviewBody: () => previewBody,
+      getVditorRoot: () => vditorRoot,
+      getPreviewing: () => previewing,
+      insertSnippet: applySnippet,
+    });
+    activeBlockInsert = blockInsert;
 
     const api = {
       async setValue(text, clearStack = true) {
@@ -2120,6 +2693,7 @@
           enhanceMermaidPreviews(vditorRoot);
           scheduleFitTables(vditorRoot);
           if (findState.open) runFind({ keepIndex: true, reveal: false });
+          blockInsert.sync();
         }, 400);
       },
       getValue() {
@@ -2144,12 +2718,14 @@
             try { markdown = vditor.getValue(); } catch (_) { /* ignore */ }
           }
           previewing = true;
+          blockInsert.hide();
           renderLitePreview(markdown);
           notifyPreview();
           return true;
         }
         previewing = false;
         muteInput = true;
+        blockInsert.hide();
         syncLiteClass();
         await bootEditor();
         vditor.setValue(markdown, true);
@@ -2159,6 +2735,7 @@
           enhanceMermaidPreviews(vditorRoot);
           scheduleFitTables(vditorRoot);
           if (findState.open) runFind({ keepIndex: true, reveal: false });
+          blockInsert.sync();
         }, 400);
         notifyPreview();
         return false;

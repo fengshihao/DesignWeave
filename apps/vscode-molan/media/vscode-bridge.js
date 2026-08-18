@@ -63,7 +63,6 @@
       previewActions: [],
       onInput: () => {
         if (applyingRemote) return;
-        if (editorApi?.isPreview?.()) return;
         scheduleEditorIdleWork();
       },
       onCounter: () => {

@@ -2403,6 +2403,7 @@
       padding: 0;
       background: var(--paper-lift);
       contain: layout;
+      position: relative;
     }
 
     .editor-wrap.visible { display: flex; flex-direction: column; }
@@ -2522,7 +2523,7 @@
       width: 100%;
       box-sizing: border-box;
       margin: 0 auto !important;
-      padding: 22px 40px 56px !important;
+      padding: 22px 40px 56px 52px !important;
       overflow-x: auto;
       font-family: var(--font-ui) !important;
       font-size: var(--reader-size) !important;
@@ -3337,3 +3338,91 @@
     }
 
     body.molan-host-vscode .welcome { display: none; }
+
+    .molan-block-insert {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 20;
+      pointer-events: none;
+      will-change: transform;
+    }
+    .molan-block-insert.is-visible {
+      pointer-events: auto;
+    }
+    .molan-block-plus {
+      width: 26px;
+      height: 26px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--hairline-strong);
+      border-radius: 8px;
+      background: var(--paper-lift);
+      color: var(--ink-muted);
+      box-shadow: 0 6px 18px rgba(28, 25, 20, 0.08);
+      cursor: pointer;
+    }
+    .molan-block-plus svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      fill: none;
+      stroke-linecap: round;
+    }
+    .molan-block-plus:hover,
+    .molan-block-plus[aria-expanded="true"] {
+      color: var(--accent-deep);
+      border-color: var(--accent-soft);
+      background: var(--surface-hover);
+    }
+    .molan-block-plus:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    html[dir="rtl"] .molan-block-plus {
+      border-radius: 8px;
+    }
+    .molan-insert-menu {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 22;
+      min-width: 198px;
+      max-height: min(70vh, 420px);
+      overflow: auto;
+      padding: 8px 0;
+      border: 1px solid var(--hairline-strong);
+      border-radius: 12px;
+      background: var(--paper-lift);
+      box-shadow: var(--shadow);
+      color: var(--ink);
+      font-family: var(--font-ui);
+    }
+    .molan-insert-group {
+      padding: 8px 14px 4px;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
+    }
+    .molan-insert-item {
+      display: flex;
+      width: 100%;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      text-align: start;
+      padding: 7px 14px;
+      cursor: pointer;
+    }
+    .molan-insert-item:hover,
+    .molan-insert-item.is-active,
+    .molan-insert-item:focus-visible {
+      background: var(--row-hover);
+      outline: none;
+    }
+    .molan-insert-item-label {
+      font-size: 0.92rem;
+    }
