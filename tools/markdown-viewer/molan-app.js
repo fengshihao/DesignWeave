@@ -546,6 +546,16 @@
     syncModeButton();
   }
 
+  function syncHeaderDocButtons(show) {
+    const edit = document.getElementById("editModePrefs");
+    if (edit) edit.hidden = !show;
+    const outline = document.getElementById("outlinePrefs");
+    if (!outline) return;
+    if (!show) window.MolanEditor?.outline?.close?.(true);
+    outline.hidden = !show;
+    window.MolanEditor?.outline?.pin?.();
+  }
+
   function syncModeButton() {
     if (!modeBtn) return;
     const preview = !!(editorApi?.isPreview?.());
@@ -558,12 +568,16 @@
       if (findBtn) findBtn.hidden = true;
       if (typeBtn) typeBtn.hidden = true;
       if (reloadBtn) reloadBtn.hidden = true;
+      syncHeaderDocButtons(false);
+      const formatBar = document.getElementById("molanFormatBar");
+      if (formatBar) formatBar.hidden = true;
       return;
     }
     copyBtn.hidden = false;
     if (findBtn) findBtn.hidden = false;
     if (typeBtn) typeBtn.hidden = false;
     if (reloadBtn) reloadBtn.hidden = false;
+    syncHeaderDocButtons(true);
     saveBtn.hidden = !dirty;
   }
 
@@ -1007,6 +1021,9 @@
     if (findBtn) findBtn.hidden = true;
     if (typeBtn) typeBtn.hidden = true;
     if (reloadBtn) reloadBtn.hidden = true;
+    syncHeaderDocButtons(false);
+    const formatBar = document.getElementById("molanFormatBar");
+    if (formatBar) formatBar.hidden = true;
     readerTitle.textContent = "墨览";
     activePath = null;
     dirty = false;
@@ -1379,6 +1396,7 @@
     if (findBtn) findBtn.hidden = false;
     if (typeBtn) typeBtn.hidden = false;
     if (reloadBtn) reloadBtn.hidden = false;
+    syncHeaderDocButtons(true);
     statusLeft.textContent = t("openingName", { name: file.name });
 
     await ensureVditor();

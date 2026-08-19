@@ -139,6 +139,16 @@
       insertMermaid: "流程图",
       insertImage: "图片",
       insertLink: "链接",
+      formatBold: "加粗",
+      formatItalic: "斜体",
+      formatLink: "链接",
+      formatLinkPlaceholder: "https:// 或相对路径",
+      editModeAria: "切换编辑方式",
+      editModeWysiwyg: "所见即所得",
+      editModeIr: "即时渲染",
+      outlineAria: "大纲",
+      outlineCloseAria: "收起大纲",
+      outlineEmpty: "没有标题",
       pickImageFail: "无法插入图片",
       imageUrlTitle: "插入图片",
       imageUrlHint: "请填写可公开访问的图片地址",
@@ -1243,6 +1253,614 @@
     return path;
   }
 
+  const EDIT_MODE_ICON = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="7.5" y="3.5" width="13" height="15" rx="2" stroke="currentColor" stroke-width="1.7"/><rect x="3.5" y="6.5" width="13" height="15" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M6.5 11.5h7M6.5 15h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+  const OUTLINE_ICON = '<svg class="icon-outline" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 6h16M8 12h12M8 18h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="4" cy="12" r="1.15" fill="currentColor"/><circle cx="4" cy="18" r="1.15" fill="currentColor"/></svg>';
+  const OUTLINE_CLOSE_ICON = '<svg class="icon-outline-close" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+
+  function scrollToHeading(root, index) {
+    if (!root || index == null || index < 0) return;
+    const el = root.querySelectorAll("h1,h2,h3,h4,h5,h6")[index];
+    el?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }
+
+  let outlineAnimToken = 0;
+  let outlineCtx = null;
+
+  function closeEditModeMenu() {
+    const menu = document.getElementById("editModeMenu");
+    const btn = document.getElementById("editModeBtn");
+    if (menu) menu.hidden = true;
+    if (!btn) return;
+    btn.classList.remove("is-on");
+    btn.setAttribute("aria-expanded", "false");
+  }
+
+  function innerVditor(vditor) {
+    return vditor?.vditor || vditor || null;
+  }
+
+  function vditorOutlineEl() {
+    return document.querySelector(".vditor-outline");
+  }
+
+  function outlineIsOpen() {
+    const el = vditorOutlineEl();
+    if (!el) return false;
+    return el.style.display === "block" && !el.classList.contains("is-out");
+  }
+
+  function applyEditorChromeI18n() {
+    const editBtn = document.getElementById("editModeBtn");
+    if (editBtn) {
+      const label = t("editModeAria");
+      editBtn.title = label;
+      editBtn.setAttribute("aria-label", label);
+    }
+    const outlineBtn = document.getElementById("outlineBtn");
+    if (outlineBtn) {
+      const label = t(outlineBtn.classList.contains("is-on") ? "outlineCloseAria" : "outlineAria");
+      outlineBtn.title = label;
+      outlineBtn.setAttribute("aria-label", label);
+    }
+    const wysiwyg = document.querySelector('#editModeMenu [data-mode="wysiwyg"]');
+    if (wysiwyg) wysiwyg.textContent = t("editModeWysiwyg");
+    const ir = document.querySelector('#editModeMenu [data-mode="ir"]');
+    if (ir) ir.textContent = t("editModeIr");
+  }
+
+  function pinOutlineDock() {
+    const dock = document.getElementById("outlinePrefs");
+    if (!dock) return;
+    if (dock.parentElement !== document.body) document.body.appendChild(dock);
+    const host = document.querySelector(".reader-body");
+    const rtl = document.documentElement.getAttribute("dir") === "rtl";
+    const r = host?.getBoundingClientRect();
+    dock.style.position = "fixed";
+    dock.style.width = "32px";
+    dock.style.height = "32px";
+    dock.style.zIndex = "40";
+    dock.style.margin = "0";
+    dock.style.bottom = "auto";
+    if (!r || dock.hidden) {
+      dock.style.top = "10px";
+      dock.style.left = rtl ? "auto" : "10px";
+      dock.style.right = rtl ? "10px" : "auto";
+      return;
+    }
+    dock.style.top = `${Math.round(r.top + 10)}px`;
+    if (rtl) {
+      dock.style.left = "auto";
+      dock.style.right = `${Math.round(window.innerWidth - r.right + 10)}px`;
+    } else {
+      dock.style.right = "auto";
+      dock.style.left = `${Math.round(r.left + 10)}px`;
+    }
+  }
+
+  function bindOutlineDockPin() {
+    if (bindOutlineDockPin.done) return;
+    bindOutlineDockPin.done = true;
+    const pin = () => pinOutlineDock();
+    window.addEventListener("resize", pin);
+    window.addEventListener("scroll", pin, true);
+    window.visualViewport?.addEventListener("resize", pin);
+    window.visualViewport?.addEventListener("scroll", pin);
+    if (typeof ResizeObserver === "function") {
+      const ro = new ResizeObserver(pin);
+      const host = document.querySelector(".reader-body");
+      const main = document.querySelector(".main");
+      const wrap = document.getElementById("editorWrap") || document.querySelector(".editor-wrap");
+      if (host) ro.observe(host);
+      if (main) ro.observe(main);
+      if (wrap) ro.observe(wrap);
+    }
+  }
+
+  let outlineRefreshTimer = 0;
+
+  function scheduleOutlineRefresh() {
+    if (!outlineIsOpen()) return;
+    clearTimeout(outlineRefreshTimer);
+    outlineRefreshTimer = window.setTimeout(() => {
+      refreshOutline();
+    }, 200);
+  }
+
+  async function refreshOutline() {
+    if (!outlineIsOpen()) return;
+    if (outlineCtx?.getPreviewing?.()) await outlineCtx.hydrateVditor?.();
+    const inner = innerVditor(outlineCtx?.getVditor?.());
+    relocateVditorOutline();
+    try { inner?.outline?.render?.(inner); } catch (_) { /* ignore */ }
+  }
+
+  function setOutlineFab(open) {
+    const btn = document.getElementById("outlineBtn");
+    const dock = document.getElementById("outlinePrefs");
+    dock?.classList.toggle("is-open", !!open);
+    btn?.classList.toggle("is-on", !!open);
+    btn?.setAttribute("aria-expanded", open ? "true" : "false");
+    applyEditorChromeI18n();
+    pinOutlineDock();
+  }
+
+  function relocateVditorOutline() {
+    const wrap = document.getElementById("editorWrap") || document.querySelector(".editor-wrap");
+    const panel = vditorOutlineEl();
+    if (!wrap || !panel) return panel;
+    if (panel.parentElement !== wrap) wrap.insertBefore(panel, wrap.firstChild);
+    wrap.classList.toggle("is-outline-open", outlineIsOpen());
+    return panel;
+  }
+
+  function setVditorOutline(show) {
+    const inner = innerVditor(outlineCtx?.getVditor?.());
+    const panel = inner?.outline?.element || vditorOutlineEl();
+    if (!panel) return;
+    relocateVditorOutline();
+    const wrap = document.getElementById("editorWrap") || document.querySelector(".editor-wrap");
+    if (show) {
+      panel.classList.remove("is-out");
+      panel.style.display = "block";
+      wrap?.classList.add("is-outline-open");
+      try { inner?.outline?.render?.(inner); } catch (_) { /* ignore */ }
+      inner?.toolbar?.elements?.outline?.firstElementChild?.classList.add("vditor-menu--current");
+    } else {
+      panel.style.display = "none";
+      panel.classList.remove("is-out");
+      wrap?.classList.remove("is-outline-open");
+      inner?.toolbar?.elements?.outline?.firstElementChild?.classList.remove("vditor-menu--current");
+    }
+    setOutlineFab(show);
+  }
+
+  function closeOutline(instant) {
+    const panel = vditorOutlineEl();
+    if (!outlineIsOpen()) {
+      setOutlineFab(false);
+      return;
+    }
+    const finish = () => {
+      setVditorOutline(false);
+    };
+    if (instant || prefersReducedMotion() || !panel) {
+      outlineAnimToken += 1;
+      finish();
+      return;
+    }
+    const token = ++outlineAnimToken;
+    panel.classList.add("is-out");
+    setOutlineFab(false);
+    const done = () => {
+      if (token !== outlineAnimToken) return;
+      finish();
+    };
+    panel.addEventListener("animationend", (e) => {
+      if (e.target === panel) done();
+    }, { once: true });
+    window.setTimeout(done, 260);
+  }
+
+  async function openOutline() {
+    await outlineCtx?.hydrateVditor?.();
+    relocateVditorOutline();
+    outlineAnimToken += 1;
+    const already = outlineIsOpen();
+    setVditorOutline(true);
+    const panel = vditorOutlineEl();
+    if (panel && !already) {
+      panel.classList.remove("is-out");
+      void panel.offsetWidth;
+    }
+    pinOutlineDock();
+  }
+
+  function ensureEditorChrome(ctx) {
+    const actions = document.querySelector(".reader-actions");
+    const editorWrap = document.getElementById("editorWrap") || document.querySelector(".editor-wrap");
+    const modeBtn = document.getElementById("modeBtn");
+    const anchor = actions && modeBtn && modeBtn.parentElement === actions
+      ? modeBtn.nextSibling
+      : (document.getElementById("typePrefs") || document.getElementById("headerPrefs") || null);
+
+    if (actions) {
+      let editWrap = document.getElementById("editModePrefs");
+      if (!editWrap) {
+        editWrap = document.createElement("div");
+        editWrap.id = "editModePrefs";
+        editWrap.className = "molan-chrome-prefs";
+        editWrap.innerHTML = `
+          <button type="button" class="icon-btn" id="editModeBtn" aria-haspopup="menu" aria-expanded="false">${EDIT_MODE_ICON}</button>
+          <div class="molan-chrome-menu" id="editModeMenu" hidden role="menu">
+            <button type="button" role="menuitem" data-mode="wysiwyg"></button>
+            <button type="button" role="menuitem" data-mode="ir"></button>
+          </div>
+        `;
+      }
+      if (editWrap.parentElement !== actions) {
+        if (anchor) actions.insertBefore(editWrap, anchor);
+        else actions.appendChild(editWrap);
+      }
+    }
+
+    {
+      let outlineWrap = document.getElementById("outlinePrefs");
+      if (!outlineWrap) {
+        outlineWrap = document.createElement("div");
+        outlineWrap.id = "outlinePrefs";
+        outlineWrap.className = "molan-outline-dock";
+        outlineWrap.innerHTML = `
+          <button type="button" class="molan-outline-fab" id="outlineBtn" aria-haspopup="true" aria-expanded="false">${OUTLINE_ICON}${OUTLINE_CLOSE_ICON}</button>
+        `;
+      } else {
+        outlineWrap.className = "molan-outline-dock";
+        if (!outlineWrap.querySelector(".molan-outline-fab") || !outlineWrap.querySelector(".icon-outline-close")) {
+          outlineWrap.innerHTML = `
+            <button type="button" class="molan-outline-fab" id="outlineBtn" aria-haspopup="true" aria-expanded="false">${OUTLINE_ICON}${OUTLINE_CLOSE_ICON}</button>
+          `;
+        }
+        outlineWrap.querySelector("#outlineMenu")?.remove();
+      }
+      document.body.appendChild(outlineWrap);
+      bindOutlineDockPin();
+      pinOutlineDock();
+    }
+
+    outlineCtx = ctx;
+    const editBtn = document.getElementById("editModeBtn");
+    const editMenu = document.getElementById("editModeMenu");
+    const outlineBtn = document.getElementById("outlineBtn");
+    applyEditorChromeI18n();
+
+    const paintEditMode = () => {
+      const mode = currentEditorMode(ctx.getVditor?.()) || "ir";
+      editMenu?.querySelectorAll("[data-mode]").forEach((btn) => {
+        btn.classList.toggle("is-on", btn.getAttribute("data-mode") === mode);
+      });
+    };
+
+    if (editBtn && editMenu && !editBtn.dataset.bound) {
+      editBtn.dataset.bound = "1";
+      editBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const willOpen = editMenu.hidden;
+        closeEditModeMenu();
+        if (!willOpen) return;
+        paintEditMode();
+        editMenu.hidden = false;
+        editBtn.classList.add("is-on");
+        editBtn.setAttribute("aria-expanded", "true");
+      });
+      editMenu.addEventListener("click", async (e) => {
+        const item = e.target.closest("[data-mode]");
+        if (!item) return;
+        const mode = item.getAttribute("data-mode");
+        closeEditModeMenu();
+        if (ctx.getPreviewing?.()) await ctx.enterEdit?.();
+        const native = ctx.getVditorRoot?.()?.querySelector(`.vditor-toolbar [data-mode="${mode}"]`);
+        if (native) native.click();
+        else {
+          const vditor = ctx.getVditor?.();
+          if (vditor && typeof vditor.getCurrentMode === "function" && vditor.getCurrentMode() !== mode) {
+            ctx.getVditorRoot?.()?.querySelector('[data-type="edit-mode"]')?.click();
+            ctx.getVditorRoot?.()?.querySelector(`.vditor-toolbar [data-mode="${mode}"]`)?.click();
+          }
+        }
+      });
+    }
+
+    if (outlineBtn && !outlineBtn.dataset.bound) {
+      outlineBtn.dataset.bound = "1";
+      outlineBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const panel = vditorOutlineEl();
+        if (panel?.classList.contains("is-out")) closeOutline(true);
+        if (outlineIsOpen()) closeOutline();
+        else openOutline();
+      });
+    }
+
+    if (editorWrap && !editorWrap.dataset.previewJump) {
+      editorWrap.dataset.previewJump = "1";
+      editorWrap.addEventListener("click", (e) => {
+        if (!outlineCtx?.getPreviewing?.()) return;
+        const span = e.target.closest(".vditor-outline [data-target-id]");
+        if (!span) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const items = [...(span.closest(".vditor-outline")?.querySelectorAll("[data-target-id]") || [])];
+        scrollToHeading(outlineCtx.getPreviewRoot?.(), items.indexOf(span));
+      }, true);
+    }
+
+    if (!ensureEditorChrome._bound) {
+      ensureEditorChrome._bound = true;
+      document.addEventListener("click", (e) => {
+        if (!e.target.closest("#editModePrefs")) closeEditModeMenu();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key !== "Escape") return;
+        closeEditModeMenu();
+        closeOutline();
+      });
+    }
+  }
+
+  function hideFormatBar() {
+    const bar = document.getElementById("molanFormatBar");
+    if (!bar) return;
+    bar.hidden = true;
+    bar.classList.remove("is-link", "is-below");
+    const form = bar.querySelector(".molan-format-bar__link");
+    if (form) form.hidden = true;
+    const actions = bar.querySelector(".molan-format-bar__actions");
+    if (actions) actions.hidden = false;
+  }
+
+  function applyFormatBarI18n() {
+    const bar = document.getElementById("molanFormatBar");
+    if (!bar) return;
+    const map = { bold: "formatBold", italic: "formatItalic", link: "formatLink" };
+    bar.querySelectorAll("[data-format]").forEach((btn) => {
+      const key = map[btn.getAttribute("data-format")];
+      if (!key) return;
+      const label = t(key);
+      btn.title = label;
+      btn.setAttribute("aria-label", label);
+    });
+    const input = bar.querySelector(".molan-format-bar__link input");
+    if (input) {
+      input.placeholder = t("formatLinkPlaceholder");
+      input.setAttribute("aria-label", t("formatLink"));
+    }
+  }
+
+  function bindFormatBar(vditorRoot, getVditor, isPreviewing) {
+    if (!vditorRoot || vditorRoot.dataset.molanFormatBar === "1") return;
+    vditorRoot.dataset.molanFormatBar = "1";
+
+    let bar = document.getElementById("molanFormatBar");
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.id = "molanFormatBar";
+      bar.className = "molan-format-bar";
+      bar.hidden = true;
+      bar.innerHTML = `
+        <div class="molan-format-bar__actions">
+          <button type="button" data-format="bold"><span>B</span></button>
+          <button type="button" data-format="italic"><span>I</span></button>
+          <button type="button" data-format="link">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 9.5l3-3M5 8.2l-1.2 1.2a2.2 2.2 0 1 0 3.1 3.1L8.2 11M11 7.8l1.2-1.2a2.2 2.2 0 1 0-3.1-3.1L7.8 5"/></svg>
+          </button>
+        </div>
+        <form class="molan-format-bar__link" hidden novalidate>
+          <input type="text" inputmode="url" autocomplete="off" spellcheck="false" />
+        </form>
+      `;
+      document.body.appendChild(bar);
+    }
+    applyFormatBarI18n();
+
+    let savedRange = null;
+    let savedText = "";
+    let linkOpen = false;
+    let raf = 0;
+
+    const clickToolbar = (type) => {
+      const btn = vditorRoot.querySelector(`.vditor-toolbar [data-type="${type}"]`);
+      if (!btn) return false;
+      btn.click();
+      return true;
+    };
+
+    const restoreRange = () => {
+      if (!savedRange) return false;
+      const sel = window.getSelection();
+      if (!sel) return false;
+      sel.removeAllRanges();
+      sel.addRange(savedRange);
+      return true;
+    };
+
+    const captureRange = () => {
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount || sel.isCollapsed) return false;
+      savedRange = sel.getRangeAt(0).cloneRange();
+      savedText = sel.toString();
+      return true;
+    };
+
+    const positionBar = (range) => {
+      let rect = range.getBoundingClientRect();
+      if (!rect || (rect.width === 0 && rect.height === 0)) {
+        const rects = range.getClientRects();
+        if (!rects.length) {
+          hideFormatBar();
+          return;
+        }
+        rect = rects[0];
+      }
+      bar.hidden = false;
+      const pad = 8;
+      const w = bar.offsetWidth || 120;
+      const h = bar.offsetHeight || 40;
+      let left = rect.left + rect.width / 2 - w / 2;
+      let top = rect.top - h - pad;
+      let below = false;
+      if (top < pad) {
+        top = rect.bottom + pad;
+        below = true;
+      }
+      left = Math.min(Math.max(pad, left), window.innerWidth - w - pad);
+      bar.style.left = `${Math.round(left)}px`;
+      bar.style.top = `${Math.round(top)}px`;
+      bar.classList.toggle("is-below", below);
+    };
+
+    const syncButtons = () => {
+      bar.querySelectorAll("[data-format]").forEach((btn) => {
+        const type = btn.getAttribute("data-format");
+        const native = vditorRoot.querySelector(`.vditor-toolbar [data-type="${type}"]`);
+        btn.classList.toggle("is-on", !!(native && native.classList.contains("vditor-menu--current")));
+      });
+    };
+
+    const closeLink = () => {
+      linkOpen = false;
+      bar.classList.remove("is-link");
+      const form = bar.querySelector(".molan-format-bar__link");
+      const actions = bar.querySelector(".molan-format-bar__actions");
+      if (form) form.hidden = true;
+      if (actions) actions.hidden = false;
+    };
+
+    const openLink = () => {
+      captureRange();
+      linkOpen = true;
+      bar.classList.add("is-link");
+      const form = bar.querySelector(".molan-format-bar__link");
+      const actions = bar.querySelector(".molan-format-bar__actions");
+      const input = form?.querySelector("input");
+      if (actions) actions.hidden = true;
+      if (form) form.hidden = false;
+      if (input) {
+        const node = savedRange?.commonAncestorContainer;
+        const el = node?.nodeType === 1 ? node : node?.parentElement;
+        const href = el?.closest("a")?.getAttribute("href") || "";
+        input.value = href;
+        requestAnimationFrame(() => {
+          input.focus();
+          input.select();
+        });
+      }
+      if (savedRange) positionBar(savedRange);
+    };
+
+    const applyLink = (raw) => {
+      const href = parseInlineHref(raw);
+      const vditor = getVditor?.();
+      if (!href || !vditor || !savedText) {
+        if (!href) {
+          const input = bar.querySelector(".molan-format-bar__link input");
+          input?.classList.add("is-invalid");
+          input?.focus();
+          return false;
+        }
+        return false;
+      }
+      restoreRange();
+      const md = `[${escapeMdAlt(savedText)}](${href})`;
+      try {
+        if (typeof vditor.deleteValue === "function") vditor.deleteValue();
+        if (typeof vditor.insertMD === "function") vditor.insertMD(md);
+        else if (typeof vditor.insertValue === "function") vditor.insertValue(md, true);
+      } catch (_) { /* ignore */ }
+      closeLink();
+      hideFormatBar();
+      return true;
+    };
+
+    const sync = () => {
+      if (isPreviewing?.() || linkOpen) return;
+      const vditor = getVditor?.();
+      const mode = currentEditorMode(vditor);
+      if (mode !== "ir" && mode !== "wysiwyg") {
+        hideFormatBar();
+        return;
+      }
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !sel.rangeCount) {
+        hideFormatBar();
+        return;
+      }
+      const text = sel.toString();
+      if (!text.replace(/\s+/g, "")) {
+        hideFormatBar();
+        return;
+      }
+      const node = sel.anchorNode;
+      const el = node?.nodeType === 1 ? node : node?.parentElement;
+      if (!el || !vditorRoot.contains(el)) {
+        hideFormatBar();
+        return;
+      }
+      if (!el.closest(".vditor-ir, .vditor-wysiwyg")) {
+        hideFormatBar();
+        return;
+      }
+      if (el.closest("pre, .vditor-ir__preview, .language-mermaid, .molan-find-bar, .molan-format-bar")) {
+        hideFormatBar();
+        return;
+      }
+      savedRange = sel.getRangeAt(0).cloneRange();
+      savedText = text;
+      positionBar(savedRange);
+      syncButtons();
+    };
+
+    const scheduleSync = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        sync();
+      });
+    };
+
+    document.addEventListener("selectionchange", scheduleSync);
+    vditorRoot.addEventListener("keyup", scheduleSync);
+    vditorRoot.addEventListener("mouseup", scheduleSync);
+    window.addEventListener("scroll", () => {
+      if (bar.hidden || !savedRange) return;
+      try { positionBar(savedRange); } catch (_) { hideFormatBar(); }
+    }, true);
+    window.addEventListener("resize", () => {
+      if (!bar.hidden && savedRange) positionBar(savedRange);
+    });
+
+    bar.addEventListener("pointerdown", (e) => {
+      if (e.target.closest("input")) return;
+      e.preventDefault();
+    });
+    bar.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-format]");
+      if (!btn) return;
+      const type = btn.getAttribute("data-format");
+      if (type === "link") {
+        openLink();
+        return;
+      }
+      restoreRange();
+      if (!clickToolbar(type)) {
+        const vditor = getVditor?.();
+        const marker = type === "bold" ? "**" : "*";
+        if (vditor && savedText) {
+          try {
+            if (typeof vditor.deleteValue === "function") vditor.deleteValue();
+            const md = `${marker}${savedText}${marker}`;
+            if (typeof vditor.insertMD === "function") vditor.insertMD(md);
+            else vditor.insertValue?.(md, true);
+          } catch (_) { /* ignore */ }
+        }
+      }
+      requestAnimationFrame(syncButtons);
+    });
+    bar.querySelector(".molan-format-bar__link")?.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const input = bar.querySelector(".molan-format-bar__link input");
+      applyLink(input?.value || "");
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape" || bar.hidden) return;
+      if (linkOpen) {
+        e.preventDefault();
+        closeLink();
+        if (savedRange) positionBar(savedRange);
+        return;
+      }
+      hideFormatBar();
+    });
+  }
+
   function tableToolbarButtonFromEvent(e, root) {
     for (const node of eventPath(e)) {
       if (!node || node.nodeType !== 1) continue;
@@ -1422,6 +2040,8 @@
     applyFindI18n();
     applyTypeI18n();
     applyThemeI18n();
+    applyFormatBarI18n();
+    applyEditorChromeI18n();
     if (activeBlockInsert && typeof activeBlockInsert.refreshI18n === "function") {
       activeBlockInsert.refreshI18n();
     }
@@ -2497,6 +3117,13 @@
     }
   }
 
+  function parseInlineHref(raw) {
+    const s = String(raw || "").trim().replace(/^<|>$/g, "");
+    if (!s || /[\s<>]/.test(s)) return "";
+    if (/^(javascript|data|vbscript):/i.test(s)) return "";
+    return s;
+  }
+
   function altFromImageUrl(href) {
     try {
       const leaf = new URL(href).pathname.split("/").filter(Boolean).pop() || "";
@@ -2798,6 +3425,8 @@
       const vditorRoot = ctx.getVditorRoot();
       return vditorRoot?.querySelector(".vditor-ir pre.vditor-reset")
         || vditorRoot?.querySelector(".vditor-ir .vditor-reset")
+        || vditorRoot?.querySelector(".vditor-wysiwyg pre.vditor-reset")
+        || vditorRoot?.querySelector(".vditor-wysiwyg .vditor-reset")
         || null;
     }
 
@@ -3126,6 +3755,12 @@
     const syncLiteClass = () => {
       wrap?.classList.toggle("is-lite-preview", previewing);
       vditorRoot.classList.toggle("is-preview", previewing);
+      if (previewing) hideFormatBar();
+      if (outlineIsOpen()) {
+        relocateVditorOutline();
+        const inner = innerVditor(vditor);
+        try { inner?.outline?.render?.(inner); } catch (_) { /* ignore */ }
+      }
     };
 
     const renderLitePreview = (text) => {
@@ -3156,6 +3791,7 @@
             }
             if (findState.open) runFind({ keepIndex: true, reveal: false });
             blockInsert.sync();
+            scheduleOutlineRefresh();
           },
         });
       };
@@ -3189,11 +3825,8 @@
           undoDelay: 200,
           hint: { delay: 400 },
           toolbar: [
-            "headings", "bold", "italic", "strike", "|",
-            "line", "quote", "list", "ordered-list", "check", "outdent", "indent", "|",
-            "code", "inline-code", "link", "table", "|",
-            "undo", "redo", "|",
-            "edit-mode", "outline", "fullscreen",
+            "bold", "italic", "link",
+            "edit-mode", "outline",
           ],
           toolbarConfig: { pin: true, hide: false },
           preview: {
@@ -3207,16 +3840,12 @@
             lazyLoadImage,
           },
           counter: {
-            enable: true,
-            type: "text",
-            after: () => {
-              if (previewing || muteInput) return;
-              options.onCounter?.();
-            },
+            enable: false,
           },
           input: () => {
             if (previewing || muteInput) return;
             scheduleFitTables(vditorRoot);
+            scheduleOutlineRefresh();
             try {
               options.onInput?.();
             } catch (_) { /* ignore */ }
@@ -3230,8 +3859,11 @@
             watchTables(vditorRoot);
             bindTableInsertPicker(vditorRoot, () => vditor);
             bindTableControls(vditorRoot, () => vditor);
+            bindFormatBar(vditorRoot, () => vditor, () => previewing);
+            relocateVditorOutline();
             revealVditorIcons();
             blockInsert.sync();
+            scheduleOutlineRefresh();
             resolve(vditor);
           },
         });
@@ -3312,6 +3944,7 @@
           scheduleFitTables(vditorRoot);
           if (findState.open) runFind({ keepIndex: true, reveal: false });
           blockInsert.sync();
+          scheduleOutlineRefresh();
         }, 400);
       },
       getValue() {
@@ -3334,6 +3967,7 @@
         if (want) {
           hideTablePicker();
           hideTableToolbar(document.getElementById("molanTableToolbar"));
+          hideFormatBar();
           if (vditor) {
             try { markdown = vditor.getValue(); } catch (_) { /* ignore */ }
           }
@@ -3356,6 +3990,7 @@
           scheduleFitTables(vditorRoot);
           if (findState.open) runFind({ keepIndex: true, reveal: false });
           blockInsert.sync();
+          scheduleOutlineRefresh();
         }, 400);
         notifyPreview();
         return false;
@@ -3372,6 +4007,32 @@
         return vditor;
       },
     };
+
+    ensureEditorChrome({
+      getVditor: () => vditor,
+      getVditorRoot: () => vditorRoot,
+      getPreviewing: () => previewing,
+      getMarkdown: () => {
+        if (previewing || !vditor) return markdown;
+        try { return vditor.getValue(); } catch (_) { return markdown; }
+      },
+      getPreviewRoot: () => previewBody,
+      enterEdit: () => api.setPreview(false),
+      bootEditor,
+      hydrateVditor: async () => {
+        await bootEditor();
+        if (!vditor) return;
+        relocateVditorOutline();
+        if (!previewing) return;
+        let current = "";
+        try { current = vditor.getValue(); } catch (_) { /* ignore */ }
+        if (current === markdown) return;
+        muteInput = true;
+        try { vditor.setValue(markdown, true); } catch (_) { /* ignore */ }
+        await new Promise((resolve) => setTimeout(resolve, 220));
+        muteInput = false;
+      },
+    });
 
     syncLiteClass();
     if (options.defaultPreview === false) {
@@ -3409,6 +4070,10 @@
     prefs: {
       open: openHeaderPrefs,
       close: closeHeaderPrefs,
+    },
+    outline: {
+      close: closeOutline,
+      pin: pinOutlineDock,
     },
   };
 

@@ -486,6 +486,16 @@
       }
     }
 
+    @keyframes molan-outline-in {
+      from { opacity: 0.35; }
+      to { opacity: 1; }
+    }
+
+    @keyframes molan-outline-out {
+      from { opacity: 1; }
+      to { opacity: 0; }
+    }
+
     @media (prefers-reduced-motion: reduce) {
       .prefs-toggle,
       .prefs-toggle[aria-expanded="true"] {
@@ -498,8 +508,15 @@
       .type-menu.is-open,
       .type-menu.is-out,
       .theme-menu.is-open,
-      .theme-menu.is-out {
+      .theme-menu.is-out,
+      .molan-outline-panel.is-open,
+      .molan-outline-panel.is-out,
+      .editor-wrap > .vditor-outline.is-out,
+      .editor-wrap.is-outline-open > .vditor-outline {
         animation: none;
+      }
+      .molan-outline-fab svg {
+        transition: none;
       }
     }
 
@@ -1273,6 +1290,174 @@
 
     .reader-actions .icon-btn[hidden]:not(#saveBtn) { display: none; }
 
+    .reader-actions .molan-chrome-prefs {
+      position: relative;
+      display: flex;
+      flex: 0 0 auto;
+    }
+    .reader-actions .molan-chrome-prefs[hidden] {
+      display: none;
+    }
+    .molan-chrome-menu {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      z-index: 16;
+      min-width: 168px;
+      max-width: min(280px, 72vw);
+      max-height: min(360px, 50vh);
+      overflow: auto;
+      padding: 6px;
+      border-radius: 14px;
+      background: var(--paper-lift);
+      border: 1px solid var(--hairline-strong);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+      color: var(--ink);
+    }
+    html[dir="rtl"] .molan-chrome-menu {
+      right: auto;
+      left: 0;
+    }
+    .molan-chrome-menu[hidden] {
+      display: none;
+    }
+    .molan-chrome-menu button {
+      appearance: none;
+      display: block;
+      width: 100%;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      font-size: 0.84rem;
+      line-height: 1.35;
+      text-align: start;
+      padding: 8px 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .molan-chrome-menu button:hover,
+    .molan-chrome-menu button.is-on {
+      background: color-mix(in srgb, var(--accent) 14%, transparent);
+    }
+    .molan-chrome-empty {
+      padding: 10px 12px;
+      font-size: 0.82rem;
+      color: var(--ink-muted);
+    }
+
+    .molan-outline-dock {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      width: 32px;
+      height: 32px;
+      z-index: 40;
+      margin: 0;
+      pointer-events: none;
+    }
+    html[dir="rtl"] .molan-outline-dock {
+      left: auto;
+      right: 10px;
+    }
+    .molan-outline-dock[hidden] {
+      display: none;
+    }
+    .molan-outline-fab {
+      appearance: none;
+      pointer-events: auto;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      position: absolute;
+      inset: 0;
+      border: 1px solid var(--hairline-strong);
+      border-radius: 10px;
+      background: color-mix(in srgb, var(--paper-lift) 88%, transparent);
+      color: var(--ink-muted);
+      box-shadow: 0 6px 18px rgba(28, 25, 20, 0.08);
+      backdrop-filter: blur(8px);
+      cursor: pointer;
+      line-height: 0;
+    }
+    .molan-outline-fab svg {
+      position: absolute;
+      inset: 0;
+      margin: auto;
+      width: 16px;
+      height: 16px;
+      display: block;
+      transition: opacity 0.28s var(--ease), transform 0.36s var(--ease);
+    }
+    .molan-outline-fab .icon-outline-close {
+      opacity: 0;
+      transform: rotate(-90deg) scale(0.72);
+    }
+    .molan-outline-fab.is-on {
+      color: var(--accent);
+      background: var(--surface);
+      border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    }
+    .molan-outline-fab.is-on .icon-outline {
+      opacity: 0;
+      transform: rotate(90deg) scale(0.72);
+    }
+    .molan-outline-fab.is-on .icon-outline-close {
+      opacity: 1;
+      transform: none;
+    }
+    .molan-outline-fab:hover {
+      color: var(--accent-deep);
+      border-color: var(--accent-soft);
+      background: var(--surface-hover);
+    }
+    .molan-outline-fab:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .editor-wrap > .vditor-outline {
+      flex: 0 0 250px;
+      width: 250px !important;
+      height: 100%;
+      align-self: stretch;
+      border: 0 !important;
+      border-right: 1px solid var(--hairline) !important;
+      border-radius: 0;
+      background: color-mix(in srgb, var(--paper-deep) 55%, var(--paper-lift)) !important;
+      box-shadow: none;
+      overflow: auto;
+      color: var(--ink);
+    }
+    html[dir="rtl"] .editor-wrap > .vditor-outline {
+      border-right: 0 !important;
+      border-left: 1px solid var(--hairline) !important;
+    }
+    .editor-wrap > .vditor-outline.is-out {
+      animation: molan-outline-out 0.16s ease both;
+    }
+    .editor-wrap.is-outline-open > .vditor-outline {
+      animation: molan-outline-in 0.22s var(--ease) both;
+    }
+    .editor-wrap > .vditor-outline .vditor-outline__title {
+      padding: 12px 12px 10px 48px;
+      border-bottom: 1px dashed var(--hairline);
+      color: var(--ink-muted);
+      font-family: var(--font-ui);
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+    }
+    .editor-wrap > .vditor-outline li > span {
+      color: var(--ink);
+    }
+    .editor-wrap > .vditor-outline li > span:hover {
+      color: var(--accent-deep);
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+    }
+
     .reader-actions #saveBtn {
       overflow: hidden;
       transition:
@@ -1611,7 +1796,8 @@
     }
 
     #headerPrefsBtn.is-on,
-    #typeBtn.is-on {
+    #typeBtn.is-on,
+    #editModeBtn.is-on {
       color: var(--accent);
       background: var(--surface);
       border-color: color-mix(in srgb, var(--accent) 45%, transparent);
@@ -2369,8 +2555,15 @@
       .type-menu.is-open,
       .type-menu.is-out,
       .theme-menu.is-open,
-      .theme-menu.is-out {
+      .theme-menu.is-out,
+      .molan-outline-panel.is-open,
+      .molan-outline-panel.is-out,
+      .editor-wrap > .vditor-outline.is-out,
+      .editor-wrap.is-outline-open > .vditor-outline {
         animation: none;
+      }
+      .molan-outline-fab svg {
+        transition: none;
       }
       .file-item,
       .recent-item,
@@ -2397,32 +2590,39 @@
     }
 
     .editor-wrap {
-      flex: 1;
+      flex: 1 1 0;
+      min-width: 0;
       min-height: 0;
       display: none;
       padding: 0;
       background: var(--paper-lift);
-      contain: layout;
       position: relative;
+      overflow: hidden;
     }
 
-    .editor-wrap.visible { display: flex; flex-direction: column; }
+    .editor-wrap.visible {
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
+    }
 
     .molan-preview {
       display: none;
-      flex: 1;
+      flex: 1 1 0;
+      min-width: 0;
       min-height: 0;
       flex-direction: column;
-      height: 100%;
+      height: auto;
       overflow: hidden;
       background: transparent !important;
     }
 
-    .molan-preview > .vditor-reset {
-      flex: 1;
+    .molan-preview > .vditor-reset,
+    #molanPreviewBody {
+      flex: 1 1 0%;
       min-height: 0;
-      height: 100%;
-      overflow: auto;
+      height: 0;
+      overflow: auto !important;
     }
 
     .editor-wrap.is-lite-preview .molan-preview {
@@ -2438,7 +2638,8 @@
     }
 
     #vditor {
-      flex: 1;
+      flex: 1 1 0;
+      min-width: 0;
       min-height: 0;
       border: none !important;
       border-radius: 0 !important;
@@ -2454,20 +2655,6 @@
     }
 
     .vditor-toolbar {
-      display: flex !important;
-      flex-wrap: wrap;
-      align-items: center;
-      flex-shrink: 0;
-      min-height: 36px;
-      overflow: visible !important;
-      z-index: 3;
-      background: var(--toolbar-bg) !important;
-      border-bottom: 1px solid var(--hairline) !important;
-      padding-left: 8px !important;
-      padding-right: 8px !important;
-    }
-
-    #vditor.is-preview .vditor-toolbar {
       display: none !important;
     }
 
@@ -3226,9 +3413,7 @@
     }
 
     .vditor-counter {
-      color: var(--ink-muted) !important;
-      background: transparent !important;
-      font-family: var(--font-ui) !important;
+      display: none !important;
     }
 
     /* Windows / 触控板：细滚动条，避免系统粗条破坏纸面感 */
@@ -3399,7 +3584,8 @@
 
     body.molan-host-vscode .editor-wrap {
       display: flex;
-      flex-direction: column;
+      flex-direction: row;
+      align-items: stretch;
     }
 
     html[data-theme="hack"] .brand h1,
@@ -3586,4 +3772,90 @@
     .molan-image-url-ok {
       background: var(--accent);
       color: var(--paper);
+    }
+
+    .molan-format-bar {
+      position: fixed;
+      z-index: 36;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      padding: 4px;
+      border-radius: 10px;
+      background: var(--ink);
+      color: var(--paper);
+      box-shadow: var(--shadow);
+      font-family: var(--font-ui);
+    }
+    .molan-format-bar[hidden] {
+      display: none !important;
+    }
+    .molan-format-bar::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      bottom: -6px;
+      width: 0;
+      height: 0;
+      margin-left: -6px;
+      border: 6px solid transparent;
+      border-top-color: var(--ink);
+      border-bottom-width: 0;
+    }
+    .molan-format-bar.is-below::after {
+      top: -6px;
+      bottom: auto;
+      border-top-width: 0;
+      border-top-color: transparent;
+      border-bottom-width: 6px;
+      border-bottom-color: var(--ink);
+    }
+    .molan-format-bar__actions {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+    .molan-format-bar button {
+      width: 32px;
+      height: 32px;
+      border: 0;
+      border-radius: 7px;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font: 700 14px/1 Georgia, "Times New Roman", serif;
+    }
+    .molan-format-bar button:hover,
+    .molan-format-bar button.is-on {
+      background: color-mix(in srgb, var(--paper) 16%, transparent);
+    }
+    .molan-format-bar [data-format="italic"] span {
+      font-style: italic;
+      font-weight: 500;
+    }
+    .molan-format-bar [data-format="link"] svg {
+      width: 16px;
+      height: 16px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+    }
+    .molan-format-bar__link {
+      margin: 0;
+    }
+    .molan-format-bar__link input {
+      width: min(280px, 70vw);
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: 13px/1.4 var(--font-ui);
+      padding: 6px 8px;
+      outline: none;
+    }
+    .molan-format-bar__link input.is-invalid {
+      color: color-mix(in srgb, #ffb4a8 80%, var(--paper));
     }
