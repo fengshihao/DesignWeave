@@ -47,6 +47,7 @@ assert(js.includes("method.min.js"), "preview loads method.min.js");
 assert(js.includes("lute.min.js"), "preload lute in webview");
 assert(js.includes('rel="preload"'), "webview preloads lute");
 assert(js.includes("headerPrefsBtn"), "vscode header has settings button");
+assert(!js.includes("pickImageBeside"), "extension no longer copies local images beside the markdown file");
 assert(!js.includes('id="themeBtn"'), "vscode has no standalone theme button");
 assert(js.includes("molan-theme"), "webview restores stored theme");
 
@@ -68,14 +69,15 @@ assert(existsSync(join(viewer, "shots/edit-table.jpg")), "table editing screensh
 assert(html.indexOf('id="molanFindBtn"') < html.indexOf('id="copyBtn"'), "find comes before copy");
 assert(html.includes("./vendor/vditor/dist/method.min.js"), "html loads local method.min.js");
 assert(html.includes("./vendor/vditor/dist/js/lute/lute.min.js"), "html preloads local lute");
-assert(html.includes("molan-editor.js?v=20260818table2"), "studio html cache-busts table editor");
-assert(html.includes("molan.css?v=20260818table2"), "studio html cache-busts table css");
-assert(html.includes("molan-i18n.js?v=20260818table"), "studio html cache-busts table i18n");
+assert(html.includes("molan-editor.js?v=20260819url"), "studio html cache-busts table editor");
+assert(html.includes("molan.css?v=20260819url"), "studio html cache-busts table css");
+assert(html.includes("molan-i18n.js?v=20260819url"), "studio html cache-busts table i18n");
 assert(!html.includes("cdn.jsdelivr.net"), "html must not load vditor from jsdelivr");
 assert(existsSync(join(viewer, "molan.css")), "viewer molan.css");
 assert(readFileSync(join(viewer, "molan.css"), "utf8").includes(".molan-table-toolbar"), "css for table toolbar");
 assert(readFileSync(join(viewer, "molan.css"), "utf8").includes(".molan-table-picker"), "css for table size picker");
 assert(readFileSync(join(viewer, "molan.css"), "utf8").includes('[data-type="table"].vditor-menu--disabled'), "table insert stays clickable when Vditor disables toolbar");
+assert(readFileSync(join(viewer, "molan.css"), "utf8").includes(".molan-image-url-dialog"), "css for image URL prompt");
 assert(readFileSync(join(viewer, "molan-i18n.js"), "utf8").includes("insertRowBelow"), "i18n has table row actions");
 assert(existsSync(join(viewer, "molan-editor.js")), "viewer molan-editor.js");
 assert(existsSync(join(viewer, "molan-app.js")), "viewer molan-app.js");
@@ -103,6 +105,7 @@ assert(app.includes("SCAN_MAX_DEPTH"), "limits folder scan depth");
 assert(app.includes("SCAN_MAX_FILES"), "limits folder scan file count");
 assert(app.includes("pathHasSkippedDir"), "skips node_modules in folder file lists");
 assert(app.includes("isSkippedDirName"), "skips dependency directories by name");
+assert(!app.includes("savePickedImageBesideActive"), "studio no longer copies local images beside the markdown file");
 assert(!app.includes("loadThemeFonts"), "theme fonts live in editor core");
 
 const editorSource = readFileSync(join(viewer, "molan-editor.js"), "utf8");
@@ -112,6 +115,12 @@ assert(editorSource.includes("molan-table-picker"), "table size picker");
 assert(editorSource.includes("bindTableControls"), "table row/column controls");
 assert(editorSource.includes("bindTableInsertPicker"), "table insert size picker");
 assert(editorSource.includes("tableToolbarButtonFromEvent"), "table picker finds toolbar button via event path");
+assert(editorSource.includes('pick: "image"'), "image insert opens a URL prompt instead of empty markdown");
+assert(editorSource.includes("function promptImageUrl"), "image insert asks for an online URL");
+assert(editorSource.includes("function parseOnlineImageUrl"), "image URL must be http or https");
+assert(!editorSource.includes("pickImageFile"), "image insert does not open a local file picker");
+assert(!editorSource.includes("resolveLocalImage"), "studio does not resolve local image paths");
+assert(!editorSource.includes("pickImageAsDataMarkdown"), "images are not inlined as base64");
 assert(editorSource.includes("function buildTableMarkdown"), "custom table markdown insert");
 
 {
@@ -149,6 +158,7 @@ const bridge = readFileSync(join(root, "media/vscode-bridge.js"), "utf8");
 assert(bridge.includes("await api.setPreview(true)"), "defaults to preview on init");
 assert(bridge.includes("value !== baseline"), "ignores Vditor setValue round-trip");
 assert(bridge.includes("openRelative"), "webview opens relative markdown links");
+assert(!bridge.includes("pickImage"), "webview does not ask host to pick a local image");
 
 const readme = readFileSync(join(root, "README.md"), "utf8");
 assert(

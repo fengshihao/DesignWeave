@@ -3518,3 +3518,72 @@
     .molan-insert-item-label {
       font-size: 0.92rem;
     }
+    .molan-image-url-mask {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: color-mix(in srgb, var(--ink) 18%, transparent);
+    }
+    .molan-image-url-dialog {
+      width: min(420px, 100%);
+      padding: 18px 18px 14px;
+      border: 1px solid var(--hairline-strong);
+      border-radius: 14px;
+      background: var(--paper-lift);
+      box-shadow: var(--shadow);
+      color: var(--ink);
+      font-family: var(--font-ui);
+    }
+    .molan-image-url-title {
+      font-size: 0.98rem;
+      font-weight: 600;
+    }
+    .molan-image-url-hint {
+      margin: 6px 0 12px;
+      font-size: 0.82rem;
+      color: var(--ink-muted);
+    }
+    .molan-image-url-input {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px 10px;
+      border: 1px solid var(--hairline-strong);
+      border-radius: 8px;
+      background: var(--paper);
+      color: inherit;
+      font: inherit;
+    }
+    .molan-image-url-input:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+    .molan-image-url-input.is-invalid {
+      border-color: color-mix(in srgb, #c45c4a 70%, var(--hairline-strong));
+    }
+    .molan-image-url-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 14px;
+    }
+    .molan-image-url-cancel,
+    .molan-image-url-ok {
+      border: 0;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font: inherit;
+      cursor: pointer;
+    }
+    .molan-image-url-cancel {
+      background: transparent;
+      color: var(--ink-muted);
+    }
+    .molan-image-url-ok {
+      background: var(--accent);
+      color: var(--paper);
+    }

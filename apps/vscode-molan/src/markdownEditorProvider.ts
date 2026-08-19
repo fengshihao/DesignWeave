@@ -269,7 +269,7 @@ export class MolanEditorProvider implements vscode.CustomEditorProvider<MolanDoc
     const linkBase = `${webview.asWebviewUri(vscode.Uri.joinPath(document.uri, "..")).toString()}/`;
     const csp = [
       `default-src 'none'`,
-      `img-src ${webview.cspSource} data: blob: https:`,
+      `img-src ${webview.cspSource} data: blob: https: http:`,
       `style-src ${webview.cspSource} 'unsafe-inline'`,
       `font-src ${webview.cspSource} data:`,
       `script-src ${webview.cspSource} 'nonce-${nonce}' 'unsafe-eval'`,

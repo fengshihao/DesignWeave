@@ -139,6 +139,13 @@
       insertMermaid: "流程图",
       insertImage: "图片",
       insertLink: "链接",
+      pickImageFail: "无法插入图片",
+      imageUrlTitle: "插入图片",
+      imageUrlHint: "请填写可公开访问的图片地址",
+      imageUrlPlaceholder: "https://",
+      imageUrlInvalid: "请填写 http 或 https 开头的图片地址",
+      imageUrlConfirm: "插入",
+      imageUrlCancel: "取消",
       tableSize: "{cols} 列 × {rows} 行",
       insertRowAbove: "上方插入行",
       insertRowBelow: "下方插入行",
@@ -2464,7 +2471,7 @@
     { id: "table", group: "insert", key: "insertTable", md: "| 列 1 | 列 2 |\n| --- | --- |\n|  |  |" },
     { id: "math", group: "insert", key: "insertMath", md: "$$\n\n$$" },
     { id: "mermaid", group: "insert", key: "insertMermaid", md: "```mermaid\nflowchart TD\n  A[开始] --> B[结束]\n```" },
-    { id: "image", group: "insert", key: "insertImage", md: "![]()" },
+    { id: "image", group: "insert", key: "insertImage", pick: "image" },
     { id: "link", group: "insert", key: "insertLink", md: "[]()" },
   ];
 
@@ -2473,6 +2480,94 @@
     { id: "list", key: "insertGroupList" },
     { id: "insert", key: "insertGroupInsert" },
   ];
+
+  function escapeMdAlt(name) {
+    return String(name || "").replace(/[[\]\n]/g, " ").trim() || "image";
+  }
+
+  function parseOnlineImageUrl(raw) {
+    const s = String(raw || "").trim().replace(/^<|>$/g, "");
+    if (!s) return "";
+    try {
+      const url = new URL(s);
+      if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+      return url.href;
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function altFromImageUrl(href) {
+    try {
+      const leaf = new URL(href).pathname.split("/").filter(Boolean).pop() || "";
+      const name = decodeURIComponent(leaf).replace(/\.[^.]+$/, "");
+      return escapeMdAlt(name);
+    } catch (_) {
+      return "image";
+    }
+  }
+
+  function promptImageUrl() {
+    return new Promise((resolve) => {
+      document.getElementById("molanImageUrlDialog")?.remove();
+      const mask = document.createElement("div");
+      mask.id = "molanImageUrlDialog";
+      mask.className = "molan-image-url-mask";
+      mask.innerHTML = `
+        <form class="molan-image-url-dialog" role="dialog" aria-modal="true" aria-labelledby="molanImageUrlTitle" novalidate>
+          <div class="molan-image-url-title" id="molanImageUrlTitle"></div>
+          <p class="molan-image-url-hint"></p>
+          <input class="molan-image-url-input" type="url" inputmode="url" autocomplete="off" spellcheck="false" />
+          <div class="molan-image-url-actions">
+            <button type="button" class="molan-image-url-cancel"></button>
+            <button type="submit" class="molan-image-url-ok"></button>
+          </div>
+        </form>
+      `;
+      const form = mask.querySelector(".molan-image-url-dialog");
+      const input = mask.querySelector(".molan-image-url-input");
+      const cancel = mask.querySelector(".molan-image-url-cancel");
+      mask.querySelector(".molan-image-url-title").textContent = t("imageUrlTitle");
+      mask.querySelector(".molan-image-url-hint").textContent = t("imageUrlHint");
+      input.placeholder = t("imageUrlPlaceholder");
+      cancel.textContent = t("imageUrlCancel");
+      mask.querySelector(".molan-image-url-ok").textContent = t("imageUrlConfirm");
+      let settled = false;
+      const finish = (md) => {
+        if (settled) return;
+        settled = true;
+        window.removeEventListener("keydown", onKey, true);
+        mask.remove();
+        resolve(md);
+      };
+      const onKey = (e) => {
+        if (e.key !== "Escape") return;
+        e.preventDefault();
+        e.stopPropagation();
+        finish("");
+      };
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const href = parseOnlineImageUrl(input.value);
+        if (!href) {
+          input.classList.add("is-invalid");
+          toast(t("imageUrlInvalid"));
+          input.focus();
+          input.select();
+          return;
+        }
+        finish(`![${altFromImageUrl(href)}](${href})`);
+      });
+      cancel.addEventListener("click", () => finish(""));
+      mask.addEventListener("click", (e) => {
+        if (e.target === mask) finish("");
+      });
+      form.addEventListener("click", (e) => e.stopPropagation());
+      window.addEventListener("keydown", onKey, true);
+      document.body.appendChild(mask);
+      requestAnimationFrame(() => input.focus());
+    });
+  }
 
   function isFenceLine(line) {
     return /^ {0,3}(`{3,}|~{3,})/.test(line);
@@ -2844,10 +2939,25 @@
 
     function applyItem(id) {
       const item = items().find((row) => row.id === id);
-      if (!item || !hover) return;
+      const target = hover;
+      if (!item || !target) return;
       hideMenu();
-      ctx.insertSnippet(item.md, hover);
-      hideHandle();
+      const run = async () => {
+        let md = item.md;
+        if (item.pick === "image") {
+          hideHandle();
+          try {
+            md = await ctx.pickImage?.();
+          } catch (_) {
+            toast(t("pickImageFail"));
+            return;
+          }
+          if (!md) return;
+        }
+        ctx.insertSnippet(md, target);
+        hideHandle();
+      };
+      void run();
     }
 
     plusBtn.addEventListener("pointerdown", (event) => {
@@ -3132,6 +3242,8 @@
       return vditorReady;
     };
 
+    const pickImage = () => promptImageUrl();
+
     const applySnippet = (snippet, hover) => {
       const piece = String(snippet || "").replace(/^\n+/, "").replace(/\n+$/, "");
       if (!piece) return;
@@ -3179,6 +3291,7 @@
       getVditorRoot: () => vditorRoot,
       getPreviewing: () => previewing,
       insertSnippet: applySnippet,
+      pickImage,
     });
     activeBlockInsert = blockInsert;
 
@@ -3276,6 +3389,7 @@
     create,
     toast,
     countWords,
+    escapeMdAlt,
     applyMermaidTheme,
     refreshMermaidDiagrams,
     refreshI18n,
