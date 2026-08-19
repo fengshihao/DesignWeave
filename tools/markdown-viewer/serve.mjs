@@ -30,8 +30,10 @@ const MIME = {
 
 const COMPRESS = new Set([".html", ".js", ".css", ".svg", ".json", ".md", ".txt", ".map"]);
 
-function cacheControl(rel, url) {
-  if (rel.startsWith("vendor/") || url.includes("?v=")) {
+function cacheControl(rel) {
+  // 只有裁剪后的 Vditor 适合长缓存。本仓库的 css/js 即使带 ?v=，
+  // 本地开发忘改版本号时也必须能立刻看到改动。
+  if (rel.startsWith("vendor/")) {
     return "public, max-age=604800";
   }
   return "public, max-age=0, must-revalidate";
@@ -72,7 +74,7 @@ http.createServer((req, res) => {
       const ext = path.extname(file).toLowerCase();
       const headers = {
         "Content-Type": MIME[ext] || "application/octet-stream",
-        "Cache-Control": cacheControl(rel.replace(/\\/g, "/"), rawUrl),
+        "Cache-Control": cacheControl(rel.replace(/\\/g, "/")),
       };
       const acceptGzip = String(req.headers["accept-encoding"] || "").includes("gzip");
       if (acceptGzip && COMPRESS.has(ext) && data.length > 256) {

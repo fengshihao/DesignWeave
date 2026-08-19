@@ -1203,6 +1203,7 @@
     const iv = vditor?.vditor || vditor;
     const ir = iv?.ir?.element;
     const lute = iv?.lute;
+    try { vditor?.focus?.(); } catch (_) { /* ignore */ }
     if (ir && lute && typeof lute.Md2VditorIRDOM === "function") {
       const html = lute.Md2VditorIRDOM(`\n${md}\n`);
       const block = currentIrBlock(ir);
@@ -1222,25 +1223,60 @@
     }
   }
 
+  function eventPath(e) {
+    if (typeof e.composedPath === "function") {
+      try { return e.composedPath(); } catch (_) { /* ignore */ }
+    }
+    const path = [];
+    let node = e.target;
+    while (node) {
+      path.push(node);
+      node = node.parentNode;
+    }
+    return path;
+  }
+
+  function tableToolbarButtonFromEvent(e, root) {
+    for (const node of eventPath(e)) {
+      if (!node || node.nodeType !== 1) continue;
+      if (node.getAttribute?.("data-type") === "table" && node.closest?.(".vditor-toolbar")) {
+        return root.contains(node) ? node : null;
+      }
+      if (node.classList?.contains("vditor-toolbar__item")) {
+        const btn = node.querySelector?.("[data-type='table']");
+        if (btn && root.contains(btn)) return btn;
+      }
+    }
+    return null;
+  }
+
   function bindTableInsertPicker(root, getVditor) {
     if (!root || root.dataset.molanTablePicker === "1") return;
     root.dataset.molanTablePicker = "1";
-    let lastTouch = 0;
-    const onToolbarTable = (e) => {
-      const btn = e.target.closest?.(".vditor-toolbar [data-type='table']");
-      if (!btn || !root.contains(btn)) return;
-      if (e.type === "touchend") lastTouch = Date.now();
-      if (e.type === "click" && Date.now() - lastTouch < 500) return;
+    let openedAt = 0;
+    const swallow = (e) => {
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
+    };
+    const togglePicker = (btn) => {
       const picker = document.getElementById("molanTablePicker");
       if (picker && !picker.hidden && picker._anchor === btn) {
         hideTablePicker();
         return;
       }
+      openedAt = Date.now();
       showTableSizePicker(btn, getVditor?.());
     };
+    const onToolbarTable = (e) => {
+      const btn = tableToolbarButtonFromEvent(e, root);
+      if (!btn) return;
+      swallow(e);
+      // pointerdown 已打开时，随后的 click 只拦住 Vditor 默认 3×3，不再开关弹层
+      if (e.type !== "pointerdown" && Date.now() - openedAt < 500) return;
+      togglePicker(btn);
+    };
+    root.addEventListener("pointerdown", onToolbarTable, true);
     root.addEventListener("click", onToolbarTable, true);
     root.addEventListener("touchend", onToolbarTable, true);
 
@@ -1250,16 +1286,28 @@
       if (!cell) return;
       insertPickedTable(picker._vditor || getVditor?.(), Number(cell.getAttribute("data-row")), Number(cell.getAttribute("data-col")));
     });
-    document.addEventListener("click", (e) => {
+    document.addEventListener("pointerdown", (e) => {
       const pickerEl = document.getElementById("molanTablePicker");
       if (!pickerEl || pickerEl.hidden) return;
-      if (pickerEl.contains(e.target)) return;
-      if (e.target.closest?.(".vditor-toolbar [data-type='table']")) return;
+      if (Date.now() - openedAt < 300) return;
+      if (eventPath(e).includes(pickerEl) || pickerEl.contains(e.target)) return;
+      if (tableToolbarButtonFromEvent(e, root)) return;
       hideTablePicker();
-    });
+    }, true);
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") hideTablePicker();
-    });
+      if (e.key === "Escape") {
+        hideTablePicker();
+        return;
+      }
+      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
+      if (e.key !== "m" && e.key !== "M") return;
+      if (root.classList.contains("is-preview")) return;
+      if (e.target?.closest?.("input, textarea") && !root.contains(e.target)) return;
+      const btn = root.querySelector(".vditor-toolbar [data-type='table']");
+      if (!btn) return;
+      swallow(e);
+      togglePicker(btn);
+    }, true);
   }
 
   function watchMermaidPreviews(rootId = "vditor") {

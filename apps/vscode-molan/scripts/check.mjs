@@ -68,10 +68,14 @@ assert(existsSync(join(viewer, "shots/edit-table.jpg")), "table editing screensh
 assert(html.indexOf('id="molanFindBtn"') < html.indexOf('id="copyBtn"'), "find comes before copy");
 assert(html.includes("./vendor/vditor/dist/method.min.js"), "html loads local method.min.js");
 assert(html.includes("./vendor/vditor/dist/js/lute/lute.min.js"), "html preloads local lute");
+assert(html.includes("molan-editor.js?v=20260818table2"), "studio html cache-busts table editor");
+assert(html.includes("molan.css?v=20260818table2"), "studio html cache-busts table css");
+assert(html.includes("molan-i18n.js?v=20260818table"), "studio html cache-busts table i18n");
 assert(!html.includes("cdn.jsdelivr.net"), "html must not load vditor from jsdelivr");
 assert(existsSync(join(viewer, "molan.css")), "viewer molan.css");
 assert(readFileSync(join(viewer, "molan.css"), "utf8").includes(".molan-table-toolbar"), "css for table toolbar");
 assert(readFileSync(join(viewer, "molan.css"), "utf8").includes(".molan-table-picker"), "css for table size picker");
+assert(readFileSync(join(viewer, "molan.css"), "utf8").includes('[data-type="table"].vditor-menu--disabled'), "table insert stays clickable when Vditor disables toolbar");
 assert(readFileSync(join(viewer, "molan-i18n.js"), "utf8").includes("insertRowBelow"), "i18n has table row actions");
 assert(existsSync(join(viewer, "molan-editor.js")), "viewer molan-editor.js");
 assert(existsSync(join(viewer, "molan-app.js")), "viewer molan-app.js");
@@ -107,6 +111,7 @@ assert(editorSource.includes("molan-table-toolbar"), "table structure toolbar");
 assert(editorSource.includes("molan-table-picker"), "table size picker");
 assert(editorSource.includes("bindTableControls"), "table row/column controls");
 assert(editorSource.includes("bindTableInsertPicker"), "table insert size picker");
+assert(editorSource.includes("tableToolbarButtonFromEvent"), "table picker finds toolbar button via event path");
 assert(editorSource.includes("function buildTableMarkdown"), "custom table markdown insert");
 
 {
