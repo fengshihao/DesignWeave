@@ -96,6 +96,10 @@
       mermaidEditorCancel: "取消",
       mermaidSyntaxError: "语法错误",
       mermaidUpdated: "已更新流程图",
+      mermaidSnippetsLabel: "常用模板",
+      mermaidSnippetFlowchart: "流程图",
+      mermaidSnippetSequence: "时序图",
+      mermaidSnippetClass: "类图",
       copyFail: "复制失败",
       find: "查找",
       findPlaceholder: "查找",
@@ -2136,25 +2140,13 @@
           toast(t("noMermaidSource"));
           return;
         }
-        const inPreview = Boolean(
-          shell.closest("#molanPreviewBody, .molan-preview")
-          || ctx.getPreviewing?.(),
-        );
-        const canInlineEdit = Boolean(
-          shell.closest(".vditor-ir__node")
-          && document.querySelector(".vditor-ir pre.vditor-reset"),
-        );
-        if (inPreview || !canInlineEdit) {
-          const scope = shell.closest("#molanPreviewBody, .molan-preview, .vditor-ir") || vditorRoot;
-          const index = getMermaidShellIndex(shell, scope);
-          openMermaidEditorDialog({
-            source,
-            lightbox,
-            onApply: (newSource) => ctx.onApplyMermaidEdit?.(index, newSource),
-          });
-          return;
-        }
-        enterMermaidEdit(shell);
+        const scope = shell.closest("#molanPreviewBody, .molan-preview, .vditor-ir") || vditorRoot;
+        const index = getMermaidShellIndex(shell, scope);
+        openMermaidEditorDialog({
+          source,
+          lightbox,
+          onApply: (newSource) => ctx.onApplyMermaidEdit?.(index, newSource),
+        });
         return;
       }
       if (action === "zoom") {
@@ -3360,6 +3352,11 @@
   }
 
   function openMermaidEditorDialog({ source, onApply, lightbox }) {
+    const MERMAID_SNIPPETS = [
+      { key: "mermaidSnippetFlowchart", body: "flowchart TD\n  A[开始] --> B[结束]" },
+      { key: "mermaidSnippetSequence", body: "sequenceDiagram\n  participant A as 参与者 A\n  participant B as 参与者 B\n  A->>B: 消息" },
+      { key: "mermaidSnippetClass", body: "classDiagram\n  class Animal\n  class Dog\n  Animal <|-- Dog" },
+    ];
     return new Promise((resolve) => {
       document.getElementById("molanMermaidEditor")?.remove();
       const mask = document.createElement("div");
@@ -3380,6 +3377,10 @@
             <label class="molan-mermaid-editor-pane">
               <span class="molan-mermaid-editor-pane-label"></span>
               <textarea class="molan-mermaid-editor-source" spellcheck="false"></textarea>
+              <div class="molan-mermaid-editor-snippets">
+                <span class="molan-mermaid-editor-snippets-label"></span>
+                <div class="molan-mermaid-editor-snippet-list"></div>
+              </div>
             </label>
             <div class="molan-mermaid-editor-pane molan-mermaid-editor-preview-pane">
               <div class="molan-mermaid-editor-pane-head">
@@ -3413,6 +3414,32 @@
       closeBtn.setAttribute("aria-label", t("mermaidEditorCancel"));
       copyBtn.title = t("copyCode");
       copyBtn.setAttribute("aria-label", t("copyCode"));
+      const snippetList = mask.querySelector(".molan-mermaid-editor-snippet-list");
+      mask.querySelector(".molan-mermaid-editor-snippets-label").textContent = t("mermaidSnippetsLabel");
+      MERMAID_SNIPPETS.forEach((item) => {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "molan-mermaid-editor-snippet";
+        chip.textContent = t(item.key);
+        chip.addEventListener("click", () => {
+          const body = item.body;
+          if (!textarea.value.trim()) {
+            textarea.value = body;
+          } else {
+            const start = textarea.selectionStart ?? textarea.value.length;
+            const end = textarea.selectionEnd ?? textarea.value.length;
+            const prefix = textarea.value.slice(0, start);
+            const suffix = textarea.value.slice(end);
+            const glue = prefix && !prefix.endsWith("\n") ? "\n\n" : "";
+            textarea.value = `${prefix}${glue}${body}${suffix}`;
+            const pos = (prefix + glue + body).length;
+            textarea.setSelectionRange(pos, pos);
+          }
+          schedulePreview();
+          textarea.focus();
+        });
+        snippetList.appendChild(chip);
+      });
       textarea.value = String(source || "").trim();
 
       let settled = false;

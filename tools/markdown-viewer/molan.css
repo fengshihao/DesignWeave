@@ -3920,6 +3920,35 @@
       outline: 2px solid var(--accent);
       outline-offset: 1px;
     }
+    .molan-mermaid-editor-snippets {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+    }
+    .molan-mermaid-editor-snippets-label {
+      font-size: 0.74rem;
+      color: var(--ink-muted);
+    }
+    .molan-mermaid-editor-snippet-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .molan-mermaid-editor-snippet {
+      border: 1px solid var(--hairline-strong);
+      border-radius: 999px;
+      padding: 2px 10px;
+      background: var(--paper-deep);
+      color: var(--ink-soft);
+      font: inherit;
+      font-size: 0.76rem;
+      cursor: pointer;
+    }
+    .molan-mermaid-editor-snippet:hover {
+      border-color: var(--accent);
+      color: var(--ink);
+    }
     .molan-mermaid-editor-preview {
       flex: 1 1 auto;
       min-height: 280px;
