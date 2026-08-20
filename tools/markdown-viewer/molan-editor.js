@@ -826,14 +826,7 @@
         node.classList.remove("vditor-ir__node--hidden");
         if (document.getElementById("molanMermaidEditor")) continue;
         const shell = node.querySelector(".vditor-ir__preview") || node;
-        const source = getMermaidSourceNear(shell);
-        if (!source) continue;
-        const index = getMermaidShellIndex(shell, ir);
-        openMermaidEditorDialog({
-          source,
-          lightbox,
-          onApply: (newSource) => ctx.onApplyMermaidEdit?.(index, newSource),
-        });
+        openMermaidEditorFromShell(shell, ctx, lightbox, vditorRoot);
       }
     });
     observer.observe(ir, { attributes: true, subtree: true, attributeFilter: ["class"] });
@@ -847,29 +840,6 @@
     }
     collapseMermaidIrNodes(vditorRoot || document);
     const scope = shell.closest("#molanPreviewBody, .molan-preview, .vditor-ir") || vditorRoot || document;
-    const index = getMermaidShellIndex(shell, scope);
-    openMermaidEditorDialog({
-      source,
-      lightbox,
-      onApply: (newSource) => ctx.onApplyMermaidEdit?.(index, newSource),
-    });
-  }
-
-  function collapseMermaidIrNodes() {
-    document.querySelectorAll(".vditor-ir__node--expand").forEach((node) => {
-      if (!node.querySelector(".language-mermaid")) return;
-      node.classList.remove("vditor-ir__node--expand");
-    });
-  }
-
-  function openMermaidEditorFromShell(shell, ctx, lightbox) {
-    const source = getMermaidSourceNear(shell);
-    if (!source) {
-      toast(t("noMermaidSource"));
-      return;
-    }
-    collapseMermaidIrNodes();
-    const scope = shell.closest("#molanPreviewBody, .molan-preview, .vditor-ir") || document;
     const index = getMermaidShellIndex(shell, scope);
     openMermaidEditorDialog({
       source,
@@ -2155,6 +2125,20 @@
 
   function bindMermaidInteractions(vditorRoot, getVditor, lightbox, ctx = {}) {
     watchMermaidIrExpand(vditorRoot, ctx, lightbox);
+
+    const blockMermaidIrExpand = (e) => {
+      if (e.target.closest("[data-molan-action]")) return;
+      if (document.getElementById("molanMermaidEditor")) return;
+      const node = e.target.closest('.vditor-ir__node[data-type="code-block"]');
+      if (!node?.querySelector(".language-mermaid")) return;
+      if (e.type === "mousedown" || e.type === "pointerdown") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+      }
+    };
+    vditorRoot.addEventListener("mousedown", blockMermaidIrExpand, true);
+    vditorRoot.addEventListener("pointerdown", blockMermaidIrExpand, true);
+
     const blockMermaidPreviewExpand = (e) => {
       if (e.target.closest("[data-molan-action]")) return;
       if (document.getElementById("molanMermaidEditor")) return;

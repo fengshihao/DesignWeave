@@ -3101,8 +3101,14 @@
       display: block !important;
     }
 
-    /*
-     * 展开编辑 mermaid/math：Vditor 会把 .vditor-ir__marker 设成 display:inline，
+    /* 任意态：mermaid 块都不要 Vditor 围栏伪元素（头尾半圆碎块） */
+    .vditor-ir__node:has(.language-mermaid)::before,
+    .vditor-ir__node:has(.language-mermaid)::after {
+      content: none !important;
+      display: none !important;
+    }
+
+    /* 展开编辑 mermaid/math：Vditor 会把 .vditor-ir__marker 设成 display:inline，
      * 若再套圆角/虚线边框会碎成头尾「怪形状」。强制 block + 实线干净代码区。
      */
     .vditor-ir__node--expand > .vditor-ir__marker--pre:has(code.language-mermaid),
