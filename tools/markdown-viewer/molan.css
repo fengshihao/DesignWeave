@@ -3896,6 +3896,12 @@
       color: var(--ink-muted);
       letter-spacing: 0.02em;
     }
+    .molan-mermaid-editor-pane-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
     .molan-mermaid-editor-source {
       flex: 1 1 auto;
       min-height: 280px;
@@ -3930,6 +3936,9 @@
     .molan-mermaid-editor-preview svg {
       max-width: 100%;
       height: auto;
+    }
+    .molan-mermaid-editor-preview:has(svg) {
+      cursor: zoom-in;
     }
     .molan-mermaid-editor-preview.is-error {
       align-items: stretch;

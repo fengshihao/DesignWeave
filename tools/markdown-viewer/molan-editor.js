@@ -91,7 +91,7 @@
       noMermaidSource: "未找到流程图源码",
       copiedMermaidCode: "已复制流程图代码",
       mermaidEditorTitle: "编辑流程图",
-      mermaidEditorHint: "左侧编辑源码，右侧实时预览",
+      mermaidEditorHint: "左侧编辑源码，右侧实时预览 · ⌘/Ctrl+Enter 应用",
       mermaidEditorApply: "应用",
       mermaidEditorCancel: "取消",
       mermaidSyntaxError: "语法错误",
@@ -2149,6 +2149,7 @@
           const index = getMermaidShellIndex(shell, scope);
           openMermaidEditorDialog({
             source,
+            lightbox,
             onApply: (newSource) => ctx.onApplyMermaidEdit?.(index, newSource),
           });
           return;
@@ -3358,7 +3359,7 @@
     });
   }
 
-  function openMermaidEditorDialog({ source, onApply }) {
+  function openMermaidEditorDialog({ source, onApply, lightbox }) {
     return new Promise((resolve) => {
       document.getElementById("molanMermaidEditor")?.remove();
       const mask = document.createElement("div");
@@ -3381,7 +3382,12 @@
               <textarea class="molan-mermaid-editor-source" spellcheck="false"></textarea>
             </label>
             <div class="molan-mermaid-editor-pane molan-mermaid-editor-preview-pane">
-              <span class="molan-mermaid-editor-pane-label molan-mermaid-editor-preview-label"></span>
+              <div class="molan-mermaid-editor-pane-head">
+                <span class="molan-mermaid-editor-pane-label molan-mermaid-editor-preview-label"></span>
+                <button type="button" class="icon-btn molan-mermaid-editor-copy" title="" aria-label="">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2"/><rect x="4" y="8" width="12" height="12" rx="2"/></svg>
+                </button>
+              </div>
               <div class="molan-mermaid-editor-preview" aria-live="polite"></div>
             </div>
           </div>
@@ -3397,6 +3403,7 @@
       const cancelBtn = mask.querySelector(".molan-mermaid-editor-cancel");
       const applyBtn = mask.querySelector(".molan-mermaid-editor-apply");
       const closeBtn = mask.querySelector(".molan-mermaid-editor-close");
+      const copyBtn = mask.querySelector(".molan-mermaid-editor-copy");
       mask.querySelector(".molan-mermaid-editor-title").textContent = t("mermaidEditorTitle");
       mask.querySelector(".molan-mermaid-editor-hint").textContent = t("mermaidEditorHint");
       mask.querySelector(".molan-mermaid-editor-pane-label").textContent = t("editSource");
@@ -3404,6 +3411,8 @@
       cancelBtn.textContent = t("mermaidEditorCancel");
       applyBtn.textContent = t("mermaidEditorApply");
       closeBtn.setAttribute("aria-label", t("mermaidEditorCancel"));
+      copyBtn.title = t("copyCode");
+      copyBtn.setAttribute("aria-label", t("copyCode"));
       textarea.value = String(source || "").trim();
 
       let settled = false;
@@ -3477,8 +3486,31 @@
           e.preventDefault();
           e.stopPropagation();
           finish(false);
+          return;
+        }
+        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+          e.preventDefault();
+          tryApply();
         }
       };
+
+      copyBtn.addEventListener("click", async () => {
+        const text = textarea.value.trim();
+        if (!text) {
+          toast(t("noMermaidSource"));
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(text);
+          toast(t("copiedMermaidCode"));
+        } catch {
+          toast(t("copyFail"));
+        }
+      });
+      preview.addEventListener("click", () => {
+        const svg = preview.querySelector("svg");
+        if (svg && lightbox?.openFromSvg) lightbox.openFromSvg(svg);
+      });
 
       textarea.addEventListener("input", schedulePreview);
       cancelBtn.addEventListener("click", () => finish(false));
@@ -4262,7 +4294,8 @@
       }
       markdown = next;
       if (previewing) {
-        renderLitePreview(markdown);
+        const spot = captureReadingSpot(true);
+        renderLitePreview(markdown, spot);
       } else {
         muteInput = true;
         bootEditor().then(() => {
