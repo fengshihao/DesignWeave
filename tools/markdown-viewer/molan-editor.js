@@ -90,6 +90,12 @@
       copyImage: "复制图片",
       noMermaidSource: "未找到流程图源码",
       copiedMermaidCode: "已复制流程图代码",
+      mermaidEditorTitle: "编辑流程图",
+      mermaidEditorHint: "左侧编辑源码，右侧实时预览",
+      mermaidEditorApply: "应用",
+      mermaidEditorCancel: "取消",
+      mermaidSyntaxError: "语法错误",
+      mermaidUpdated: "已更新流程图",
       copyFail: "复制失败",
       find: "查找",
       findPlaceholder: "查找",
@@ -279,6 +285,26 @@
     let match;
     while ((match = re.exec(src))) out.push(match[2].trim());
     return out;
+  }
+
+  function replaceMermaidBlock(markdown, index, newSource) {
+    const src = String(markdown || "");
+    const re = /(?:^|\n)([ \t]*(```+|~~~+)[ \t]*mermaid[^\n]*\n)([\s\S]*?)(?:\n[ \t]*\2[ \t]*(?:\n|$))/gi;
+    let match;
+    let i = 0;
+    while ((match = re.exec(src))) {
+      if (i === index) {
+        const lead = match[0].startsWith("\n") ? "\n" : "";
+        const open = match[1];
+        const closeMatch = match[0].match(/\n[ \t]*(`{3,}|~{3,})[ \t]*(?:\n|$)/);
+        const close = closeMatch ? closeMatch[0] : "\n```\n";
+        const body = String(newSource || "").trim();
+        const replacement = `${lead}${open}${body}${close}`;
+        return src.slice(0, match.index) + replacement + src.slice(match.index + match[0].length);
+      }
+      i += 1;
+    }
+    return src;
   }
 
   function mermaidSourcesFromMarkdown() {
@@ -661,6 +687,22 @@
     if (code.getAttribute?.("data-processed")) return "";
     const text = (code.textContent || "").trim();
     return isValidMermaidSource(text) ? text : "";
+  }
+
+  function getMermaidShellIndex(shell, root = document) {
+    const host = shell?.matches?.(".language-mermaid")
+      ? shell
+      : (shell?.querySelector?.(".language-mermaid") || shell);
+    if (!host) return -1;
+    const scope = host.closest("#molanPreviewBody, .molan-preview, .vditor-ir") || root;
+    const hosts = mermaidDisplayHosts(scope);
+    const idx = hosts.indexOf(host);
+    if (idx >= 0) return idx;
+    const source = getMermaidSourceNear(shell);
+    if (!source) return -1;
+    const sources = mermaidSourcesFromMarkdown();
+    if (!sources.length) return -1;
+    return sources.findIndex((item) => item === source);
   }
 
   let mermaidRenderSeq = 0;
@@ -2064,7 +2106,7 @@
     diagramObserver.observe(root, { childList: true, subtree: true });
   }
 
-  function bindMermaidInteractions(vditorRoot, getVditor, lightbox) {
+  function bindMermaidInteractions(vditorRoot, getVditor, lightbox, ctx = {}) {
     const blockMermaidPreviewExpand = (e) => {
       if (e.target.closest("[data-molan-action]")) return;
       const shell = findMermaidPreviewShell(e.target);
@@ -2089,6 +2131,28 @@
       const shell = btn.closest(".vditor-ir__preview, pre, .language-mermaid");
       const svg = shell?.querySelector("svg");
       if (action === "edit") {
+        const source = getMermaidSourceNear(shell);
+        if (!source) {
+          toast(t("noMermaidSource"));
+          return;
+        }
+        const inPreview = Boolean(
+          shell.closest("#molanPreviewBody, .molan-preview")
+          || ctx.getPreviewing?.(),
+        );
+        const canInlineEdit = Boolean(
+          shell.closest(".vditor-ir__node")
+          && document.querySelector(".vditor-ir pre.vditor-reset"),
+        );
+        if (inPreview || !canInlineEdit) {
+          const scope = shell.closest("#molanPreviewBody, .molan-preview, .vditor-ir") || vditorRoot;
+          const index = getMermaidShellIndex(shell, scope);
+          openMermaidEditorDialog({
+            source,
+            onApply: (newSource) => ctx.onApplyMermaidEdit?.(index, newSource),
+          });
+          return;
+        }
         enterMermaidEdit(shell);
         return;
       }
@@ -3294,6 +3358,146 @@
     });
   }
 
+  function openMermaidEditorDialog({ source, onApply }) {
+    return new Promise((resolve) => {
+      document.getElementById("molanMermaidEditor")?.remove();
+      const mask = document.createElement("div");
+      mask.id = "molanMermaidEditor";
+      mask.className = "molan-mermaid-editor-mask";
+      mask.innerHTML = `
+        <div class="molan-mermaid-editor" role="dialog" aria-modal="true" aria-labelledby="molanMermaidEditorTitle">
+          <div class="molan-mermaid-editor-head">
+            <div>
+              <div class="molan-mermaid-editor-title" id="molanMermaidEditorTitle"></div>
+              <p class="molan-mermaid-editor-hint"></p>
+            </div>
+            <button type="button" class="icon-btn molan-mermaid-editor-close" aria-label="">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <div class="molan-mermaid-editor-body">
+            <label class="molan-mermaid-editor-pane">
+              <span class="molan-mermaid-editor-pane-label"></span>
+              <textarea class="molan-mermaid-editor-source" spellcheck="false"></textarea>
+            </label>
+            <div class="molan-mermaid-editor-pane molan-mermaid-editor-preview-pane">
+              <span class="molan-mermaid-editor-pane-label molan-mermaid-editor-preview-label"></span>
+              <div class="molan-mermaid-editor-preview" aria-live="polite"></div>
+            </div>
+          </div>
+          <div class="molan-mermaid-editor-actions">
+            <button type="button" class="molan-mermaid-editor-cancel"></button>
+            <button type="button" class="molan-mermaid-editor-apply"></button>
+          </div>
+        </div>
+      `;
+      const dialog = mask.querySelector(".molan-mermaid-editor");
+      const textarea = mask.querySelector(".molan-mermaid-editor-source");
+      const preview = mask.querySelector(".molan-mermaid-editor-preview");
+      const cancelBtn = mask.querySelector(".molan-mermaid-editor-cancel");
+      const applyBtn = mask.querySelector(".molan-mermaid-editor-apply");
+      const closeBtn = mask.querySelector(".molan-mermaid-editor-close");
+      mask.querySelector(".molan-mermaid-editor-title").textContent = t("mermaidEditorTitle");
+      mask.querySelector(".molan-mermaid-editor-hint").textContent = t("mermaidEditorHint");
+      mask.querySelector(".molan-mermaid-editor-pane-label").textContent = t("editSource");
+      mask.querySelector(".molan-mermaid-editor-preview-label").textContent = t("viewDiagram");
+      cancelBtn.textContent = t("mermaidEditorCancel");
+      applyBtn.textContent = t("mermaidEditorApply");
+      closeBtn.setAttribute("aria-label", t("mermaidEditorCancel"));
+      textarea.value = String(source || "").trim();
+
+      let settled = false;
+      let previewTimer = 0;
+      let previewSeq = 0;
+
+      const finish = (applied) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(previewTimer);
+        window.removeEventListener("keydown", onKey, true);
+        mask.remove();
+        resolve(Boolean(applied));
+      };
+
+      const showPreviewError = (err) => {
+        const msg = err?.message || err?.str || String(err || t("mermaidSyntaxError"));
+        preview.classList.add("is-error");
+        preview.innerHTML = `<pre class="molan-mermaid-editor-error">${msg.replace(/[<>&]/g, (c) => ({
+          "<": "&lt;",
+          ">": "&gt;",
+          "&": "&amp;",
+        }[c]))}</pre>`;
+      };
+
+      const renderPreview = async () => {
+        const seq = ++previewSeq;
+        const text = textarea.value.trim();
+        if (!text) {
+          preview.classList.remove("is-error");
+          preview.innerHTML = "";
+          return;
+        }
+        if (!global.mermaid || typeof global.mermaid.render !== "function") {
+          showPreviewError(t("diagramNotReady"));
+          return;
+        }
+        try {
+          applyMermaidTheme();
+          const svg = await renderMermaidSvg(text);
+          if (seq !== previewSeq) return;
+          preview.classList.remove("is-error");
+          preview.innerHTML = svg;
+        } catch (err) {
+          if (seq !== previewSeq) return;
+          showPreviewError(err);
+        }
+      };
+
+      const schedulePreview = () => {
+        clearTimeout(previewTimer);
+        previewTimer = window.setTimeout(renderPreview, 320);
+      };
+
+      const tryApply = () => {
+        const next = textarea.value.trim();
+        if (!next) {
+          toast(t("noMermaidSource"));
+          textarea.focus();
+          return;
+        }
+        if (typeof onApply === "function") {
+          const ok = onApply(next);
+          if (ok === false) return;
+        }
+        finish(true);
+      };
+
+      const onKey = (e) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          e.stopPropagation();
+          finish(false);
+        }
+      };
+
+      textarea.addEventListener("input", schedulePreview);
+      cancelBtn.addEventListener("click", () => finish(false));
+      closeBtn.addEventListener("click", () => finish(false));
+      applyBtn.addEventListener("click", tryApply);
+      mask.addEventListener("click", (e) => {
+        if (e.target === mask) finish(false);
+      });
+      dialog.addEventListener("click", (e) => e.stopPropagation());
+      window.addEventListener("keydown", onKey, true);
+      document.body.appendChild(mask);
+      schedulePreview();
+      requestAnimationFrame(() => {
+        textarea.focus();
+        textarea.setSelectionRange(0, textarea.value.length);
+      });
+    });
+  }
+
   function isFenceLine(line) {
     return /^ {0,3}(`{3,}|~{3,})/.test(line);
   }
@@ -3950,6 +4154,10 @@
     const previewListeners = [];
     let blockInsert = { sync() {}, hide() {}, refreshI18n() {} };
     let lastPreviewSource = null;
+    const mermaidBridge = {
+      getPreviewing: () => previewing,
+      onApplyMermaidEdit: null,
+    };
 
     setMermaidMarkdownProvider(() => {
       if (previewing) return markdown;
@@ -3958,7 +4166,7 @@
       }
       return markdown;
     });
-    bindMermaidInteractions(previewRoot, () => vditor, lightbox);
+    bindMermaidInteractions(previewRoot, () => vditor, lightbox, mermaidBridge);
     watchMermaidPreviews(previewRoot);
     watchTables(previewRoot);
     initFind();
@@ -4040,6 +4248,36 @@
         });
       };
       Promise.resolve(preloadLute(cdn)).then(run, run);
+    };
+
+    mermaidBridge.onApplyMermaidEdit = (index, newSource) => {
+      if (index < 0) {
+        toast(t("cannotEdit"));
+        return false;
+      }
+      const next = replaceMermaidBlock(markdown, index, newSource);
+      if (next === markdown) {
+        toast(t("cannotEdit"));
+        return false;
+      }
+      markdown = next;
+      if (previewing) {
+        renderLitePreview(markdown);
+      } else {
+        muteInput = true;
+        bootEditor().then(() => {
+          if (!vditor) return;
+          vditor.setValue(markdown, false);
+          applyMermaidTheme();
+          setTimeout(() => {
+            muteInput = false;
+            refreshMermaidDiagrams(vditorRoot).finally(() => scheduleFitTables(vditorRoot));
+          }, 400);
+        });
+      }
+      try { options.onInput?.(); } catch (_) { /* ignore */ }
+      toast(t("mermaidUpdated"));
+      return true;
     };
 
     onThemeChange(() => {

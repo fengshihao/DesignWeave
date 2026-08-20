@@ -3827,6 +3827,145 @@
       color: var(--paper);
     }
 
+    .molan-mermaid-editor-mask {
+      position: fixed;
+      inset: 0;
+      z-index: 45;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: color-mix(in srgb, var(--ink) 22%, transparent);
+    }
+    .molan-mermaid-editor {
+      display: flex;
+      flex-direction: column;
+      width: min(920px, 100%);
+      max-height: min(88vh, 760px);
+      border: 1px solid var(--hairline-strong);
+      border-radius: 14px;
+      background: var(--paper-lift);
+      box-shadow: var(--shadow);
+      color: var(--ink);
+      font-family: var(--font-ui);
+      overflow: hidden;
+    }
+    .molan-mermaid-editor-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 16px 10px;
+      border-bottom: 1px solid var(--hairline);
+    }
+    .molan-mermaid-editor-title {
+      font-size: 0.98rem;
+      font-weight: 600;
+    }
+    .molan-mermaid-editor-hint {
+      margin: 4px 0 0;
+      font-size: 0.82rem;
+      color: var(--ink-muted);
+    }
+    .molan-mermaid-editor-close {
+      flex: 0 0 auto;
+    }
+    .molan-mermaid-editor-body {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 12px;
+      padding: 12px 16px;
+      min-height: 0;
+      flex: 1 1 auto;
+    }
+    @media (max-width: 760px) {
+      .molan-mermaid-editor-body {
+        grid-template-columns: 1fr;
+      }
+    }
+    .molan-mermaid-editor-pane {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-height: 0;
+      min-width: 0;
+    }
+    .molan-mermaid-editor-pane-label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--ink-muted);
+      letter-spacing: 0.02em;
+    }
+    .molan-mermaid-editor-source {
+      flex: 1 1 auto;
+      min-height: 280px;
+      max-height: 52vh;
+      resize: vertical;
+      box-sizing: border-box;
+      padding: 10px 12px;
+      border: 1px solid var(--hairline-strong);
+      border-radius: 10px;
+      background: var(--paper);
+      color: inherit;
+      font: 0.84rem/1.45 var(--font-mono, ui-monospace, monospace);
+      tab-size: 2;
+    }
+    .molan-mermaid-editor-source:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+    .molan-mermaid-editor-preview {
+      flex: 1 1 auto;
+      min-height: 280px;
+      max-height: 52vh;
+      overflow: auto;
+      border: 1px solid var(--hairline-strong);
+      border-radius: 10px;
+      background: var(--paper);
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .molan-mermaid-editor-preview svg {
+      max-width: 100%;
+      height: auto;
+    }
+    .molan-mermaid-editor-preview.is-error {
+      align-items: stretch;
+      justify-content: flex-start;
+    }
+    .molan-mermaid-editor-error {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font: 0.8rem/1.45 var(--font-mono, ui-monospace, monospace);
+      color: color-mix(in srgb, #c45c4a 88%, var(--ink));
+    }
+    .molan-mermaid-editor-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 10px 16px 14px;
+      border-top: 1px solid var(--hairline);
+    }
+    .molan-mermaid-editor-cancel,
+    .molan-mermaid-editor-apply {
+      border: 0;
+      border-radius: 8px;
+      padding: 6px 14px;
+      font: inherit;
+      cursor: pointer;
+    }
+    .molan-mermaid-editor-cancel {
+      background: transparent;
+      color: var(--ink-muted);
+    }
+    .molan-mermaid-editor-apply {
+      background: var(--accent);
+      color: var(--paper);
+    }
+
     .molan-format-bar {
       position: fixed;
       z-index: 36;
