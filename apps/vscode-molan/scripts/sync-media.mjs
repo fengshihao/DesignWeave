@@ -6,14 +6,18 @@ import { fileURLToPath } from "node:url";
 const require = createRequire(import.meta.url);
 const extRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = join(extRoot, "..", "..");
+const coreDist = join(repoRoot, "packages", "molan-core", "dist");
+const hostDist = join(repoRoot, "packages", "molan-host", "dist");
 const viewer = join(repoRoot, "tools", "markdown-viewer");
 const media = join(extRoot, "media");
 
 mkdirSync(media, { recursive: true });
 
 for (const file of ["molan.css", "molan-editor.js"]) {
-  cpSync(join(viewer, file), join(media, file));
+  cpSync(join(coreDist, file), join(media, file));
 }
+
+cpSync(join(hostDist, "vscode-bridge.js"), join(media, "vscode-bridge.js"));
 
 const vditorPkg = dirname(require.resolve("vditor/package.json"));
 const srcDist = join(vditorPkg, "dist");
@@ -28,7 +32,6 @@ function vendorVditor(destDist) {
     cpSync(src, dest, { recursive: true });
   }
 
-  // 预览用 method.min.js；点编辑再加载 index.min.js。
   for (const rel of [
     "method.min.js",
     "index.min.js",
@@ -62,4 +65,4 @@ function vendorVditor(destDist) {
 vendorVditor(join(media, "vditor", "dist"));
 vendorVditor(join(viewer, "vendor", "vditor", "dist"));
 
-console.log("copied molan.css, molan-editor.js; vendored vditor to media/ and tools/markdown-viewer/vendor/");
+console.log("synced molan-core + molan-host → media/ and tools/markdown-viewer/vendor/");

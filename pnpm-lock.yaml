@@ -62,6 +62,9 @@ importers:
 
   apps/vscode-molan:
     dependencies:
+      '@designweave/molan-host':
+        specifier: workspace:*
+        version: link:../../packages/molan-host
       '@designweave/molan-protocol':
         specifier: workspace:*
         version: link:../../packages/molan-protocol
@@ -81,6 +84,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@designweave/molan-host':
+        specifier: workspace:*
+        version: link:../../packages/molan-host
       '@designweave/molan-protocol':
         specifier: workspace:*
         version: link:../../packages/molan-protocol
@@ -112,6 +118,38 @@ importers:
       '@types/react-dom':
         specifier: ^19.0.4
         version: 19.0.4(@types/react@19.0.10)
+      typescript:
+        specifier: ^5.8.2
+        version: 5.8.2
+
+  packages/molan-core:
+    dependencies:
+      '@designweave/molan-protocol':
+        specifier: workspace:*
+        version: link:../molan-protocol
+      vditor:
+        specifier: 3.10.9
+        version: 3.10.9
+    devDependencies:
+      tsx:
+        specifier: ^4.19.3
+        version: 4.19.3
+      typescript:
+        specifier: ^5.8.2
+        version: 5.8.2
+
+  packages/molan-host:
+    dependencies:
+      '@designweave/molan-protocol':
+        specifier: workspace:*
+        version: link:../molan-protocol
+    devDependencies:
+      esbuild:
+        specifier: ^0.25.0
+        version: 0.25.12
+      tsx:
+        specifier: ^4.19.3
+        version: 4.19.3
       typescript:
         specifier: ^5.8.2
         version: 5.8.2

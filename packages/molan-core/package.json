@@ -1,0 +1,23 @@
+{
+  "name": "@designweave/molan-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./editor": "./dist/molan-editor.js",
+    "./style.css": "./dist/molan.css"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test src/**/*.test.ts"
+  },
+  "dependencies": {
+    "@designweave/molan-protocol": "workspace:*",
+    "vditor": "3.10.9"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}

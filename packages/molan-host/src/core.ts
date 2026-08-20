@@ -1,0 +1,247 @@
+import type { EditorApi, FrameToHostMessage, HostToFrameMessage } from "@designweave/molan-protocol";
+import { parseHostToFrameMessage } from "@designweave/molan-protocol";
+import { stripMarkdownExtension } from "./link-utils.js";
+
+export type BridgeChrome = {
+  readerTitle?: HTMLElement | null;
+  readerEyebrow?: HTMLElement | null;
+  statusLeft?: HTMLElement | null;
+  statusRight?: HTMLElement | null;
+  modeBtn?: HTMLElement | null;
+};
+
+export type BridgeCoreOptions = {
+  chrome: BridgeChrome;
+  post: (msg: FrameToHostMessage) => void;
+  toast: (msg: string) => void;
+  countWords: (text: string) => number;
+  ensureEditor: () => Promise<EditorApi>;
+  /** Web 工作台：只读模式与 eyebrow 状态 */
+  readOnlyFeatures?: boolean;
+  statusRightSuffix?: string;
+};
+
+export function createBridgeCore(options: BridgeCoreOptions) {
+  const {
+    chrome,
+    post,
+    toast,
+    countWords,
+    ensureEditor,
+    readOnlyFeatures = false,
+    statusRightSuffix = "",
+  } = options;
+
+  let editorApi: EditorApi | null = null;
+  let applyingRemote = false;
+  let currentFileName = "";
+  let dirty = false;
+  let baseline = "";
+  let readOnly = false;
+  let editorIdleTimer = 0;
+
+  function syncModeButton() {
+    const { modeBtn } = chrome;
+    if (!modeBtn) return;
+    const preview = editorApi?.isPreview?.() ?? (readOnlyFeatures ? true : false);
+    modeBtn.classList.toggle("is-preview", preview);
+    const label = preview ? "编辑" : "预览";
+    modeBtn.title = label;
+    modeBtn.setAttribute("aria-label", label);
+    if (readOnlyFeatures) {
+      document.body.classList.toggle("is-readonly", readOnly);
+    }
+  }
+
+  function setChrome(input: { fileName?: string; value?: string; isDirty?: boolean }) {
+    const { fileName, value, isDirty } = input;
+    if (fileName) {
+      currentFileName = fileName;
+      if (chrome.readerTitle) {
+        chrome.readerTitle.textContent = stripMarkdownExtension(fileName);
+      }
+    }
+    if (typeof isDirty === "boolean") dirty = isDirty;
+
+    if (readOnlyFeatures && chrome.readerEyebrow) {
+      chrome.readerEyebrow.classList.toggle("dirty", dirty);
+      chrome.readerEyebrow.textContent = dirty ? "未保存" : readOnly ? "只读" : "已同步";
+    }
+
+    if (chrome.statusLeft) {
+      chrome.statusLeft.textContent = currentFileName || "墨览";
+    }
+
+    const text = value ?? (editorApi ? editorApi.getValue() : "");
+    if (chrome.statusRight) {
+      if (readOnlyFeatures) {
+        const syncLabel = dirty ? "未保存" : readOnly ? "只读" : "已同步";
+        chrome.statusRight.textContent = `${countWords(text)} 字 · ${syncLabel}`;
+      } else {
+        chrome.statusRight.textContent = statusRightSuffix || `${countWords(text)} 字`;
+      }
+    }
+
+    syncModeButton();
+  }
+
+  function scheduleEditorIdleWork() {
+    clearTimeout(editorIdleTimer);
+    editorIdleTimer = window.setTimeout(() => {
+      if (applyingRemote || !editorApi) return;
+      if (readOnlyFeatures && readOnly) return;
+      const value = editorApi.getValue();
+      const isDirty = value !== baseline;
+      setChrome({ value, isDirty });
+      if (isDirty) {
+        post({ type: "change", value, dirty: readOnlyFeatures ? true : undefined });
+      }
+      if (readOnlyFeatures) {
+        post({ type: "previewChange", isPreview: editorApi.isPreview() });
+      }
+    }, 180);
+  }
+
+  function wait(ms: number) {
+    return new Promise<void>((resolve) => setTimeout(resolve, ms));
+  }
+
+  async function applyHostContent(msg: Extract<HostToFrameMessage, { type: "init" | "setContent" }>) {
+    const api = await ensureEditor();
+    editorApi = api;
+    clearTimeout(editorIdleTimer);
+    applyingRemote = true;
+    const incoming = msg.value ?? "";
+    if (readOnlyFeatures) readOnly = Boolean(msg.readOnly);
+    await api.setPreview(true);
+    await api.setValue(incoming, true);
+    if (!api.isPreview()) {
+      await wait(480);
+    }
+    baseline = api.getValue();
+    applyingRemote = false;
+    setChrome({
+      fileName: msg.fileName || currentFileName,
+      value: incoming,
+      isDirty: !!msg.dirty,
+    });
+    if (readOnlyFeatures) {
+      document.body.classList.toggle("is-readonly", readOnly);
+      post({ type: "previewChange", isPreview: true });
+    }
+  }
+
+  async function applyReadOnly(next: boolean) {
+    if (!readOnlyFeatures) return;
+    readOnly = Boolean(next);
+    document.body.classList.toggle("is-readonly", readOnly);
+    if (readOnly && editorApi && !editorApi.isPreview()) {
+      await editorApi.setPreview(true);
+    }
+    setChrome({ value: editorApi ? editorApi.getValue() : undefined });
+    post({ type: "previewChange", isPreview: editorApi ? editorApi.isPreview() : true });
+  }
+
+  async function handleSaved() {
+    if (editorApi) baseline = editorApi.getValue();
+    setChrome({ value: baseline, isDirty: false });
+    toast("已保存");
+    if (readOnlyFeatures) {
+      post({ type: "change", value: baseline, dirty: false });
+    }
+  }
+
+  function handleGetState(requestId: number) {
+    const value = editorApi ? editorApi.getValue() : "";
+    post({
+      type: "state",
+      requestId,
+      value,
+      dirty: value !== baseline,
+      isPreview: editorApi ? editorApi.isPreview() : true,
+    });
+  }
+
+  async function handleExitEdit() {
+    if (editorApi && !editorApi.isPreview()) {
+      await editorApi.setPreview(true);
+    }
+    post({ type: "previewChange", isPreview: true });
+  }
+
+  function bindEditor(api: EditorApi) {
+    editorApi = api;
+    api.onPreviewChange?.(() => {
+      syncModeButton();
+      if (readOnlyFeatures) {
+        post({ type: "previewChange", isPreview: api.isPreview() });
+      }
+    });
+  }
+
+  function onEditorInput() {
+    if (applyingRemote) return;
+    if (readOnlyFeatures && readOnly) return;
+    if (readOnlyFeatures && editorApi?.isPreview?.()) return;
+    scheduleEditorIdleWork();
+  }
+
+  function onEditorCounter() {
+    if (applyingRemote || !editorApi || editorApi.isPreview?.()) return;
+    setChrome({ value: editorApi.getValue() });
+  }
+
+  async function handleHostMessage(data: unknown): Promise<boolean> {
+    const msg = parseHostToFrameMessage(data);
+    if (!msg) return false;
+
+    if (msg.type === "init" || msg.type === "setContent") {
+      await applyHostContent(msg);
+      return true;
+    }
+    if (msg.type === "setReadOnly") {
+      await applyReadOnly(msg.readOnly);
+      return true;
+    }
+    if (msg.type === "saved") {
+      await handleSaved();
+      return true;
+    }
+    if (msg.type === "getState") {
+      handleGetState(msg.requestId);
+      return true;
+    }
+    if (msg.type === "exitEdit") {
+      await handleExitEdit();
+      return true;
+    }
+    return false;
+  }
+
+  return {
+    get editorApi() {
+      return editorApi;
+    },
+    get readOnly() {
+      return readOnly;
+    },
+    setChrome,
+    syncModeButton,
+    scheduleEditorIdleWork,
+    applyHostContent,
+    applyReadOnly,
+    handleSaved,
+    handleGetState,
+    handleExitEdit,
+    bindEditor,
+    onEditorInput,
+    onEditorCounter,
+    handleHostMessage,
+    setBaseline(value: string) {
+      baseline = value;
+    },
+    getBaseline() {
+      return baseline;
+    },
+  };
+}

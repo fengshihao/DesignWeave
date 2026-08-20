@@ -149,7 +149,7 @@
   },
   "scripts": {
     "sync-media": "node ./scripts/sync-media.mjs",
-    "compile": "pnpm --filter @designweave/molan-protocol build && node ./scripts/sync-media.mjs && tsc -p ./",
+    "compile": "pnpm --filter @designweave/molan-protocol build && pnpm --filter @designweave/molan-core build && pnpm --filter @designweave/molan-host build && node ./scripts/sync-media.mjs && tsc -p ./",
     "watch": "tsc -watch -p ./",
     "typecheck": "tsc -p ./ --noEmit",
     "check": "pnpm compile && node ./scripts/check.mjs",
@@ -157,6 +157,7 @@
     "publish": "pnpm compile && npx --yes @vscode/vsce publish --no-dependencies --baseContentUrl https://github.com/fengshihao/DesignWeave/blob/main/apps/vscode-molan --baseImagesUrl https://molan.guoyoutech.cn"
   },
   "dependencies": {
+    "@designweave/molan-host": "workspace:*",
     "@designweave/molan-protocol": "workspace:*",
     "vditor": "3.10.9"
   },

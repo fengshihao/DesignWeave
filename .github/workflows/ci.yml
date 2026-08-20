@@ -32,6 +32,8 @@ jobs:
           pnpm --filter @designweave/schema build
           pnpm --filter @designweave/prompts build
           pnpm --filter @designweave/molan-protocol build
+          pnpm --filter @designweave/molan-core build
+          pnpm --filter @designweave/molan-host build
 
       - name: Typecheck
         run: pnpm typecheck

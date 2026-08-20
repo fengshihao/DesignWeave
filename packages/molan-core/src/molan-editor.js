@@ -1,0 +1,4669 @@
+/**
+ * 墨览编辑器核心：Vditor 初始化、Mermaid 主题、流程图工具条与灯箱。
+ * 浏览器工作室与 VSCode 扩展共用。
+ */
+(function (global) {
+  function resolveDefaultCdn() {
+    try {
+      return new URL("vendor/vditor", document.baseURI || location.href).href.replace(/\/$/, "");
+    } catch (_) {
+      return "./vendor/vditor";
+    }
+  }
+  const DEFAULT_CDN = resolveDefaultCdn();
+  const scriptLoads = Object.create(null);
+
+  function loadScript(src, id) {
+    if (id && document.getElementById(id) && isScriptReady(id)) {
+      return Promise.resolve();
+    }
+    const key = id || src;
+    if (scriptLoads[key]) return scriptLoads[key];
+    scriptLoads[key] = new Promise((resolve, reject) => {
+      if (id && document.getElementById(id) && isScriptReady(id)) {
+        resolve();
+        return;
+      }
+      const s = document.createElement("script");
+      s.src = src;
+      s.async = true;
+      s.onload = () => {
+        if (id && !s.id) s.id = id;
+        resolve();
+      };
+      s.onerror = () => {
+        delete scriptLoads[key];
+        reject(new Error("加载失败: " + src));
+      };
+      document.head.appendChild(s);
+    });
+    return scriptLoads[key];
+  }
+
+  function isScriptReady(id) {
+    if (id === "vditorLuteScript") return typeof global.Lute === "function";
+    if (id === "vditorFullScript") return isFullVditor();
+    if (id === "vditorMermaidScript") return !!global.mermaid;
+    return true;
+  }
+
+  function isFullVditor() {
+    return typeof global.Vditor === "function"
+      && typeof global.Vditor.prototype?.getValue === "function"
+      && typeof global.Vditor.prototype?.setValue === "function";
+  }
+
+  function preloadLute(cdn) {
+    if (typeof global.Lute === "function") return Promise.resolve();
+    return loadScript(`${cdn}/dist/js/lute/lute.min.js`, "vditorLuteScript").catch(() => {});
+  }
+
+  function ensureFullVditor(cdn) {
+    if (isFullVditor()) return Promise.resolve();
+    return loadScript(`${cdn}/dist/index.min.js`, "vditorFullScript").then(() => {
+      if (!isFullVditor()) throw new Error("Vditor 编辑器未加载");
+    });
+  }
+
+  function markdownHasMermaid(text) {
+    return /(^|\n)\s*(```+|~~~+)\s*mermaid\b/i.test(String(text || ""));
+  }
+
+  function maybePreloadMermaid(cdn, text) {
+    if (markdownHasMermaid(text)) preloadMermaid(cdn);
+  }
+
+  function t(key, vars) {
+    if (global.MolanI18n && typeof global.MolanI18n.t === "function") {
+      return global.MolanI18n.t(key, vars);
+    }
+    const fallback = {
+      diagramNotReady: "流程图尚未渲染完成",
+      copiedDiagramImage: "已复制流程图图片",
+      copyImageFallback: "当前环境不支持复制图片，已改为下载",
+      copyImageFail: "复制图片失败",
+      cannotEdit: "无法进入编辑",
+      enteredEdit: "已进入源码编辑，点空白处退出",
+      editSource: "编辑源码",
+      viewDiagram: "观看流程图",
+      copyCode: "复制代码",
+      copyImage: "复制图片",
+      noMermaidSource: "未找到流程图源码",
+      copiedMermaidCode: "已复制流程图代码",
+      mermaidEditorTitle: "编辑流程图",
+      mermaidEditorHint: "左侧编辑源码，右侧实时预览 · ⌘/Ctrl+Enter 应用 · Esc 关闭",
+      mermaidEditorApply: "应用",
+      mermaidEditorCancel: "取消",
+      mermaidSyntaxError: "语法错误",
+      mermaidUpdated: "已更新流程图",
+      mermaidSnippetsLabel: "常用模板",
+      mermaidSnippetFlowchart: "流程图",
+      mermaidSnippetSequence: "时序图",
+      mermaidSnippetClass: "类图",
+      copyFail: "复制失败",
+      find: "查找",
+      findPlaceholder: "查找",
+      findPrev: "上一个",
+      findNext: "下一个",
+      findClose: "关闭查找",
+      findCase: "区分大小写",
+      findNoMatch: "无匹配",
+      findMatchCount: "{current}/{total}",
+      findAria: "在文档中查找",
+      typeAria: "排版",
+      typeTitle: "调节字号与行距",
+      typeLabel: "排版",
+      typeSize: "字号",
+      typeLeading: "行距",
+      typeGap: "段距",
+      typeTracking: "字距",
+      typeReset: "恢复默认",
+      prefsTheme: "纸面",
+      themeAria: "界面样式",
+      themeXuan: "宣纸",
+      themeXuanTitle: "宣纸 · 暖色纸面",
+      themeNight: "墨夜",
+      themeNightTitle: "墨夜 · 暗色夜读",
+      themeHack: "终端",
+      themeHackTitle: "终端 · 程序员",
+      themeRose: "胭脂",
+      themeRoseTitle: "胭脂 · 柔粉纸面",
+      themeSwitched: "已切换为「{name}」",
+      prefsAria: "界面配置",
+      placeholder: "开始编辑 Markdown…",
+      insertBlock: "插入块",
+      insertGroupText: "文本",
+      insertGroupList: "列表",
+      insertGroupInsert: "插入",
+      insertH1: "标题 1",
+      insertH2: "标题 2",
+      insertH3: "标题 3",
+      insertUl: "无序列表",
+      insertOl: "有序列表",
+      insertTask: "任务列表",
+      insertQuote: "引用",
+      insertHr: "分割线",
+      insertCode: "代码块",
+      insertTable: "插入表格",
+      insertMath: "公式",
+      insertMermaid: "流程图",
+      insertImage: "图片",
+      insertLink: "链接",
+      formatBold: "加粗",
+      formatItalic: "斜体",
+      formatLink: "链接",
+      formatLinkPlaceholder: "https:// 或相对路径",
+      editModeAria: "切换编辑方式",
+      editModeWysiwyg: "所见即所得",
+      editModeIr: "即时渲染",
+      outlineAria: "大纲",
+      outlineCloseAria: "收起大纲",
+      outlineEmpty: "没有标题",
+      pickImageFail: "无法插入图片",
+      imageUrlTitle: "插入图片",
+      imageUrlHint: "请填写可公开访问的图片地址",
+      imageUrlPlaceholder: "https://",
+      imageUrlInvalid: "请填写 http 或 https 开头的图片地址",
+      imageUrlConfirm: "插入",
+      imageUrlCancel: "取消",
+      tableSize: "{cols} 列 × {rows} 行",
+      insertRowAbove: "上方插入行",
+      insertRowBelow: "下方插入行",
+      insertColLeft: "左侧插入列",
+      insertColRight: "右侧插入列",
+      deleteRow: "删除当前行",
+      deleteColumn: "删除当前列",
+    };
+    let s = fallback[key] || key;
+    if (vars) s = s.replace(/\{(\w+)\}/g, (_, k) => (vars[k] == null ? "" : String(vars[k])));
+    return s;
+  }
+
+  function cssVar(name, fallback) {
+    try {
+      const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      return value || fallback;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  function getMermaidOpts() {
+    const font = cssVar("--font-ui", '"DM Sans", sans-serif').replace(/"/g, "");
+    const themeName = document.documentElement.getAttribute("data-theme") || "night";
+    const dark = themeName === "night" || themeName === "hack";
+    return {
+      startOnLoad: false,
+      theme: dark ? "dark" : "base",
+      securityLevel: "loose",
+      flowchart: { htmlLabels: true, useMaxWidth: true },
+      themeVariables: {
+        darkMode: dark,
+        primaryColor: cssVar("--paper", "#f4efe6"),
+        primaryTextColor: cssVar("--ink", "#1c1914"),
+        primaryBorderColor: cssVar("--accent", "#d4773b"),
+        lineColor: cssVar("--ink-soft", "#6b5e4e"),
+        secondaryColor: cssVar("--paper-deep", "#ebe4d6"),
+        tertiaryColor: cssVar("--table-bg", "#ffffff"),
+        background: cssVar("--paper-lift", "#ffffff"),
+        mainBkg: cssVar("--paper", "#f4efe6"),
+        nodeBorder: cssVar("--accent", "#d4773b"),
+        clusterBkg: cssVar("--paper-deep", "#ebe4d6"),
+        titleColor: cssVar("--ink", "#1c1914"),
+        edgeLabelBackground: cssVar("--paper-lift", "#faf7f1"),
+        fontFamily: font,
+      },
+      themeCSS: `
+        /* molan-theme:${themeName} */
+        .node rect,
+        .node polygon,
+        .cluster rect {
+          rx: 8px;
+          ry: 8px;
+        }
+      `,
+    };
+  }
+
+  let toastEl = null;
+  let activeBlockInsert = null;
+  let diagramObserver = null;
+  let lightboxBound = false;
+
+  function toast(msg) {
+    if (!toastEl) toastEl = document.getElementById("toast");
+    if (!toastEl) return;
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => toastEl.classList.remove("show"), 2200);
+  }
+
+  function countWords(text) {
+    const cn = (String(text).match(/[\u4e00-\u9fff]/g) || []).length;
+    const en = (String(text).replace(/[\u4e00-\u9fff]/g, " ").match(/[A-Za-z0-9]+/g) || []).length;
+    return cn + en;
+  }
+
+  function applyMermaidTheme() {
+    if (!global.mermaid || typeof mermaid.initialize !== "function") return false;
+    try {
+      patchMermaidInitialize();
+      if (typeof mermaid.mermaidAPI?.reset === "function") {
+        try { mermaid.mermaidAPI.reset(); } catch (_) { /* ignore */ }
+      }
+      mermaid.initialize(getMermaidOpts());
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function mermaidRoot() {
+    return document.getElementById("editorWrap")
+      || document.getElementById("molanPreview")
+      || document.getElementById("vditor")
+      || document;
+  }
+
+  let mermaidMarkdownProvider = null;
+  const themeChangeListeners = [];
+
+  function setMermaidMarkdownProvider(fn) {
+    mermaidMarkdownProvider = typeof fn === "function" ? fn : null;
+  }
+
+  function onThemeChange(fn) {
+    if (typeof fn !== "function") return () => {};
+    themeChangeListeners.push(fn);
+    return () => {
+      const i = themeChangeListeners.indexOf(fn);
+      if (i >= 0) themeChangeListeners.splice(i, 1);
+    };
+  }
+
+  function extractMermaidSources(text) {
+    const out = [];
+    const src = String(text || "");
+    const re = /(?:^|\n)[ \t]*(```+|~~~+)[ \t]*mermaid[^\n]*\n([\s\S]*?)(?:\n[ \t]*\1[ \t]*(?:\n|$))/gi;
+    let match;
+    while ((match = re.exec(src))) out.push(match[2].trim());
+    return out;
+  }
+
+  function replaceMermaidBlock(markdown, index, newSource) {
+    const src = String(markdown || "");
+    const re = /(?:^|\n)([ \t]*(```+|~~~+)[ \t]*mermaid[^\n]*\n)([\s\S]*?)(?:\n[ \t]*\2[ \t]*(?:\n|$))/gi;
+    let match;
+    let i = 0;
+    while ((match = re.exec(src))) {
+      if (i === index) {
+        const lead = match[0].startsWith("\n") ? "\n" : "";
+        const open = match[1];
+        const closeMatch = match[0].match(/\n[ \t]*(`{3,}|~{3,})[ \t]*(?:\n|$)/);
+        const close = closeMatch ? closeMatch[0] : "\n```\n";
+        const body = String(newSource || "").trim();
+        const replacement = `${lead}${open}${body}${close}`;
+        return src.slice(0, match.index) + replacement + src.slice(match.index + match[0].length);
+      }
+      i += 1;
+    }
+    return src;
+  }
+
+  function mermaidSourcesFromMarkdown() {
+    if (typeof mermaidMarkdownProvider !== "function") return [];
+    try {
+      return extractMermaidSources(mermaidMarkdownProvider());
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function isValidMermaidSource(text) {
+    const s = String(text || "").trim();
+    if (!s || /^svg\s*$/i.test(s)) return false;
+    if (/^<\s*svg[\s>]/i.test(s)) return false;
+    return /^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram|stateDiagram-v2|erDiagram|journey|gantt|pie|mindmap|timeline|gitGraph|C4Context|sankey|xychart|block-beta|%%)/im.test(s);
+  }
+
+  function mermaidDisplayHosts(root = document) {
+    return Array.from(root.querySelectorAll(".language-mermaid")).filter((host) => {
+      if (host.closest(".vditor-ir__marker--pre, .vditor-ir__marker")) return false;
+      if (host.closest(".vditor-ir__preview, #molanPreviewBody, .molan-preview")) return true;
+      return host.classList.contains("molan-mermaid-shell");
+    });
+  }
+
+  function captureMermaidSource(el) {
+    if (!el || el.nodeType !== 1) return;
+    if (el.getAttribute("data-molan-source")) return;
+    const node = el.closest(".vditor-ir__node");
+    const marker = node?.querySelector?.(".vditor-ir__marker--pre code.language-mermaid");
+    const markerText = marker?.textContent?.trim();
+    if (markerText && isValidMermaidSource(markerText)) {
+      el.setAttribute("data-molan-source", markerText);
+      return;
+    }
+    if (el.getAttribute("data-processed") === "true") return;
+    if (el.querySelector("svg")) return;
+    const text = (el.textContent || "").trim();
+    if (text && isValidMermaidSource(text)) el.setAttribute("data-molan-source", text);
+  }
+
+  function captureMermaidSources(root = document) {
+    root.querySelectorAll?.(".language-mermaid")?.forEach(captureMermaidSource);
+  }
+
+  function stampMermaidSources(root, text) {
+    if (!root) return;
+    const sources = extractMermaidSources(text);
+    mermaidDisplayHosts(root).forEach((el, i) => {
+      if (sources[i] && isValidMermaidSource(sources[i])) {
+        el.setAttribute("data-molan-source", sources[i]);
+      } else {
+        captureMermaidSource(el);
+      }
+    });
+  }
+
+  function scheduleMermaidThemeRefresh() {
+    const run = () => {
+      applyMermaidTheme();
+      if (themeChangeListeners.length) {
+        themeChangeListeners.forEach((fn) => {
+          try { fn(); } catch (_) { /* ignore */ }
+        });
+        return;
+      }
+      refreshMermaidDiagrams(mermaidRoot());
+    };
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(run);
+    else run();
+  }
+
+  function patchMermaidInitialize() {
+    if (!global.mermaid || mermaid.__molanPatched) return;
+    const raw = mermaid.initialize.bind(mermaid);
+    mermaid.initialize = (opts = {}) => {
+      const next = getMermaidOpts();
+      return raw({
+        ...opts,
+        ...next,
+        themeVariables: {
+          ...(opts.themeVariables || {}),
+          ...next.themeVariables,
+        },
+      });
+    };
+    mermaid.__molanPatched = true;
+  }
+
+  function patchMermaidLoader() {
+    if (patchMermaidLoader.done) return;
+    patchMermaidLoader.done = true;
+    let tries = 0;
+    const timer = setInterval(() => {
+      tries += 1;
+      if (applyMermaidTheme() || tries > 80) clearInterval(timer);
+    }, 250);
+
+    const origAppend = document.head.appendChild.bind(document.head);
+    document.head.appendChild = function patchedAppend(node) {
+      const el = origAppend(node);
+      if (node && node.tagName === "SCRIPT" && /mermaid/i.test(node.src || "")) {
+        node.addEventListener("load", () => {
+          applyMermaidTheme();
+          patchMermaidInitialize();
+        });
+      }
+      return el;
+    };
+  }
+
+  function preloadMermaid(cdn) {
+    if (global.mermaid) {
+      applyMermaidTheme();
+      patchMermaidInitialize();
+      return Promise.resolve();
+    }
+    return loadScript(`${cdn}/dist/js/mermaid/mermaid.min.js`, "vditorMermaidScript")
+      .then(() => {
+        applyMermaidTheme();
+        patchMermaidInitialize();
+      })
+      .catch(() => {});
+  }
+
+  function initLightbox() {
+    const lightbox = document.getElementById("lightbox");
+    const lightboxStage = document.getElementById("lightboxStage");
+    const lightboxCanvas = document.getElementById("lightboxCanvas");
+    const lightboxClose = document.getElementById("lightboxClose");
+    const lightboxZoomIn = document.getElementById("lightboxZoomIn");
+    const lightboxZoomOut = document.getElementById("lightboxZoomOut");
+    const lightboxReset = document.getElementById("lightboxReset");
+    const lightboxCopyImage = document.getElementById("lightboxCopyImage");
+    if (!lightbox || !lightboxStage || !lightboxCanvas) {
+      return {
+        openFromSvg() { toast(t("diagramNotReady")); },
+        close() {},
+        isOpen() { return false; },
+        copySvgAsPng,
+      };
+    }
+
+    let lightboxScale = 1;
+    let lightboxPanX = 0;
+    let lightboxPanY = 0;
+    let lightboxDragging = false;
+    let lightboxDragOrigin = null;
+
+    function closeLightbox() {
+      lightbox.classList.remove("open");
+      lightbox.setAttribute("aria-hidden", "true");
+      lightboxCanvas.innerHTML = "";
+      lightboxScale = 1;
+      lightboxPanX = 0;
+      lightboxPanY = 0;
+      lightboxDragging = false;
+      lightboxDragOrigin = null;
+      lightboxStage.classList.remove("is-dragging");
+      applyLightboxTransform();
+    }
+
+    function applyLightboxTransform() {
+      lightboxCanvas.style.transform =
+        `translate(${lightboxPanX}px, ${lightboxPanY}px) scale(${lightboxScale})`;
+    }
+
+    function lightboxSvgNaturalSize(svg) {
+      const vb = svg.viewBox?.baseVal;
+      if (vb && vb.width > 0 && vb.height > 0) {
+        return { width: vb.width, height: vb.height };
+      }
+      const w = parseFloat(svg.getAttribute("width"));
+      const h = parseFloat(svg.getAttribute("height"));
+      if (Number.isFinite(w) && w > 0 && Number.isFinite(h) && h > 0) {
+        return { width: w, height: h };
+      }
+      try {
+        const box = svg.getBBox();
+        if (box.width > 0 && box.height > 0) {
+          return { width: box.width, height: box.height };
+        }
+      } catch (_) { /* ignore */ }
+      const rect = svg.getBoundingClientRect();
+      return {
+        width: rect.width > 0 ? rect.width : 1,
+        height: rect.height > 0 ? rect.height : 1,
+      };
+    }
+
+    function prepareLightboxSvg(clone) {
+      clone.removeAttribute("style");
+      const natural = lightboxSvgNaturalSize(clone);
+      clone.setAttribute("width", String(natural.width));
+      clone.setAttribute("height", String(natural.height));
+      clone.style.width = `${natural.width}px`;
+      clone.style.height = `${natural.height}px`;
+      clone.style.maxWidth = "none";
+    }
+
+    function fitLightboxView() {
+      const svg = lightboxCanvas.querySelector("svg");
+      if (!svg) {
+        lightboxScale = 1;
+        lightboxPanX = 0;
+        lightboxPanY = 0;
+        applyLightboxTransform();
+        return;
+      }
+      lightboxScale = 1;
+      lightboxPanX = 0;
+      lightboxPanY = 0;
+      applyLightboxTransform();
+      const stage = lightboxStage.getBoundingClientRect();
+      const inset = 40;
+      const maxW = Math.max(120, stage.width - inset * 2);
+      const maxH = Math.max(120, stage.height - inset * 2);
+      const natural = lightboxSvgNaturalSize(svg);
+      const fit = Math.min(maxW / natural.width, maxH / natural.height, 1) * 0.94;
+      lightboxScale = Math.max(0.35, Math.min(fit, 1));
+      lightboxPanX = 0;
+      lightboxPanY = 0;
+      applyLightboxTransform();
+    }
+
+    function resetLightboxView() {
+      fitLightboxView();
+    }
+
+    function openLightboxFromSvg(svg) {
+      if (!svg) {
+        toast(t("diagramNotReady"));
+        return;
+      }
+      lightboxCanvas.innerHTML = "";
+      const clone = svg.cloneNode(true);
+      prepareLightboxSvg(clone);
+      lightboxCanvas.appendChild(clone);
+      lightbox.classList.add("open");
+      lightbox.setAttribute("aria-hidden", "false");
+      requestAnimationFrame(() => requestAnimationFrame(fitLightboxView));
+    }
+
+    if (!lightboxBound) {
+      lightboxBound = true;
+      lightboxClose?.addEventListener("click", closeLightbox);
+      lightbox.addEventListener("click", (e) => {
+        if (e.target === lightbox) closeLightbox();
+      });
+      lightboxZoomIn?.addEventListener("click", () => {
+        lightboxScale = Math.min(lightboxScale + 0.25, 5);
+        applyLightboxTransform();
+      });
+      lightboxZoomOut?.addEventListener("click", () => {
+        lightboxScale = Math.max(lightboxScale - 0.25, 0.35);
+        applyLightboxTransform();
+      });
+      lightboxReset?.addEventListener("click", resetLightboxView);
+      lightboxCopyImage?.addEventListener("click", () => {
+        copySvgAsPng(lightboxCanvas.querySelector("svg"));
+      });
+
+      lightboxStage.addEventListener("pointerdown", (e) => {
+        if (e.button !== 0) return;
+        lightboxDragging = true;
+        lightboxDragOrigin = {
+          x: e.clientX,
+          y: e.clientY,
+          panX: lightboxPanX,
+          panY: lightboxPanY,
+        };
+        lightboxStage.classList.add("is-dragging");
+        lightboxStage.setPointerCapture?.(e.pointerId);
+      });
+      lightboxStage.addEventListener("pointermove", (e) => {
+        if (!lightboxDragging || !lightboxDragOrigin) return;
+        lightboxPanX = lightboxDragOrigin.panX + (e.clientX - lightboxDragOrigin.x);
+        lightboxPanY = lightboxDragOrigin.panY + (e.clientY - lightboxDragOrigin.y);
+        applyLightboxTransform();
+      });
+      const endLightboxDrag = (e) => {
+        if (!lightboxDragging) return;
+        lightboxDragging = false;
+        lightboxDragOrigin = null;
+        lightboxStage.classList.remove("is-dragging");
+        try { lightboxStage.releasePointerCapture?.(e.pointerId); } catch (_) { /* ignore */ }
+      };
+      lightboxStage.addEventListener("pointerup", endLightboxDrag);
+      lightboxStage.addEventListener("pointercancel", endLightboxDrag);
+      lightboxStage.addEventListener("wheel", (e) => {
+        if (!lightbox.classList.contains("open")) return;
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.12 : 0.12;
+        const next = Math.min(5, Math.max(0.35, lightboxScale + delta));
+        const rect = lightboxStage.getBoundingClientRect();
+        const cx = e.clientX - rect.left - rect.width / 2;
+        const cy = e.clientY - rect.top - rect.height / 2;
+        const ratio = next / lightboxScale;
+        lightboxPanX = cx - (cx - lightboxPanX) * ratio;
+        lightboxPanY = cy - (cy - lightboxPanY) * ratio;
+        lightboxScale = next;
+        applyLightboxTransform();
+      }, { passive: false });
+
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && lightbox.classList.contains("open")) {
+          e.preventDefault();
+          closeLightbox();
+        }
+      });
+    }
+
+    return {
+      openFromSvg: openLightboxFromSvg,
+      close: closeLightbox,
+      isOpen: () => lightbox.classList.contains("open"),
+      copySvgAsPng,
+    };
+  }
+
+  async function copySvgAsPng(svg) {
+    if (!svg) {
+      toast(t("diagramNotReady"));
+      return;
+    }
+    const xml = new XMLSerializer().serializeToString(svg);
+    const svgBlob = new Blob([xml], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(svgBlob);
+    try {
+      const img = await new Promise((resolve, reject) => {
+        const el = new Image();
+        el.onload = () => resolve(el);
+        el.onerror = reject;
+        el.src = url;
+      });
+      const scale = 2;
+      const canvas = document.createElement("canvas");
+      const w = img.naturalWidth || svg.viewBox?.baseVal?.width || svg.clientWidth || 800;
+      const h = img.naturalHeight || svg.viewBox?.baseVal?.height || svg.clientHeight || 600;
+      canvas.width = Math.max(1, Math.floor(w * scale));
+      canvas.height = Math.max(1, Math.floor(h * scale));
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+      if (!blob) throw new Error("toBlob failed");
+      if (navigator.clipboard && global.ClipboardItem) {
+        await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+        toast(t("copiedDiagramImage"));
+      } else {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "diagram.png";
+        a.click();
+        toast(t("copyImageFallback"));
+      }
+    } catch (err) {
+      console.warn(err);
+      toast(t("copyImageFail"));
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  function getMermaidSourceNear(previewEl) {
+    const node = previewEl?.closest?.(".vditor-ir__node");
+    const marker = node?.querySelector?.(".vditor-ir__marker--pre code.language-mermaid");
+    const markerText = marker?.textContent?.trim();
+    if (markerText && isValidMermaidSource(markerText)) return markerText;
+    const host = previewEl?.matches?.(".language-mermaid")
+      ? previewEl
+      : (previewEl?.querySelector?.(".language-mermaid") || previewEl);
+    const saved = host?.getAttribute?.("data-molan-source")
+      || previewEl?.getAttribute?.("data-molan-source");
+    if (saved && isValidMermaidSource(saved)) return saved;
+    const code = previewEl?.querySelector?.("code.language-mermaid, .language-mermaid") || host;
+    if (!code) return "";
+    if (code.getAttribute?.("data-processed")) return "";
+    const text = (code.textContent || "").trim();
+    return isValidMermaidSource(text) ? text : "";
+  }
+
+  function getMermaidShellIndex(shell, root = document) {
+    const host = shell?.matches?.(".language-mermaid")
+      ? shell
+      : (shell?.querySelector?.(".language-mermaid") || shell);
+    if (!host) return -1;
+    const scope = host.closest("#molanPreviewBody, .molan-preview, .vditor-ir") || root;
+    const hosts = mermaidDisplayHosts(scope);
+    const idx = hosts.indexOf(host);
+    if (idx >= 0) return idx;
+    const source = getMermaidSourceNear(shell);
+    if (!source) return -1;
+    const sources = mermaidSourcesFromMarkdown();
+    if (!sources.length) return -1;
+    return sources.findIndex((item) => item === source);
+  }
+
+  let mermaidRenderSeq = 0;
+  let mermaidRefreshing = false;
+  let mermaidRefreshQueued = null;
+
+  function cleanupMermaidTemp(id) {
+    document.getElementById(id)?.remove();
+    document.getElementById("d" + id)?.remove();
+  }
+
+  function renderMermaidSvg(source) {
+    const id = "molan-mmd-" + (++mermaidRenderSeq);
+    const api = global.mermaid;
+    if (!api || typeof api.render !== "function") {
+      return Promise.reject(new Error("mermaid.render 不可用"));
+    }
+    const done = (svg) => {
+      cleanupMermaidTemp(id);
+      return svg;
+    };
+    try {
+      const out = api.render(id, source);
+      if (out && typeof out.then === "function") {
+        return out.then((result) => done(typeof result === "string" ? result : result.svg));
+      }
+      if (typeof out === "string") return Promise.resolve(done(out));
+      if (out && out.svg) return Promise.resolve(done(out.svg));
+    } catch (_) { /* mermaid 9 走回调 */ }
+    return new Promise((resolve, reject) => {
+      try {
+        api.render(id, source, (svg) => resolve(done(svg)));
+      } catch (err) {
+        cleanupMermaidTemp(id);
+        reject(err);
+      }
+    });
+  }
+
+  async function refreshMermaidDiagrams(root = document) {
+    if (!global.mermaid || typeof mermaid.render !== "function") return;
+    if (mermaidRefreshing) {
+      mermaidRefreshQueued = root;
+      return;
+    }
+    mermaidRefreshing = true;
+    try {
+      applyMermaidTheme();
+      captureMermaidSources(root);
+      const fromMd = mermaidSourcesFromMarkdown();
+      const hosts = mermaidDisplayHosts(root);
+      let sourceIndex = 0;
+      for (let i = 0; i < hosts.length; i += 1) {
+        const host = hosts[i];
+        const preview = host.closest(".vditor-ir__preview") || host;
+        const source = getMermaidSourceNear(preview)
+          || host.getAttribute("data-molan-source")
+          || fromMd[sourceIndex]
+          || fromMd[i]
+          || "";
+        sourceIndex += 1;
+        if (!isValidMermaidSource(source)) continue;
+        host.setAttribute("data-molan-source", source);
+        try {
+          const svg = await renderMermaidSvg(source);
+          const wrap = document.createElement("div");
+          wrap.innerHTML = svg;
+          const next = wrap.querySelector("svg");
+          if (!next) continue;
+          const old = host.querySelector("svg");
+          if (old) old.replaceWith(next);
+          else host.insertBefore(next, host.firstChild);
+          host.setAttribute("data-processed", "true");
+        } catch (err) {
+          console.warn(err);
+        }
+      }
+      enhanceMermaidPreviews(root);
+    } finally {
+      mermaidRefreshing = false;
+      if (mermaidRefreshQueued) {
+        const nextRoot = mermaidRefreshQueued;
+        mermaidRefreshQueued = null;
+        refreshMermaidDiagrams(nextRoot);
+      }
+    }
+  }
+
+  function findMermaidPreviewShell(fromEl) {
+    if (!fromEl || !fromEl.closest) return null;
+    const preview = fromEl.closest(".vditor-ir__preview");
+    if (preview && preview.querySelector(".language-mermaid")) return preview;
+    const lang = fromEl.closest(".language-mermaid");
+    if (lang) return lang.closest("pre") || lang;
+    return null;
+  }
+
+  function collapseMermaidIrNodes(root = document) {
+    root.querySelectorAll?.(".vditor-ir__node--expand")?.forEach((node) => {
+      if (!node.querySelector?.(".language-mermaid")) return;
+      node.classList.remove("vditor-ir__node--expand");
+      node.classList.remove("vditor-ir__node--hidden");
+    });
+  }
+
+  function watchMermaidIrExpand(vditorRoot, ctx, lightbox) {
+    const ir = vditorRoot?.querySelector?.(".vditor-ir");
+    if (!ir || ir.dataset.molanMermaidExpandGuard) return;
+    ir.dataset.molanMermaidExpandGuard = "1";
+    const observer = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.type !== "attributes" || m.attributeName !== "class") continue;
+        const node = m.target;
+        if (!node.classList?.contains("vditor-ir__node--expand")) continue;
+        if (!node.querySelector?.(".language-mermaid")) continue;
+        node.classList.remove("vditor-ir__node--expand");
+        node.classList.remove("vditor-ir__node--hidden");
+        if (document.getElementById("molanMermaidEditor")) continue;
+        const shell = node.querySelector(".vditor-ir__preview") || node;
+        openMermaidEditorFromShell(shell, ctx, lightbox, vditorRoot);
+      }
+    });
+    observer.observe(ir, { attributes: true, subtree: true, attributeFilter: ["class"] });
+  }
+
+  function openMermaidEditorFromShell(shell, ctx, lightbox, vditorRoot) {
+    const source = getMermaidSourceNear(shell);
+    if (!source) {
+      toast(t("noMermaidSource"));
+      return;
+    }
+    collapseMermaidIrNodes(vditorRoot || document);
+    const scope = shell.closest("#molanPreviewBody, .molan-preview, .vditor-ir") || vditorRoot || document;
+    const index = getMermaidShellIndex(shell, scope);
+    openMermaidEditorDialog({
+      source,
+      lightbox,
+      onApply: (newSource) => ctx.onApplyMermaidEdit?.(index, newSource),
+    });
+  }
+
+  function enhanceMermaidPreviews(root = document) {
+    captureMermaidSources(root);
+    const codes = root.querySelectorAll(".language-mermaid");
+    codes.forEach((code) => {
+      const shell = code.closest(".vditor-ir__preview") || code.closest("pre") || code;
+      const source = getMermaidSourceNear(shell);
+      if (source) code.setAttribute("data-molan-source", source);
+      if (!shell || shell.querySelector(":scope > .molan-diagram-toolbar")) return;
+      if (!shell.querySelector("svg")) return;
+      if (getComputedStyle(shell).position === "static") shell.style.position = "relative";
+      shell.classList.add("molan-mermaid-shell");
+      const bar = document.createElement("div");
+      bar.className = "molan-diagram-toolbar";
+      bar.innerHTML = `
+        <button type="button" class="icon-btn" data-molan-action="edit" title="${t("editSource")}" aria-label="${t("editSource")}">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg>
+        </button>
+        <button type="button" class="icon-btn" data-molan-action="zoom" title="${t("viewDiagram")}" aria-label="${t("viewDiagram")}">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3H5a2 2 0 0 0-2 2v4"/><path d="M15 3h4a2 2 0 0 1 2 2v4"/><path d="M9 21H5a2 2 0 0 1-2-2v-4"/><path d="M15 21h4a2 2 0 0 0 2-2v-4"/></svg>
+        </button>
+        <button type="button" class="icon-btn" data-molan-action="copy-code" title="${t("copyCode")}" aria-label="${t("copyCode")}">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2"/><rect x="4" y="8" width="12" height="12" rx="2"/></svg>
+        </button>
+        <button type="button" class="icon-btn" data-molan-action="copy-image" title="${t("copyImage")}" aria-label="${t("copyImage")}">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="M3 16l5-4 4 3 3-2 6 5"/></svg>
+        </button>
+      `;
+      shell.appendChild(bar);
+    });
+  }
+
+  function contentBoxWidth(el) {
+    if (!el) return 0;
+    const cs = getComputedStyle(el);
+    return el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  }
+
+  function naturalTableMetrics(table) {
+    const source = table.closest(".vditor-reset");
+    const probe = document.createElement("div");
+    probe.className = source?.className || "vditor-reset";
+    const clone = table.cloneNode(true);
+    clone.classList.remove("molan-table--wide");
+    clone.setAttribute("aria-hidden", "true");
+    Object.assign(probe.style, {
+      position: "fixed",
+      visibility: "hidden",
+      pointerEvents: "none",
+      left: "-100000px",
+      top: "0",
+    });
+    Object.assign(clone.style, { width: "max-content", maxWidth: "none" });
+    probe.appendChild(clone);
+    document.body.appendChild(probe);
+    const columns = [];
+    Array.from(clone.rows).forEach((row) => {
+      Array.from(row.cells).forEach((cell, index) => {
+        const tokens = (cell.textContent || "").match(/[A-Za-z0-9_./\\:$@#%-]+/g) || [];
+        const longestToken = tokens.reduce((length, token) => Math.max(length, token.length), 0);
+        const preferredMin = cell.querySelector("code") || longestToken >= 18
+          ? 168
+          : longestToken >= 12
+            ? 144
+            : 0;
+        const current = columns[index] || { natural: 0, preferredMin: 0 };
+        columns[index] = {
+          natural: Math.max(current.natural, cell.getBoundingClientRect().width),
+          preferredMin: Math.max(current.preferredMin, preferredMin),
+        };
+      });
+    });
+    const metrics = { width: clone.getBoundingClientRect().width, columns };
+    probe.remove();
+    return metrics;
+  }
+
+  function distributeColumnWidths(naturalColumns, availableWidth) {
+    const count = naturalColumns.length;
+    if (!count) return [];
+    const hardMin = Math.max(64, Math.min(96, availableWidth / count * 0.6));
+    const defaultMin = Math.max(80, Math.min(112, availableWidth / count * 0.72));
+    let minimums = naturalColumns.map((column) =>
+      Math.max(defaultMin, Math.min(column.preferredMin || 0, availableWidth * 0.42)));
+    const minimumTotal = minimums.reduce((total, width) => total + width, 0);
+    if (minimumTotal > availableWidth) {
+      const extraRoom = Math.max(0, availableWidth - hardMin * count);
+      const requestedExtra = minimums.map((width) => Math.max(0, width - hardMin));
+      const requestedTotal = requestedExtra.reduce((total, width) => total + width, 0);
+      minimums = requestedExtra.map((extra) =>
+        hardMin + (requestedTotal ? extraRoom * extra / requestedTotal : extraRoom / count));
+    }
+    const max = Math.max(...minimums, availableWidth * 0.52);
+    const ideal = naturalColumns.map((column, index) =>
+      Math.max(minimums[index], Math.min(max, column.natural)));
+    const idealExtra = ideal.map((width, index) => width - minimums[index]);
+    const extraTotal = idealExtra.reduce((total, width) => total + width, 0);
+    const remaining = Math.max(0, availableWidth - minimums.reduce((total, width) => total + width, 0));
+    if (!extraTotal) return minimums.map((width) => width + remaining / count);
+    return idealExtra.map((extra, index) => minimums[index] + remaining * extra / extraTotal);
+  }
+
+  function clearMolanTableLayout(root) {
+    root?.querySelectorAll(".molan-table--wide").forEach((table) => {
+      table.classList.remove("molan-table--wide");
+      for (let index = 1; index <= 12; index += 1) {
+        table.style.removeProperty(`--molan-col-${index}`);
+      }
+    });
+  }
+
+  function fitMolanTables(root) {
+    if (!root) return;
+    root.querySelectorAll(".vditor-reset table").forEach((table) => {
+      const host = table.closest(".vditor-reset") || table.parentElement;
+      const cap = contentBoxWidth(host);
+      if (cap <= 0) return;
+      const metrics = naturalTableMetrics(table);
+      const isWide = metrics.width > cap + 2;
+      table.classList.toggle("molan-table--wide", isWide);
+      if (!isWide) return;
+      distributeColumnWidths(metrics.columns.slice(0, 12), cap).forEach((width, index) => {
+        table.style.setProperty(`--molan-col-${index + 1}`, `${width}px`);
+      });
+    });
+  }
+
+  function scheduleFitTables(root) {
+    if (!root) return;
+    cancelAnimationFrame(scheduleFitTables._raf);
+    scheduleFitTables._raf = requestAnimationFrame(() => fitMolanTables(root));
+  }
+
+  function watchTables(root) {
+    if (!root) return;
+    scheduleFitTables(root);
+    if (watchTables._obs) return;
+    watchTables._obs = new ResizeObserver(() => scheduleFitTables(root));
+    watchTables._obs.observe(root);
+    const reset = root.querySelector(".vditor-reset");
+    if (reset) watchTables._obs.observe(reset);
+  }
+
+  const TABLE_PICKER_MAX = 8;
+  const TABLE_ACTIONS = [
+    ["insertRowAbove", "insertRowAbove"],
+    ["insertRowBelow", "insertRowBelow"],
+    "|",
+    ["insertColLeft", "insertColLeft"],
+    ["insertColRight", "insertColRight"],
+    "|",
+    ["deleteRow", "deleteRow"],
+    ["deleteColumn", "deleteColumn"],
+  ];
+  const TABLE_ICONS = {
+    insertRowAbove: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="11" width="16" height="9" rx="1.5"/><path d="M12 3v6M9 6h6"/></svg>',
+    insertRowBelow: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="9" rx="1.5"/><path d="M12 15v6M9 18h6"/></svg>',
+    insertColLeft: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="11" y="4" width="9" height="16" rx="1.5"/><path d="M3 12h6M6 9v6"/></svg>',
+    insertColRight: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="9" height="16" rx="1.5"/><path d="M15 12h6M18 9v6"/></svg>',
+    deleteRow: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="8" width="16" height="8" rx="1.5"/><path d="M8 12h8"/></svg>',
+    deleteColumn: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="4" width="8" height="16" rx="1.5"/><path d="M10 12h4"/></svg>',
+  };
+
+  function buildTableMarkdown(rows, cols) {
+    const rowCount = Math.max(1, Math.min(20, Number(rows) || 1));
+    const colCount = Math.max(1, Math.min(20, Number(cols) || 1));
+    const line = (fill) => `|${Array.from({ length: colCount }, () => ` ${fill} `).join("|")}|`;
+    return [line(""), line("---"), ...Array.from({ length: rowCount - 1 }, () => line(""))].join("\n");
+  }
+
+  function tableCellFromNode(node) {
+    if (!node) return null;
+    const el = node.nodeType === 1 ? node : node.parentElement;
+    return el?.closest?.("td, th") || null;
+  }
+
+  function irHostOf(root) {
+    return root?.querySelector?.(".vditor-ir") || root;
+  }
+
+  function currentEditorMode(vditor) {
+    const iv = vditor?.vditor || vditor;
+    return iv?.currentMode || "ir";
+  }
+
+  function notifyTableEdit(vditor, root) {
+    try {
+      const iv = vditor?.vditor || vditor;
+      iv?.options?.input?.("");
+      iv?.undo?.addToUndoStack?.(iv);
+    } catch (_) { /* ignore */ }
+    scheduleFitTables(root);
+  }
+
+  function focusTableCell(cell) {
+    if (!cell) return;
+    const range = document.createRange();
+    range.selectNodeContents(cell);
+    range.collapse(true);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  function ensureTbody(table) {
+    if (table.tBodies[0]) return table.tBodies[0];
+    const tbody = document.createElement("tbody");
+    table.appendChild(tbody);
+    return tbody;
+  }
+
+  function rowCellHtml(count, tag) {
+    const name = tag === "th" ? "th" : "td";
+    return Array.from({ length: count }, () => `<${name}> </${name}>`).join("");
+  }
+
+  function insertTableRow(cell, where) {
+    const row = cell.parentElement;
+    const table = cell.closest("table");
+    if (!row || !table) return null;
+    const html = `<tr>${rowCellHtml(row.cells.length, "td")}</tr>`;
+    const inHead = row.parentElement?.tagName === "THEAD" || cell.tagName === "TH";
+    if (inHead) {
+      const tbody = ensureTbody(table);
+      tbody.insertAdjacentHTML("afterbegin", html);
+      return tbody.rows[0]?.cells[cell.cellIndex] || tbody.rows[0]?.cells[0];
+    }
+    row.insertAdjacentHTML(where === "before" ? "beforebegin" : "afterend", html);
+    const next = where === "before" ? row.previousElementSibling : row.nextElementSibling;
+    return next?.cells?.[cell.cellIndex] || next?.cells?.[0];
+  }
+
+  function insertTableColumn(cell, where) {
+    const table = cell.closest("table");
+    if (!table) return null;
+    const index = cell.cellIndex;
+    const pos = where === "before" ? "beforebegin" : "afterend";
+    Array.from(table.rows).forEach((row) => {
+      const ref = row.cells[index];
+      if (!ref) return;
+      const tag = ref.tagName.toLowerCase();
+      ref.insertAdjacentHTML(pos, `<${tag}> </${tag}>`);
+    });
+    const updated = cell.parentElement?.cells?.[where === "before" ? index : index + 1];
+    return updated || cell;
+  }
+
+  function deleteTableRow(cell) {
+    if (!cell || cell.tagName === "TH") return cell;
+    const row = cell.parentElement;
+    const table = cell.closest("table");
+    const body = row?.parentElement;
+    if (!row || !table || !body || body.tagName === "THEAD") return cell;
+    const col = cell.cellIndex;
+    const fallback = row.nextElementSibling
+      || row.previousElementSibling
+      || table.tHead?.rows?.[0];
+    const next = fallback?.cells?.[col] || fallback?.cells?.[0] || null;
+    row.remove();
+    if (body.tagName === "TBODY" && body.rows.length === 0) body.remove();
+    return next;
+  }
+
+  function deleteTableColumn(cell) {
+    const table = cell.closest("table");
+    if (!table) return null;
+    const index = cell.cellIndex;
+    if ((table.rows[0]?.cells.length || 0) <= 1) {
+      const p = document.createElement("p");
+      p.setAttribute("data-block", "0");
+      p.textContent = "";
+      table.replaceWith(p);
+      focusTableCell(p);
+      return null;
+    }
+    const neighbor = cell.nextElementSibling || cell.previousElementSibling;
+    Array.from(table.rows).forEach((row) => {
+      row.cells[index]?.remove();
+    });
+    return neighbor;
+  }
+
+  function applyTableAction(action, cell) {
+    if (!cell) return null;
+    switch (action) {
+      case "insertRowAbove":
+        return insertTableRow(cell, "before");
+      case "insertRowBelow":
+        return insertTableRow(cell, "after");
+      case "insertColLeft":
+        return insertTableColumn(cell, "before");
+      case "insertColRight":
+        return insertTableColumn(cell, "after");
+      case "deleteRow":
+        return deleteTableRow(cell);
+      case "deleteColumn":
+        return deleteTableColumn(cell);
+      default:
+        return cell;
+    }
+  }
+
+  function hideTableToolbar(bar) {
+    if (bar) bar.hidden = true;
+  }
+
+  function positionTableToolbar(bar, table, host) {
+    if (!bar || !table) return;
+    const tableRect = table.getBoundingClientRect();
+    const hostRect = host?.getBoundingClientRect?.() || tableRect;
+    const gap = 8;
+    let top = tableRect.top - bar.offsetHeight - gap;
+    if (top < Math.max(8, hostRect.top + 4)) {
+      top = Math.min(tableRect.top + gap, hostRect.bottom - bar.offsetHeight - 4);
+    }
+    let left = tableRect.left;
+    const maxLeft = window.innerWidth - bar.offsetWidth - 8;
+    left = Math.max(8, Math.min(left, maxLeft));
+    bar.style.top = `${Math.round(top)}px`;
+    bar.style.left = `${Math.round(left)}px`;
+  }
+
+  function ensureTableToolbar(root) {
+    let bar = document.getElementById("molanTableToolbar");
+    if (bar) return bar;
+    bar = document.createElement("div");
+    bar.id = "molanTableToolbar";
+    bar.className = "molan-table-toolbar";
+    bar.hidden = true;
+    bar.setAttribute("role", "toolbar");
+    bar.innerHTML = TABLE_ACTIONS.map((item) => {
+      if (item === "|") return '<span class="molan-table-toolbar__sep" aria-hidden="true"></span>';
+      const [action, key] = item;
+      const label = t(key);
+      return `<button type="button" class="icon-btn" data-molan-table="${action}" title="${label}" aria-label="${label}">${TABLE_ICONS[action]}</button>`;
+    }).join("");
+    document.body.appendChild(bar);
+    return bar;
+  }
+
+  function refreshTableToolbarI18n(root = document) {
+    root.querySelectorAll("[data-molan-table]").forEach((btn) => {
+      const action = btn.getAttribute("data-molan-table");
+      const key = {
+        insertRowAbove: "insertRowAbove",
+        insertRowBelow: "insertRowBelow",
+        insertColLeft: "insertColLeft",
+        insertColRight: "insertColRight",
+        deleteRow: "deleteRow",
+        deleteColumn: "deleteColumn",
+      }[action];
+      if (!key) return;
+      const label = t(key);
+      btn.title = label;
+      btn.setAttribute("aria-label", label);
+    });
+  }
+
+  function bindTableControls(root, getVditor) {
+    if (!root || root.dataset.molanTableControls === "1") return;
+    root.dataset.molanTableControls = "1";
+    const bar = ensureTableToolbar(root);
+    let lastCell = null;
+    let raf = 0;
+
+    const sync = () => {
+      const vditor = getVditor?.();
+      if (root.classList.contains("is-preview") || currentEditorMode(vditor) !== "ir") {
+        hideTableToolbar(bar);
+        return;
+      }
+      const cell = tableCellFromNode(window.getSelection()?.anchorNode);
+      if (!cell || !root.contains(cell) || !cell.closest(".vditor-ir")) {
+        if (!bar.contains(document.activeElement)) hideTableToolbar(bar);
+        return;
+      }
+      lastCell = cell;
+      const table = cell.closest("table");
+      const host = irHostOf(root);
+      const deleteRowBtn = bar.querySelector('[data-molan-table="deleteRow"]');
+      if (deleteRowBtn) {
+        const locked = cell.tagName === "TH";
+        deleteRowBtn.disabled = locked;
+        deleteRowBtn.classList.toggle("is-disabled", locked);
+      }
+      bar.hidden = false;
+      positionTableToolbar(bar, table, host);
+    };
+
+    const scheduleSync = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        sync();
+      });
+    };
+
+    document.addEventListener("selectionchange", scheduleSync);
+    root.addEventListener("keyup", scheduleSync);
+    root.addEventListener("mouseup", scheduleSync);
+    irHostOf(root)?.addEventListener("scroll", () => {
+      if (!bar.hidden && lastCell?.isConnected) {
+        positionTableToolbar(bar, lastCell.closest("table"), irHostOf(root));
+      }
+    }, { passive: true });
+    window.addEventListener("resize", () => {
+      if (!bar.hidden && lastCell?.isConnected) {
+        positionTableToolbar(bar, lastCell.closest("table"), irHostOf(root));
+      }
+    });
+
+    bar.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+    });
+    bar.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-molan-table]");
+      if (!btn || btn.disabled) return;
+      const cell = lastCell?.isConnected
+        ? lastCell
+        : tableCellFromNode(window.getSelection()?.anchorNode);
+      if (!cell || !root.contains(cell)) return;
+      const next = applyTableAction(btn.getAttribute("data-molan-table"), cell);
+      const vditor = getVditor?.();
+      if (next) {
+        lastCell = next;
+        focusTableCell(next);
+      } else {
+        lastCell = null;
+        hideTableToolbar(bar);
+      }
+      notifyTableEdit(vditor, root);
+      scheduleSync();
+    });
+  }
+
+  function hideTablePicker() {
+    const picker = document.getElementById("molanTablePicker");
+    if (picker) picker.hidden = true;
+  }
+
+  function positionTablePicker(picker, anchor) {
+    const rect = anchor.getBoundingClientRect();
+    const width = picker.offsetWidth || 180;
+    const height = picker.offsetHeight || 200;
+    let left = rect.left;
+    let top = rect.bottom + 8;
+    if (left + width > window.innerWidth - 8) left = window.innerWidth - width - 8;
+    if (left < 8) left = 8;
+    if (top + height > window.innerHeight - 8) top = rect.top - height - 8;
+    if (top < 8) top = 8;
+    picker.style.left = `${Math.round(left)}px`;
+    picker.style.top = `${Math.round(top)}px`;
+  }
+
+  function paintTablePicker(picker, cols, rows) {
+    picker.querySelectorAll("[data-col]").forEach((cell) => {
+      const c = Number(cell.getAttribute("data-col"));
+      const r = Number(cell.getAttribute("data-row"));
+      cell.classList.toggle("is-on", c <= cols && r <= rows);
+    });
+    const label = picker.querySelector(".molan-table-picker__label");
+    if (label) label.textContent = t("tableSize", { cols, rows });
+  }
+
+  function ensureTablePicker() {
+    let picker = document.getElementById("molanTablePicker");
+    if (picker) return picker;
+    picker = document.createElement("div");
+    picker.id = "molanTablePicker";
+    picker.className = "molan-table-picker";
+    picker.hidden = true;
+    picker.setAttribute("role", "dialog");
+    picker.setAttribute("aria-label", t("insertTable"));
+    const cells = [];
+    for (let r = 1; r <= TABLE_PICKER_MAX; r += 1) {
+      for (let c = 1; c <= TABLE_PICKER_MAX; c += 1) {
+        cells.push(`<button type="button" class="molan-table-picker__cell" data-col="${c}" data-row="${r}" aria-label="${c} × ${r}"></button>`);
+      }
+    }
+    picker.innerHTML = `
+      <div class="molan-table-picker__grid" style="grid-template-columns:repeat(${TABLE_PICKER_MAX}, 16px)">${cells.join("")}</div>
+      <div class="molan-table-picker__label">${t("tableSize", { cols: 3, rows: 3 })}</div>
+    `;
+    document.body.appendChild(picker);
+    picker.addEventListener("mousedown", (e) => e.preventDefault());
+    picker.addEventListener("mouseover", (e) => {
+      const cell = e.target.closest("[data-col]");
+      if (!cell) return;
+      paintTablePicker(picker, Number(cell.getAttribute("data-col")), Number(cell.getAttribute("data-row")));
+    });
+    picker.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") hideTablePicker();
+    });
+    return picker;
+  }
+
+  function showTableSizePicker(anchor, vditor) {
+    const picker = ensureTablePicker();
+    picker._vditor = vditor;
+    picker._anchor = anchor;
+    picker.hidden = false;
+    picker.setAttribute("aria-label", t("insertTable"));
+    paintTablePicker(picker, 3, 3);
+    positionTablePicker(picker, anchor);
+  }
+
+  function currentIrBlock(ir) {
+    if (!ir) return null;
+    const sel = window.getSelection();
+    let node = sel?.anchorNode;
+    if (node?.nodeType === 3) node = node.parentElement;
+    if (!node || !ir.contains(node)) return ir.lastElementChild;
+    while (node && node.parentElement !== ir) node = node.parentElement;
+    return node;
+  }
+
+  function insertPickedTable(vditor, rows, cols) {
+    hideTablePicker();
+    const md = buildTableMarkdown(rows, cols);
+    const iv = vditor?.vditor || vditor;
+    const ir = iv?.ir?.element;
+    const lute = iv?.lute;
+    try { vditor?.focus?.(); } catch (_) { /* ignore */ }
+    if (ir && lute && typeof lute.Md2VditorIRDOM === "function") {
+      const html = lute.Md2VditorIRDOM(`\n${md}\n`);
+      const block = currentIrBlock(ir);
+      if (block) block.insertAdjacentHTML("afterend", html);
+      else ir.insertAdjacentHTML("beforeend", html);
+      const inserted = (block?.nextElementSibling) || ir.lastElementChild;
+      const table = inserted?.tagName === "TABLE" ? inserted : inserted?.querySelector?.("table");
+      const firstCell = table?.querySelector?.("th, td");
+      if (firstCell) focusTableCell(firstCell);
+      notifyTableEdit(vditor, ir.closest("#vditor") || ir);
+      scheduleFitTables(ir.closest("#vditor") || ir);
+      return;
+    }
+    try { vditor.focus(); } catch (_) { /* ignore */ }
+    if (vditor && typeof vditor.insertValue === "function") {
+      vditor.insertValue(`\n\n${md}\n\n`);
+    }
+  }
+
+  function eventPath(e) {
+    if (typeof e.composedPath === "function") {
+      try { return e.composedPath(); } catch (_) { /* ignore */ }
+    }
+    const path = [];
+    let node = e.target;
+    while (node) {
+      path.push(node);
+      node = node.parentNode;
+    }
+    return path;
+  }
+
+  const EDIT_MODE_ICON = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="7.5" y="3.5" width="13" height="15" rx="2" stroke="currentColor" stroke-width="1.7"/><rect x="3.5" y="6.5" width="13" height="15" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M6.5 11.5h7M6.5 15h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+  const OUTLINE_ICON = '<svg class="icon-outline" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 6h16M8 12h12M8 18h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="4" cy="12" r="1.15" fill="currentColor"/><circle cx="4" cy="18" r="1.15" fill="currentColor"/></svg>';
+  const OUTLINE_CLOSE_ICON = '<svg class="icon-outline-close" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+
+  function scrollToHeading(index) {
+    const wrap = document.getElementById("editorWrap") || document.querySelector(".editor-wrap");
+    if (!wrap || index == null || index < 0) return;
+    const el = wrap.querySelector(".molan-preview h1, .molan-preview h2, .molan-preview h3, .molan-preview h4, .molan-preview h5, .molan-preview h6")
+      ?.parentElement?.closest(".molan-preview")
+      ? [...wrap.querySelectorAll(".molan-preview h1, .molan-preview h2, .molan-preview h3, .molan-preview h4, .molan-preview h5, .molan-preview h6")][index]
+      : null;
+    el?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }
+
+  let outlineAnimToken = 0;
+  let outlineCtx = null;
+
+  function closeEditModeMenu() {
+    const menu = document.getElementById("editModeMenu");
+    const btn = document.getElementById("editModeBtn");
+    if (menu) menu.hidden = true;
+    if (!btn) return;
+    btn.classList.remove("is-on");
+    btn.setAttribute("aria-expanded", "false");
+  }
+
+  function innerVditor(vditor) {
+    return vditor?.vditor || vditor || null;
+  }
+
+  function vditorOutlineEl() {
+    return document.querySelector(".vditor-outline");
+  }
+
+  function outlineIsOpen() {
+    const el = vditorOutlineEl();
+    if (!el) return false;
+    return el.style.display === "block" && !el.classList.contains("is-out");
+  }
+
+  function applyEditorChromeI18n() {
+    const editBtn = document.getElementById("editModeBtn");
+    if (editBtn) {
+      const label = t("editModeAria");
+      editBtn.title = label;
+      editBtn.setAttribute("aria-label", label);
+    }
+    const outlineBtn = document.getElementById("outlineBtn");
+    if (outlineBtn) {
+      const label = t(outlineBtn.classList.contains("is-on") ? "outlineCloseAria" : "outlineAria");
+      outlineBtn.title = label;
+      outlineBtn.setAttribute("aria-label", label);
+    }
+    const wysiwyg = document.querySelector('#editModeMenu [data-mode="wysiwyg"]');
+    if (wysiwyg) wysiwyg.textContent = t("editModeWysiwyg");
+    const ir = document.querySelector('#editModeMenu [data-mode="ir"]');
+    if (ir) ir.textContent = t("editModeIr");
+  }
+
+  function pinOutlineDock() {
+    const dock = document.getElementById("outlinePrefs");
+    if (!dock) return;
+    if (dock.parentElement !== document.body) document.body.appendChild(dock);
+    const host = document.querySelector(".reader-body");
+    const rtl = document.documentElement.getAttribute("dir") === "rtl";
+    const r = host?.getBoundingClientRect();
+    dock.style.position = "fixed";
+    dock.style.width = "32px";
+    dock.style.height = "32px";
+    dock.style.zIndex = "40";
+    dock.style.margin = "0";
+    dock.style.bottom = "auto";
+    if (!r || dock.hidden) {
+      dock.style.top = "10px";
+      dock.style.left = rtl ? "auto" : "10px";
+      dock.style.right = rtl ? "10px" : "auto";
+      return;
+    }
+    dock.style.top = `${Math.round(r.top + 10)}px`;
+    if (rtl) {
+      dock.style.left = "auto";
+      dock.style.right = `${Math.round(window.innerWidth - r.right + 10)}px`;
+    } else {
+      dock.style.right = "auto";
+      dock.style.left = `${Math.round(r.left + 10)}px`;
+    }
+  }
+
+  function bindOutlineDockPin() {
+    if (bindOutlineDockPin.done) return;
+    bindOutlineDockPin.done = true;
+    const pin = () => requestAnimationFrame(pinOutlineDock);
+    window.addEventListener("resize", pin);
+    window.visualViewport?.addEventListener("resize", pin);
+    window.visualViewport?.addEventListener("scroll", pin);
+    if (typeof ResizeObserver === "function") {
+      const ro = new ResizeObserver(pin);
+      const host = document.querySelector(".reader-body");
+      const main = document.querySelector(".main");
+      const wrap = document.getElementById("editorWrap") || document.querySelector(".editor-wrap");
+      if (host) ro.observe(host);
+      if (main) ro.observe(main);
+      if (wrap) ro.observe(wrap);
+    }
+  }
+
+  let outlineRefreshTimer = 0;
+
+  function scheduleOutlineRefresh() {
+    if (!outlineIsOpen()) return;
+    clearTimeout(outlineRefreshTimer);
+    outlineRefreshTimer = window.setTimeout(() => {
+      refreshOutline();
+    }, 200);
+  }
+
+  async function refreshOutline() {
+    if (!outlineIsOpen()) return;
+    if (outlineCtx?.getPreviewing?.()) await outlineCtx.hydrateVditor?.();
+    const inner = innerVditor(outlineCtx?.getVditor?.());
+    relocateVditorOutline();
+    try { inner?.outline?.render?.(inner); } catch (_) { /* ignore */ }
+  }
+
+  function setOutlineFab(open) {
+    const btn = document.getElementById("outlineBtn");
+    const dock = document.getElementById("outlinePrefs");
+    dock?.classList.toggle("is-open", !!open);
+    btn?.classList.toggle("is-on", !!open);
+    btn?.setAttribute("aria-expanded", open ? "true" : "false");
+    applyEditorChromeI18n();
+    pinOutlineDock();
+  }
+
+  function relocateVditorOutline() {
+    const wrap = document.getElementById("editorWrap") || document.querySelector(".editor-wrap");
+    const panel = vditorOutlineEl();
+    if (!wrap || !panel) return panel;
+    if (panel.parentElement !== wrap) wrap.insertBefore(panel, wrap.firstChild);
+    wrap.classList.toggle("is-outline-open", outlineIsOpen());
+    return panel;
+  }
+
+  function setVditorOutline(show) {
+    const inner = innerVditor(outlineCtx?.getVditor?.());
+    const panel = inner?.outline?.element || vditorOutlineEl();
+    if (!panel) return;
+    relocateVditorOutline();
+    const wrap = document.getElementById("editorWrap") || document.querySelector(".editor-wrap");
+    panel.classList.remove("is-in", "is-out");
+    if (show) {
+      panel.style.display = "block";
+      wrap?.classList.add("is-outline-open");
+      try { inner?.outline?.render?.(inner); } catch (_) { /* ignore */ }
+      inner?.toolbar?.elements?.outline?.firstElementChild?.classList.add("vditor-menu--current");
+    } else {
+      panel.style.display = "none";
+      wrap?.classList.remove("is-outline-open");
+      inner?.toolbar?.elements?.outline?.firstElementChild?.classList.remove("vditor-menu--current");
+    }
+    setOutlineFab(show);
+  }
+
+  function closeOutline(instant) {
+    const panel = vditorOutlineEl();
+    if (!outlineIsOpen()) {
+      setOutlineFab(false);
+      return;
+    }
+    const finish = () => {
+      setVditorOutline(false);
+    };
+    if (instant || prefersReducedMotion() || !panel) {
+      outlineAnimToken += 1;
+      finish();
+      return;
+    }
+    const token = ++outlineAnimToken;
+    panel.classList.remove("is-in");
+    panel.classList.add("is-out");
+    setOutlineFab(false);
+    const done = () => {
+      if (token !== outlineAnimToken) return;
+      finish();
+    };
+    panel.addEventListener("animationend", (e) => {
+      if (e.target === panel) done();
+    }, { once: true });
+    window.setTimeout(done, 400);
+  }
+
+  async function openOutline() {
+    await outlineCtx?.hydrateVditor?.();
+    relocateVditorOutline();
+    outlineAnimToken += 1;
+    const wrap = document.getElementById("editorWrap") || document.querySelector(".editor-wrap");
+    const wasOpen = wrap?.classList.contains("is-outline-open");
+    const closing = vditorOutlineEl()?.classList.contains("is-out");
+    setVditorOutline(true);
+    const shown = vditorOutlineEl();
+    if (shown && !wasOpen && !closing) {
+      shown.classList.remove("is-in");
+      void shown.offsetWidth;
+      shown.classList.add("is-in");
+    } else if (shown) {
+      shown.classList.add("is-in");
+    }
+    pinOutlineDock();
+  }
+
+  function ensureEditorChrome(ctx) {
+    const actions = document.querySelector(".reader-actions");
+    const editorWrap = document.getElementById("editorWrap") || document.querySelector(".editor-wrap");
+    const modeBtn = document.getElementById("modeBtn");
+    const anchor = actions && modeBtn && modeBtn.parentElement === actions
+      ? modeBtn.nextSibling
+      : (document.getElementById("typePrefs") || document.getElementById("headerPrefs") || null);
+
+    if (actions) {
+      let editWrap = document.getElementById("editModePrefs");
+      if (!editWrap) {
+        editWrap = document.createElement("div");
+        editWrap.id = "editModePrefs";
+        editWrap.className = "molan-chrome-prefs";
+        editWrap.innerHTML = `
+          <button type="button" class="icon-btn" id="editModeBtn" aria-haspopup="menu" aria-expanded="false">${EDIT_MODE_ICON}</button>
+          <div class="molan-chrome-menu" id="editModeMenu" hidden role="menu">
+            <button type="button" role="menuitem" data-mode="wysiwyg"></button>
+            <button type="button" role="menuitem" data-mode="ir"></button>
+          </div>
+        `;
+      }
+      if (editWrap.parentElement !== actions) {
+        if (anchor) actions.insertBefore(editWrap, anchor);
+        else actions.appendChild(editWrap);
+      }
+    }
+
+    {
+      let outlineWrap = document.getElementById("outlinePrefs");
+      if (!outlineWrap) {
+        outlineWrap = document.createElement("div");
+        outlineWrap.id = "outlinePrefs";
+        outlineWrap.className = "molan-outline-dock";
+        outlineWrap.innerHTML = `
+          <button type="button" class="molan-outline-fab" id="outlineBtn" aria-haspopup="true" aria-expanded="false">${OUTLINE_ICON}${OUTLINE_CLOSE_ICON}</button>
+        `;
+      } else {
+        outlineWrap.className = "molan-outline-dock";
+        if (!outlineWrap.querySelector(".molan-outline-fab") || !outlineWrap.querySelector(".icon-outline-close")) {
+          outlineWrap.innerHTML = `
+            <button type="button" class="molan-outline-fab" id="outlineBtn" aria-haspopup="true" aria-expanded="false">${OUTLINE_ICON}${OUTLINE_CLOSE_ICON}</button>
+          `;
+        }
+        outlineWrap.querySelector("#outlineMenu")?.remove();
+      }
+      document.body.appendChild(outlineWrap);
+      bindOutlineDockPin();
+      pinOutlineDock();
+    }
+
+    outlineCtx = ctx;
+    const editBtn = document.getElementById("editModeBtn");
+    const editMenu = document.getElementById("editModeMenu");
+    const outlineBtn = document.getElementById("outlineBtn");
+    applyEditorChromeI18n();
+
+    const paintEditMode = () => {
+      const mode = currentEditorMode(ctx.getVditor?.()) || "ir";
+      editMenu?.querySelectorAll("[data-mode]").forEach((btn) => {
+        btn.classList.toggle("is-on", btn.getAttribute("data-mode") === mode);
+      });
+    };
+
+    if (editBtn && editMenu && !editBtn.dataset.bound) {
+      editBtn.dataset.bound = "1";
+      editBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const willOpen = editMenu.hidden;
+        closeEditModeMenu();
+        if (!willOpen) return;
+        paintEditMode();
+        editMenu.hidden = false;
+        editBtn.classList.add("is-on");
+        editBtn.setAttribute("aria-expanded", "true");
+      });
+      editMenu.addEventListener("click", async (e) => {
+        const item = e.target.closest("[data-mode]");
+        if (!item) return;
+        const mode = item.getAttribute("data-mode");
+        closeEditModeMenu();
+        if (ctx.getPreviewing?.()) await ctx.enterEdit?.();
+        const native = ctx.getVditorRoot?.()?.querySelector(`.vditor-toolbar [data-mode="${mode}"]`);
+        if (native) native.click();
+        else {
+          const vditor = ctx.getVditor?.();
+          if (vditor && typeof vditor.getCurrentMode === "function" && vditor.getCurrentMode() !== mode) {
+            ctx.getVditorRoot?.()?.querySelector('[data-type="edit-mode"]')?.click();
+            ctx.getVditorRoot?.()?.querySelector(`.vditor-toolbar [data-mode="${mode}"]`)?.click();
+          }
+        }
+      });
+    }
+
+    if (outlineBtn && !outlineBtn.dataset.bound) {
+      outlineBtn.dataset.bound = "1";
+      outlineBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const panel = vditorOutlineEl();
+        if (panel?.classList.contains("is-out")) closeOutline(true);
+        if (outlineIsOpen()) closeOutline();
+        else openOutline();
+      });
+    }
+
+    if (editorWrap && !editorWrap.dataset.previewJump) {
+      editorWrap.dataset.previewJump = "1";
+      editorWrap.addEventListener("click", (e) => {
+        if (!outlineCtx?.getPreviewing?.()) return;
+        const span = e.target.closest(".vditor-outline [data-target-id]");
+        if (!span) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const items = [...(span.closest(".vditor-outline")?.querySelectorAll("[data-target-id]") || [])];
+        scrollToHeading(items.indexOf(span));
+      }, true);
+    }
+
+    if (!ensureEditorChrome._bound) {
+      ensureEditorChrome._bound = true;
+      document.addEventListener("click", (e) => {
+        if (!e.target.closest("#editModePrefs")) closeEditModeMenu();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key !== "Escape") return;
+        closeEditModeMenu();
+        closeOutline();
+      });
+    }
+  }
+
+  function hideFormatBar() {
+    const bar = document.getElementById("molanFormatBar");
+    if (!bar) return;
+    bar.hidden = true;
+    bar.classList.remove("is-link", "is-below");
+    const form = bar.querySelector(".molan-format-bar__link");
+    if (form) form.hidden = true;
+    const actions = bar.querySelector(".molan-format-bar__actions");
+    if (actions) actions.hidden = false;
+  }
+
+  function applyFormatBarI18n() {
+    const bar = document.getElementById("molanFormatBar");
+    if (!bar) return;
+    const map = { bold: "formatBold", italic: "formatItalic", link: "formatLink" };
+    bar.querySelectorAll("[data-format]").forEach((btn) => {
+      const key = map[btn.getAttribute("data-format")];
+      if (!key) return;
+      const label = t(key);
+      btn.title = label;
+      btn.setAttribute("aria-label", label);
+    });
+    const input = bar.querySelector(".molan-format-bar__link input");
+    if (input) {
+      input.placeholder = t("formatLinkPlaceholder");
+      input.setAttribute("aria-label", t("formatLink"));
+    }
+  }
+
+  function bindFormatBar(vditorRoot, getVditor, isPreviewing) {
+    if (!vditorRoot || vditorRoot.dataset.molanFormatBar === "1") return;
+    vditorRoot.dataset.molanFormatBar = "1";
+
+    let bar = document.getElementById("molanFormatBar");
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.id = "molanFormatBar";
+      bar.className = "molan-format-bar";
+      bar.hidden = true;
+      bar.innerHTML = `
+        <div class="molan-format-bar__actions">
+          <button type="button" data-format="bold"><span>B</span></button>
+          <button type="button" data-format="italic"><span>I</span></button>
+          <button type="button" data-format="link">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 9.5l3-3M5 8.2l-1.2 1.2a2.2 2.2 0 1 0 3.1 3.1L8.2 11M11 7.8l1.2-1.2a2.2 2.2 0 1 0-3.1-3.1L7.8 5"/></svg>
+          </button>
+        </div>
+        <form class="molan-format-bar__link" hidden novalidate>
+          <input type="text" inputmode="url" autocomplete="off" spellcheck="false" />
+        </form>
+      `;
+      document.body.appendChild(bar);
+    }
+    applyFormatBarI18n();
+
+    let savedRange = null;
+    let savedText = "";
+    let linkOpen = false;
+    let raf = 0;
+
+    const clickToolbar = (type) => {
+      const btn = vditorRoot.querySelector(`.vditor-toolbar [data-type="${type}"]`);
+      if (!btn) return false;
+      btn.click();
+      return true;
+    };
+
+    const restoreRange = () => {
+      if (!savedRange) return false;
+      const sel = window.getSelection();
+      if (!sel) return false;
+      sel.removeAllRanges();
+      sel.addRange(savedRange);
+      return true;
+    };
+
+    const captureRange = () => {
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount || sel.isCollapsed) return false;
+      savedRange = sel.getRangeAt(0).cloneRange();
+      savedText = sel.toString();
+      return true;
+    };
+
+    const positionBar = (range) => {
+      let rect = range.getBoundingClientRect();
+      if (!rect || (rect.width === 0 && rect.height === 0)) {
+        const rects = range.getClientRects();
+        if (!rects.length) {
+          hideFormatBar();
+          return;
+        }
+        rect = rects[0];
+      }
+      bar.hidden = false;
+      const pad = 8;
+      const w = bar.offsetWidth || 120;
+      const h = bar.offsetHeight || 40;
+      let left = rect.left + rect.width / 2 - w / 2;
+      let top = rect.top - h - pad;
+      let below = false;
+      if (top < pad) {
+        top = rect.bottom + pad;
+        below = true;
+      }
+      left = Math.min(Math.max(pad, left), window.innerWidth - w - pad);
+      bar.style.left = `${Math.round(left)}px`;
+      bar.style.top = `${Math.round(top)}px`;
+      bar.classList.toggle("is-below", below);
+    };
+
+    const syncButtons = () => {
+      bar.querySelectorAll("[data-format]").forEach((btn) => {
+        const type = btn.getAttribute("data-format");
+        const native = vditorRoot.querySelector(`.vditor-toolbar [data-type="${type}"]`);
+        btn.classList.toggle("is-on", !!(native && native.classList.contains("vditor-menu--current")));
+      });
+    };
+
+    const closeLink = () => {
+      linkOpen = false;
+      bar.classList.remove("is-link");
+      const form = bar.querySelector(".molan-format-bar__link");
+      const actions = bar.querySelector(".molan-format-bar__actions");
+      if (form) form.hidden = true;
+      if (actions) actions.hidden = false;
+    };
+
+    const openLink = () => {
+      captureRange();
+      linkOpen = true;
+      bar.classList.add("is-link");
+      const form = bar.querySelector(".molan-format-bar__link");
+      const actions = bar.querySelector(".molan-format-bar__actions");
+      const input = form?.querySelector("input");
+      if (actions) actions.hidden = true;
+      if (form) form.hidden = false;
+      if (input) {
+        const node = savedRange?.commonAncestorContainer;
+        const el = node?.nodeType === 1 ? node : node?.parentElement;
+        const href = el?.closest("a")?.getAttribute("href") || "";
+        input.value = href;
+        requestAnimationFrame(() => {
+          input.focus();
+          input.select();
+        });
+      }
+      if (savedRange) positionBar(savedRange);
+    };
+
+    const applyLink = (raw) => {
+      const href = parseInlineHref(raw);
+      const vditor = getVditor?.();
+      if (!href || !vditor || !savedText) {
+        if (!href) {
+          const input = bar.querySelector(".molan-format-bar__link input");
+          input?.classList.add("is-invalid");
+          input?.focus();
+          return false;
+        }
+        return false;
+      }
+      restoreRange();
+      const md = `[${escapeMdAlt(savedText)}](${href})`;
+      try {
+        if (typeof vditor.deleteValue === "function") vditor.deleteValue();
+        if (typeof vditor.insertMD === "function") vditor.insertMD(md);
+        else if (typeof vditor.insertValue === "function") vditor.insertValue(md, true);
+      } catch (_) { /* ignore */ }
+      closeLink();
+      hideFormatBar();
+      return true;
+    };
+
+    const sync = () => {
+      if (isPreviewing?.() || linkOpen) return;
+      const vditor = getVditor?.();
+      const mode = currentEditorMode(vditor);
+      if (mode !== "ir" && mode !== "wysiwyg") {
+        hideFormatBar();
+        return;
+      }
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !sel.rangeCount) {
+        hideFormatBar();
+        return;
+      }
+      const text = sel.toString();
+      if (!text.replace(/\s+/g, "")) {
+        hideFormatBar();
+        return;
+      }
+      const node = sel.anchorNode;
+      const el = node?.nodeType === 1 ? node : node?.parentElement;
+      if (!el || !vditorRoot.contains(el)) {
+        hideFormatBar();
+        return;
+      }
+      if (!el.closest(".vditor-ir, .vditor-wysiwyg")) {
+        hideFormatBar();
+        return;
+      }
+      if (el.closest("pre, .vditor-ir__preview, .language-mermaid, .molan-find-bar, .molan-format-bar")) {
+        hideFormatBar();
+        return;
+      }
+      savedRange = sel.getRangeAt(0).cloneRange();
+      savedText = text;
+      positionBar(savedRange);
+      syncButtons();
+    };
+
+    const scheduleSync = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        sync();
+      });
+    };
+
+    document.addEventListener("selectionchange", scheduleSync);
+    vditorRoot.addEventListener("keyup", scheduleSync);
+    vditorRoot.addEventListener("mouseup", scheduleSync);
+    window.addEventListener("scroll", () => {
+      if (bar.hidden || !savedRange) return;
+      try { positionBar(savedRange); } catch (_) { hideFormatBar(); }
+    }, true);
+    window.addEventListener("resize", () => {
+      if (!bar.hidden && savedRange) positionBar(savedRange);
+    });
+
+    bar.addEventListener("pointerdown", (e) => {
+      if (e.target.closest("input")) return;
+      e.preventDefault();
+    });
+    bar.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-format]");
+      if (!btn) return;
+      const type = btn.getAttribute("data-format");
+      if (type === "link") {
+        openLink();
+        return;
+      }
+      restoreRange();
+      if (!clickToolbar(type)) {
+        const vditor = getVditor?.();
+        const marker = type === "bold" ? "**" : "*";
+        if (vditor && savedText) {
+          try {
+            if (typeof vditor.deleteValue === "function") vditor.deleteValue();
+            const md = `${marker}${savedText}${marker}`;
+            if (typeof vditor.insertMD === "function") vditor.insertMD(md);
+            else vditor.insertValue?.(md, true);
+          } catch (_) { /* ignore */ }
+        }
+      }
+      requestAnimationFrame(syncButtons);
+    });
+    bar.querySelector(".molan-format-bar__link")?.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const input = bar.querySelector(".molan-format-bar__link input");
+      applyLink(input?.value || "");
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape" || bar.hidden) return;
+      if (linkOpen) {
+        e.preventDefault();
+        closeLink();
+        if (savedRange) positionBar(savedRange);
+        return;
+      }
+      hideFormatBar();
+    });
+  }
+
+  function tableToolbarButtonFromEvent(e, root) {
+    for (const node of eventPath(e)) {
+      if (!node || node.nodeType !== 1) continue;
+      if (node.getAttribute?.("data-type") === "table" && node.closest?.(".vditor-toolbar")) {
+        return root.contains(node) ? node : null;
+      }
+      if (node.classList?.contains("vditor-toolbar__item")) {
+        const btn = node.querySelector?.("[data-type='table']");
+        if (btn && root.contains(btn)) return btn;
+      }
+    }
+    return null;
+  }
+
+  function bindTableInsertPicker(root, getVditor) {
+    if (!root || root.dataset.molanTablePicker === "1") return;
+    root.dataset.molanTablePicker = "1";
+    let openedAt = 0;
+    const swallow = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+    };
+    const togglePicker = (btn) => {
+      const picker = document.getElementById("molanTablePicker");
+      if (picker && !picker.hidden && picker._anchor === btn) {
+        hideTablePicker();
+        return;
+      }
+      openedAt = Date.now();
+      showTableSizePicker(btn, getVditor?.());
+    };
+    const onToolbarTable = (e) => {
+      const btn = tableToolbarButtonFromEvent(e, root);
+      if (!btn) return;
+      swallow(e);
+      // pointerdown 已打开时，随后的 click 只拦住 Vditor 默认 3×3，不再开关弹层
+      if (e.type !== "pointerdown" && Date.now() - openedAt < 500) return;
+      togglePicker(btn);
+    };
+    root.addEventListener("pointerdown", onToolbarTable, true);
+    root.addEventListener("click", onToolbarTable, true);
+    root.addEventListener("touchend", onToolbarTable, true);
+
+    const picker = ensureTablePicker();
+    picker.addEventListener("click", (e) => {
+      const cell = e.target.closest("[data-col]");
+      if (!cell) return;
+      insertPickedTable(picker._vditor || getVditor?.(), Number(cell.getAttribute("data-row")), Number(cell.getAttribute("data-col")));
+    });
+    document.addEventListener("pointerdown", (e) => {
+      const pickerEl = document.getElementById("molanTablePicker");
+      if (!pickerEl || pickerEl.hidden) return;
+      if (Date.now() - openedAt < 300) return;
+      if (eventPath(e).includes(pickerEl) || pickerEl.contains(e.target)) return;
+      if (tableToolbarButtonFromEvent(e, root)) return;
+      hideTablePicker();
+    }, true);
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        hideTablePicker();
+        return;
+      }
+      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
+      if (e.key !== "m" && e.key !== "M") return;
+      if (root.classList.contains("is-preview")) return;
+      if (e.target?.closest?.("input, textarea") && !root.contains(e.target)) return;
+      const btn = root.querySelector(".vditor-toolbar [data-type='table']");
+      if (!btn) return;
+      swallow(e);
+      togglePicker(btn);
+    }, true);
+  }
+
+  function watchMermaidPreviews(rootId = "vditor") {
+    const root = typeof rootId === "string" ? document.getElementById(rootId) : rootId;
+    if (!root) return;
+    enhanceMermaidPreviews(root);
+    if (diagramObserver) return;
+    let raf = 0;
+    diagramObserver = new MutationObserver((mutations) => {
+      let added = false;
+      for (const m of mutations) {
+        if (!m.addedNodes.length) continue;
+        added = true;
+        m.addedNodes.forEach((node) => {
+          if (node.nodeType !== 1) return;
+          if (node.matches?.(".language-mermaid")) captureMermaidSource(node);
+          node.querySelectorAll?.(".language-mermaid")?.forEach(captureMermaidSource);
+        });
+      }
+      if (!added) return;
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        clearTimeout(watchMermaidPreviews._t);
+        watchMermaidPreviews._t = setTimeout(() => {
+          enhanceMermaidPreviews(root);
+          scheduleFitTables(root);
+        }, 120);
+      });
+    });
+    diagramObserver.observe(root, { childList: true, subtree: true });
+  }
+
+  function bindMermaidInteractions(vditorRoot, getVditor, lightbox, ctx = {}) {
+    watchMermaidIrExpand(vditorRoot, ctx, lightbox);
+
+    const blockMermaidIrExpand = (e) => {
+      if (e.target.closest("[data-molan-action]")) return;
+      if (document.getElementById("molanMermaidEditor")) return;
+      const node = e.target.closest('.vditor-ir__node[data-type="code-block"]');
+      if (!node?.querySelector(".language-mermaid")) return;
+      if (e.type === "mousedown" || e.type === "pointerdown") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+      }
+    };
+    vditorRoot.addEventListener("mousedown", blockMermaidIrExpand, true);
+    vditorRoot.addEventListener("pointerdown", blockMermaidIrExpand, true);
+
+    const blockMermaidPreviewExpand = (e) => {
+      if (e.target.closest("[data-molan-action]")) return;
+      if (document.getElementById("molanMermaidEditor")) return;
+      const shell = findMermaidPreviewShell(e.target);
+      if (!shell) return;
+      if (shell.closest(".vditor-ir__node--expand")) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.type === "click" || e.type === "pointerup") {
+        if (ctx.getPreviewing?.()) {
+          lightbox.openFromSvg(shell.querySelector("svg"));
+          return;
+        }
+        openMermaidEditorFromShell(shell, ctx, lightbox, vditorRoot);
+      }
+    };
+    vditorRoot.addEventListener("mousedown", blockMermaidPreviewExpand, true);
+    vditorRoot.addEventListener("pointerdown", blockMermaidPreviewExpand, true);
+    vditorRoot.addEventListener("click", blockMermaidPreviewExpand, true);
+
+    vditorRoot.addEventListener("click", async (e) => {
+      const btn = e.target.closest("[data-molan-action]");
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const action = btn.getAttribute("data-molan-action");
+      const shell = btn.closest(".vditor-ir__preview, pre, .language-mermaid");
+      const svg = shell?.querySelector("svg");
+      if (action === "edit") {
+        openMermaidEditorFromShell(shell, ctx, lightbox, vditorRoot);
+        return;
+      }
+      if (action === "zoom") {
+        lightbox.openFromSvg(svg);
+        return;
+      }
+      if (action === "copy-image") {
+        await copySvgAsPng(svg);
+        return;
+      }
+      if (action === "copy-code") {
+        let text = getMermaidSourceNear(shell);
+        const vditor = getVditor();
+        if (!text && vditor) {
+          const m = vditor.getValue().match(/```mermaid\s*([\s\S]*?)```/i);
+          text = m ? m[1].trim() : "";
+        }
+        if (!text) {
+          toast(t("noMermaidSource"));
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(text);
+          toast(t("copiedMermaidCode"));
+        } catch {
+          toast(t("copyFail"));
+        }
+      }
+    }, true);
+  }
+
+  function refreshI18n(root = document) {
+    const actionKeys = {
+      edit: "editSource",
+      zoom: "viewDiagram",
+      "copy-code": "copyCode",
+      "copy-image": "copyImage",
+    };
+    root.querySelectorAll("[data-molan-action]").forEach((btn) => {
+      const key = actionKeys[btn.getAttribute("data-molan-action")];
+      if (!key) return;
+      const label = t(key);
+      btn.title = label;
+      btn.setAttribute("aria-label", label);
+    });
+    applyFindI18n();
+    applyTypeI18n();
+    applyThemeI18n();
+    applyFormatBarI18n();
+    applyEditorChromeI18n();
+    if (activeBlockInsert && typeof activeBlockInsert.refreshI18n === "function") {
+      activeBlockInsert.refreshI18n();
+    }
+    refreshTableToolbarI18n(root);
+    const picker = document.getElementById("molanTablePicker");
+    if (picker) {
+      picker.setAttribute("aria-label", t("insertTable"));
+      const on = picker.querySelector(".molan-table-picker__cell.is-on:last-of-type");
+      const cols = Number(on?.getAttribute("data-col") || 3);
+      const rows = Number(on?.getAttribute("data-row") || 3);
+      const label = picker.querySelector(".molan-table-picker__label");
+      if (label) label.textContent = t("tableSize", { cols, rows });
+    }
+  }
+
+  const findState = {
+    open: false,
+    query: "",
+    caseSensitive: false,
+    matches: [],
+    index: 0,
+    composing: false,
+    refreshTimer: 0,
+    observer: null,
+    animToken: 0,
+  };
+
+  function hasHighlightApi() {
+    return typeof global.Highlight === "function" && global.CSS && CSS.highlights;
+  }
+
+  function getSearchRoot() {
+    const wrap = document.getElementById("editorWrap");
+    if (wrap && !wrap.classList.contains("visible")) return null;
+    if (wrap?.classList.contains("is-lite-preview")) {
+      return document.getElementById("molanPreviewBody")
+        || document.getElementById("molanPreview")
+        || wrap;
+    }
+    const previewBtn = document.querySelector('.vditor-toolbar [data-type="preview"]');
+    const previewOn = previewBtn?.classList.contains("vditor-menu--current");
+    if (previewOn) {
+      return document.querySelector(".vditor-preview") || document.getElementById("vditor");
+    }
+    return document.querySelector(".vditor-ir")
+      || document.querySelector(".vditor-wysiwyg")
+      || document.querySelector(".vditor-sv")
+      || document.getElementById("vditor");
+  }
+
+  function shouldSkipFindNode(el) {
+    while (el && el.nodeType === 1) {
+      const tag = el.tagName;
+      if (tag === "SCRIPT" || tag === "STYLE" || tag === "NOSCRIPT") return true;
+      if (el.classList.contains("molan-diagram-toolbar")) return true;
+      if (el.classList.contains("molan-find-bar")) return true;
+      if (el.classList.contains("vditor-ir__marker")) {
+        const node = el.closest(".vditor-ir__node");
+        if (!node || !node.classList.contains("vditor-ir__node--expand")) return true;
+      }
+      el = el.parentElement;
+    }
+    return false;
+  }
+
+  function collectFindTextNodes(root) {
+    if (!root) return [];
+    const nodes = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        if (!node.nodeValue) return NodeFilter.FILTER_REJECT;
+        if (shouldSkipFindNode(node.parentElement)) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+    let current = walker.nextNode();
+    while (current) {
+      nodes.push(current);
+      current = walker.nextNode();
+    }
+    return nodes;
+  }
+
+  function buildFindRanges(nodes, query, caseSensitive) {
+    if (!query || !nodes.length) return [];
+    const parts = nodes.map((node) => node.nodeValue || "");
+    const hay = caseSensitive ? parts.join("") : parts.join("").toLowerCase();
+    const needle = caseSensitive ? query : query.toLowerCase();
+    const starts = [];
+    let acc = 0;
+    for (let i = 0; i < parts.length; i += 1) {
+      starts.push(acc);
+      acc += parts[i].length;
+    }
+    const posAt = (index) => {
+      let lo = 0;
+      let hi = starts.length - 1;
+      while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if (starts[mid] <= index) lo = mid;
+        else hi = mid - 1;
+      }
+      return { node: nodes[lo], offset: index - starts[lo] };
+    };
+    const ranges = [];
+    let from = 0;
+    while (from <= hay.length - needle.length) {
+      const at = hay.indexOf(needle, from);
+      if (at < 0) break;
+      const start = posAt(at);
+      const end = posAt(at + needle.length - 1);
+      try {
+        const range = document.createRange();
+        range.setStart(start.node, start.offset);
+        range.setEnd(end.node, end.offset + 1);
+        ranges.push(range);
+      } catch (_) { /* DOM 在搜索中途变了 */ }
+      from = at + needle.length;
+    }
+    return ranges;
+  }
+
+  function clearFindHighlights() {
+    try {
+      CSS.highlights?.delete("molan-find");
+      CSS.highlights?.delete("molan-find-current");
+    } catch (_) { /* ignore */ }
+  }
+
+  function paintFindMatches() {
+    const { matches, index } = findState;
+    clearFindHighlights();
+    if (!matches.length) return;
+    if (hasHighlightApi()) {
+      const rest = new Highlight();
+      const current = new Highlight();
+      matches.forEach((range, i) => {
+        if (i === index) current.add(range);
+        else rest.add(range);
+      });
+      CSS.highlights.set("molan-find", rest);
+      CSS.highlights.set("molan-find-current", current);
+      return;
+    }
+    try {
+      const sel = global.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(matches[index]);
+    } catch (_) { /* ignore */ }
+  }
+
+  function scrollMatchIntoView(range) {
+    if (!range) return;
+    let el = range.startContainer;
+    if (el.nodeType !== 1) el = el.parentElement;
+    let scroller = el;
+    while (scroller && scroller !== document.body) {
+      const style = getComputedStyle(scroller);
+      const oy = style.overflowY;
+      if ((oy === "auto" || oy === "scroll" || oy === "overlay") && scroller.scrollHeight > scroller.clientHeight + 4) {
+        break;
+      }
+      scroller = scroller.parentElement;
+    }
+    if (!scroller || scroller === document.body) {
+      scroller = document.querySelector(".vditor-ir")
+        || document.querySelector(".vditor-preview")
+        || document.querySelector(".vditor-content");
+    }
+    if (!scroller) {
+      try { range.startContainer.parentElement?.scrollIntoView({ block: "center" }); } catch (_) { /* ignore */ }
+      return;
+    }
+    const rect = range.getBoundingClientRect();
+    const box = scroller.getBoundingClientRect();
+    if (rect.top < box.top + 48 || rect.bottom > box.bottom - 48) {
+      scroller.scrollTo({
+        top: scroller.scrollTop + (rect.top - box.top) - box.height * 0.28,
+        behavior: "smooth",
+      });
+    }
+  }
+
+  function updateFindCount() {
+    const countEl = document.getElementById("molanFindCount");
+    const input = document.getElementById("molanFindInput");
+    if (!countEl) return;
+    const total = findState.matches.length;
+    if (!findState.query) {
+      countEl.textContent = "";
+      input?.classList.remove("is-empty");
+      return;
+    }
+    if (!total) {
+      countEl.textContent = t("findNoMatch");
+      input?.classList.add("is-empty");
+      return;
+    }
+    countEl.textContent = t("findMatchCount", { current: findState.index + 1, total });
+    input?.classList.remove("is-empty");
+  }
+
+  function runFind({ keepIndex = false, reveal = true } = {}) {
+    const input = document.getElementById("molanFindInput");
+    const query = (input?.value || "").trim();
+    findState.query = query;
+    const prevIndex = findState.index;
+    findState.matches = query
+      ? buildFindRanges(collectFindTextNodes(getSearchRoot()), query, findState.caseSensitive)
+      : [];
+    if (!findState.matches.length) {
+      findState.index = 0;
+    } else if (keepIndex) {
+      findState.index = Math.min(prevIndex, findState.matches.length - 1);
+    } else {
+      findState.index = 0;
+    }
+    paintFindMatches();
+    updateFindCount();
+    if (reveal && findState.matches[findState.index]) {
+      scrollMatchIntoView(findState.matches[findState.index]);
+    }
+  }
+
+  function moveFind(delta) {
+    if (!findState.open) {
+      openFind();
+      return;
+    }
+    if (!findState.matches.length) {
+      runFind({ reveal: true });
+      return;
+    }
+    const total = findState.matches.length;
+    findState.index = (findState.index + delta + total) % total;
+    paintFindMatches();
+    updateFindCount();
+    scrollMatchIntoView(findState.matches[findState.index]);
+  }
+
+  function selectedTextForFind() {
+    const sel = global.getSelection();
+    if (!sel || sel.isCollapsed) return "";
+    const text = String(sel).replace(/\s+/g, " ").trim();
+    if (!text || text.length > 180) return "";
+    return text;
+  }
+
+  function applyFindI18n() {
+    const input = document.getElementById("molanFindInput");
+    const prev = document.getElementById("molanFindPrev");
+    const next = document.getElementById("molanFindNext");
+    const close = document.getElementById("molanFindClose");
+    const caseBtn = document.getElementById("molanFindCase");
+    const bar = document.getElementById("molanFindBar");
+    const btn = document.getElementById("molanFindBtn");
+    if (input) {
+      input.placeholder = t("findPlaceholder");
+      input.setAttribute("aria-label", t("findAria"));
+    }
+    if (bar) bar.setAttribute("aria-label", t("findAria"));
+    if (prev) {
+      prev.title = t("findPrev");
+      prev.setAttribute("aria-label", t("findPrev"));
+    }
+    if (next) {
+      next.title = t("findNext");
+      next.setAttribute("aria-label", t("findNext"));
+    }
+    if (close) {
+      close.title = t("findClose");
+      close.setAttribute("aria-label", t("findClose"));
+    }
+    if (caseBtn) {
+      caseBtn.title = t("findCase");
+      caseBtn.setAttribute("aria-label", t("findCase"));
+    }
+    if (btn) {
+      btn.title = t("findAria");
+      btn.setAttribute("aria-label", t("findAria"));
+    }
+    updateFindCount();
+  }
+
+  const FIND_ICON = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+
+  function paintFindButton(btn) {
+    if (!btn) return;
+    btn.id = "molanFindBtn";
+    btn.className = "icon-btn molan-find-btn";
+    btn.type = "button";
+    if (!btn.querySelector("svg") || btn.classList.contains("chip") || btn.textContent.trim()) {
+      btn.innerHTML = FIND_ICON;
+    }
+  }
+
+  function ensureFindButton() {
+    const actions = document.querySelector(".reader-actions");
+    let btn = document.getElementById("molanFindBtn");
+    if (!btn && actions) {
+      btn = document.createElement("button");
+      actions.insertBefore(btn, actions.firstChild);
+    }
+    paintFindButton(btn);
+    if (btn && !btn.dataset.bound) {
+      btn.dataset.bound = "1";
+      btn.addEventListener("click", () => openFind());
+    }
+  }
+
+  function observeFindTarget(root) {
+    if (findState.observer) {
+      findState.observer.disconnect();
+      findState.observer = null;
+    }
+    if (!root || typeof MutationObserver !== "function") return;
+    findState.observer = new MutationObserver(() => {
+      if (!findState.open || !findState.query || findState.composing) return;
+      clearTimeout(findState.refreshTimer);
+      findState.refreshTimer = setTimeout(() => runFind({ keepIndex: true, reveal: false }), 180);
+    });
+    findState.observer.observe(root, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+    });
+  }
+
+  function prefersReducedMotion() {
+    try {
+      return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function openFind() {
+    closeType();
+    initFind();
+    const bar = document.getElementById("molanFindBar");
+    const input = document.getElementById("molanFindInput");
+    const header = document.querySelector(".reader-header");
+    if (!bar || !input) return;
+    const picked = selectedTextForFind();
+    if (picked) input.value = picked;
+    findState.animToken += 1;
+    const already = findState.open && bar.classList.contains("is-open");
+    findState.open = true;
+    bar.hidden = false;
+    header?.classList.add("is-finding");
+    document.querySelector(".main")?.classList.add("is-finding");
+    if (!already) {
+      bar.classList.remove("is-out", "is-open");
+      void bar.offsetWidth;
+      bar.classList.add("is-open");
+    }
+    applyFindI18n();
+    runFind({ keepIndex: false, reveal: true });
+    input.focus();
+    input.select();
+  }
+
+  function closeFind() {
+    const bar = document.getElementById("molanFindBar");
+    const header = document.querySelector(".reader-header");
+    if (!findState.open) return;
+    const current = findState.matches[findState.index];
+    findState.open = false;
+    const token = ++findState.animToken;
+    bar?.classList.remove("is-open");
+    bar?.classList.add("is-out");
+
+    const finish = () => {
+      if (token !== findState.animToken) return;
+      if (bar) {
+        bar.hidden = true;
+        bar.classList.remove("is-out");
+      }
+      header?.classList.remove("is-finding");
+      document.querySelector(".main")?.classList.remove("is-finding");
+      clearFindHighlights();
+      if (current) {
+        try {
+          const sel = global.getSelection();
+          const caret = current.cloneRange();
+          caret.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(caret);
+        } catch (_) { /* ignore */ }
+      }
+      findState.matches = [];
+      findState.index = 0;
+    };
+
+    if (!bar || prefersReducedMotion()) {
+      finish();
+      return;
+    }
+    bar.addEventListener("animationend", (e) => {
+      if (e.target === bar) finish();
+    }, { once: true });
+    window.setTimeout(finish, 280);
+  }
+
+  function handleFindKey(e) {
+    const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    const mod = e.metaKey || e.ctrlKey;
+    const inFind = e.target && e.target.id === "molanFindInput";
+
+    if (mod && key === "f" && !e.shiftKey && !e.altKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      openFind();
+      return;
+    }
+    if ((mod && key === "g" && !e.altKey) || e.key === "F3") {
+      e.preventDefault();
+      e.stopPropagation();
+      moveFind(e.shiftKey ? -1 : 1);
+      return;
+    }
+    if (e.key === "Escape" && findState.open) {
+      e.preventDefault();
+      e.stopPropagation();
+      closeFind();
+      return;
+    }
+    if (!inFind) return;
+    if (e.key === "Enter") {
+      e.preventDefault();
+      moveFind(e.shiftKey ? -1 : 1);
+    }
+  }
+
+  function initFind() {
+    if (initFind.done) {
+      ensureFindButton();
+      applyFindI18n();
+      return;
+    }
+    initFind.done = true;
+    ensureFindButton();
+    if (!document.getElementById("molanFindBar")) {
+      const host = document.querySelector(".main") || document.body;
+      const bar = document.createElement("div");
+      bar.id = "molanFindBar";
+      bar.className = "molan-find-bar";
+      bar.hidden = true;
+      bar.setAttribute("role", "search");
+      bar.innerHTML = `
+        <input class="molan-find-input" id="molanFindInput" type="search" autocomplete="off" spellcheck="false" enterkeyhint="search" />
+        <span class="molan-find-count" id="molanFindCount" aria-live="polite"></span>
+        <button type="button" class="molan-find-case" id="molanFindCase" aria-pressed="false">Aa</button>
+        <button type="button" class="icon-btn" id="molanFindPrev">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 14l6-6 6 6"/></svg>
+        </button>
+        <button type="button" class="icon-btn" id="molanFindNext">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 10l6 6 6-6"/></svg>
+        </button>
+        <button type="button" class="icon-btn" id="molanFindClose">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      `;
+      host.appendChild(bar);
+
+      const input = bar.querySelector("#molanFindInput");
+      const caseBtn = bar.querySelector("#molanFindCase");
+      input.addEventListener("compositionstart", () => { findState.composing = true; });
+      input.addEventListener("compositionend", () => {
+        findState.composing = false;
+        runFind({ keepIndex: false, reveal: true });
+      });
+      input.addEventListener("input", () => {
+        if (findState.composing) return;
+        runFind({ keepIndex: false, reveal: true });
+      });
+      caseBtn.addEventListener("click", () => {
+        findState.caseSensitive = !findState.caseSensitive;
+        caseBtn.classList.toggle("is-on", findState.caseSensitive);
+        caseBtn.setAttribute("aria-pressed", findState.caseSensitive ? "true" : "false");
+        runFind({ keepIndex: false, reveal: true });
+      });
+      bar.querySelector("#molanFindPrev").addEventListener("click", () => moveFind(-1));
+      bar.querySelector("#molanFindNext").addEventListener("click", () => moveFind(1));
+      bar.querySelector("#molanFindClose").addEventListener("click", () => closeFind());
+    }
+    applyFindI18n();
+    document.addEventListener("keydown", handleFindKey, true);
+  }
+
+  const TYPE_KEY = "molan-type";
+  const TYPE_DEFAULTS = {
+    size: 0.98,
+    leading: 1.58,
+    gap: 0.65,
+    tracking: 0,
+  };
+  const TYPE_RANGES = {
+    size: { min: 0.85, max: 1.5, step: 0.01 },
+    leading: { min: 1.3, max: 2.2, step: 0.02 },
+    gap: { min: 0.25, max: 1.4, step: 0.05 },
+    tracking: { min: -0.03, max: 0.12, step: 0.005 },
+  };
+  const TYPE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.6 19L8.2 5.5h1.7L14.5 19"/><path d="M5.4 13.6h7.2"/><path d="M16.4 19l2.6-8h1.1L22.6 19"/><path d="M17.5 15.6h4.1"/></svg>';
+
+  const typeState = {
+    open: false,
+    animToken: 0,
+    values: { ...TYPE_DEFAULTS },
+  };
+
+  function clampType(key, value) {
+    const range = TYPE_RANGES[key];
+    const n = Number(value);
+    if (!range || !Number.isFinite(n)) return TYPE_DEFAULTS[key];
+    const snapped = range.step ? Math.round(n / range.step) * range.step : n;
+    return Math.min(range.max, Math.max(range.min, snapped));
+  }
+
+  function readStoredType() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(TYPE_KEY) || "null");
+      if (!raw || typeof raw !== "object") return { ...TYPE_DEFAULTS };
+      return {
+        size: clampType("size", raw.size ?? TYPE_DEFAULTS.size),
+        leading: clampType("leading", raw.leading ?? TYPE_DEFAULTS.leading),
+        gap: clampType("gap", raw.gap ?? TYPE_DEFAULTS.gap),
+        tracking: clampType("tracking", raw.tracking ?? TYPE_DEFAULTS.tracking),
+      };
+    } catch (_) {
+      return { ...TYPE_DEFAULTS };
+    }
+  }
+
+  function persistType() {
+    try {
+      localStorage.setItem(TYPE_KEY, JSON.stringify(typeState.values));
+    } catch (_) { /* ignore */ }
+  }
+
+  function applyTypeVars(values) {
+    const root = document.documentElement.style;
+    root.setProperty("--reader-size", `${values.size}rem`);
+    root.setProperty("--reader-leading", String(values.leading));
+    root.setProperty("--reader-gap", `${values.gap}em`);
+    root.setProperty("--reader-tracking", `${values.tracking}em`);
+  }
+
+  function applyStoredType() {
+    typeState.values = readStoredType();
+    applyTypeVars(typeState.values);
+  }
+
+  function formatTypeValue(key, value) {
+    if (key === "size") return String(Math.round(value * 16));
+    if (key === "tracking") {
+      if (Math.abs(value) < 0.0005) return "0";
+      const sign = value > 0 ? "+" : "";
+      return sign + value.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
+    }
+    return value.toFixed(2);
+  }
+
+  function setRangeFill(input) {
+    if (!input) return;
+    const min = Number(input.min);
+    const max = Number(input.max);
+    const val = Number(input.value);
+    const pct = max === min ? 0 : ((val - min) / (max - min)) * 100;
+    input.style.setProperty("--pct", `${pct}%`);
+  }
+
+  function paintTypeControls() {
+    const menu = document.getElementById("typeMenu");
+    if (!menu) return;
+    Object.keys(TYPE_RANGES).forEach((key) => {
+      const input = menu.querySelector(`[data-type-key="${key}"]`);
+      const label = menu.querySelector(`[data-type-val="${key}"]`);
+      const value = typeState.values[key];
+      if (input) {
+        input.value = String(value);
+        setRangeFill(input);
+      }
+      if (label) label.textContent = formatTypeValue(key, value);
+    });
+  }
+
+  function setTypeValue(key, raw, persist) {
+    const next = clampType(key, raw);
+    typeState.values[key] = next;
+    applyTypeVars(typeState.values);
+    paintTypeControls();
+    if (persist !== false) persistType();
+  }
+
+  function resetType() {
+    typeState.values = { ...TYPE_DEFAULTS };
+    applyTypeVars(typeState.values);
+    paintTypeControls();
+    persistType();
+  }
+
+  function typeIsOpen() {
+    const menu = document.getElementById("typeMenu");
+    return !!(typeState.open && menu && !menu.hidden && menu.classList.contains("is-open"));
+  }
+
+  function paintTypeButton(btn) {
+    if (!btn) return;
+    btn.id = "typeBtn";
+    btn.className = "icon-btn";
+    btn.type = "button";
+    if (!btn.querySelector("svg")) btn.innerHTML = TYPE_ICON;
+  }
+
+  function ensureTypeButton() {
+    const actions = document.querySelector(".reader-actions");
+    let wrap = document.getElementById("typePrefs") || document.querySelector(".type-prefs");
+    let btn = document.getElementById("typeBtn");
+    if (!wrap && actions) {
+      wrap = document.createElement("div");
+      wrap.id = "typePrefs";
+      wrap.className = "type-prefs";
+      const headerPrefs = document.getElementById("headerPrefs");
+      if (headerPrefs && headerPrefs.parentElement === actions) actions.insertBefore(wrap, headerPrefs);
+      else actions.appendChild(wrap);
+    }
+    if (!btn && wrap) {
+      btn = document.createElement("button");
+      wrap.appendChild(btn);
+    } else if (btn && wrap && btn.parentElement !== wrap) {
+      wrap.appendChild(btn);
+    }
+    paintTypeButton(btn);
+    if (btn && !btn.dataset.bound) {
+      btn.dataset.bound = "1";
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        toggleType();
+      });
+    }
+    return { wrap, btn };
+  }
+
+  function applyTypeI18n() {
+    const btn = document.getElementById("typeBtn");
+    const menu = document.getElementById("typeMenu");
+    const label = t("typeAria");
+    const title = t("typeTitle");
+    if (btn) {
+      btn.title = title;
+      btn.setAttribute("aria-label", label);
+    }
+    if (!menu) return;
+    menu.setAttribute("aria-label", label);
+    const head = menu.querySelector(".type-head");
+    if (head) head.textContent = t("typeLabel");
+    const map = {
+      size: "typeSize",
+      leading: "typeLeading",
+      gap: "typeGap",
+      tracking: "typeTracking",
+    };
+    Object.keys(map).forEach((key) => {
+      const el = menu.querySelector(`[data-type-name="${key}"]`);
+      if (el) el.textContent = t(map[key]);
+    });
+    const reset = menu.querySelector("#typeReset");
+    if (reset) reset.textContent = t("typeReset");
+  }
+
+  function openType() {
+    closeHeaderPrefs();
+    initType();
+    const menu = document.getElementById("typeMenu");
+    const btn = document.getElementById("typeBtn");
+    if (!menu || !btn) return;
+    typeState.animToken += 1;
+    const already = typeIsOpen();
+    typeState.open = true;
+    menu.hidden = false;
+    btn.setAttribute("aria-expanded", "true");
+    btn.classList.add("is-on");
+    paintTypeControls();
+    if (!already) {
+      menu.classList.remove("is-out", "is-open");
+      void menu.offsetWidth;
+      menu.classList.add("is-open");
+    }
+  }
+
+  function closeType() {
+    const menu = document.getElementById("typeMenu");
+    const btn = document.getElementById("typeBtn");
+    if (!menu || menu.hidden || menu.classList.contains("is-out")) {
+      typeState.open = false;
+      btn?.setAttribute("aria-expanded", "false");
+      btn?.classList.remove("is-on");
+      return;
+    }
+    const token = typeState.animToken + 1;
+    typeState.animToken = token;
+    typeState.open = false;
+    menu.classList.remove("is-open");
+    menu.classList.add("is-out");
+    btn?.setAttribute("aria-expanded", "false");
+    btn?.classList.remove("is-on");
+    const finish = () => {
+      if (token !== typeState.animToken) return;
+      menu.hidden = true;
+      menu.classList.remove("is-out");
+    };
+    if (prefersReducedMotion()) {
+      finish();
+      return;
+    }
+    menu.addEventListener("animationend", (e) => {
+      if (e.target === menu) finish();
+    }, { once: true });
+    window.setTimeout(finish, 280);
+  }
+
+  function toggleType() {
+    if (typeIsOpen()) closeType();
+    else openType();
+  }
+
+  function initType() {
+    if (initType.done) {
+      ensureTypeButton();
+      applyTypeI18n();
+      paintTypeControls();
+      return;
+    }
+    initType.done = true;
+    applyStoredType();
+    const { wrap } = ensureTypeButton();
+    if (wrap && !document.getElementById("typeMenu")) {
+      const menu = document.createElement("div");
+      menu.id = "typeMenu";
+      menu.className = "type-menu";
+      menu.hidden = true;
+      menu.setAttribute("role", "dialog");
+      menu.innerHTML = `
+        <div class="type-head" data-i18n="typeLabel">排版</div>
+        <label class="type-row">
+          <span class="type-row-head">
+            <span data-type-name="size" data-i18n="typeSize">字号</span>
+            <span class="type-val" data-type-val="size">16</span>
+          </span>
+          <input type="range" data-type-key="size" min="${TYPE_RANGES.size.min}" max="${TYPE_RANGES.size.max}" step="${TYPE_RANGES.size.step}" />
+        </label>
+        <label class="type-row">
+          <span class="type-row-head">
+            <span data-type-name="leading" data-i18n="typeLeading">行距</span>
+            <span class="type-val" data-type-val="leading">1.58</span>
+          </span>
+          <input type="range" data-type-key="leading" min="${TYPE_RANGES.leading.min}" max="${TYPE_RANGES.leading.max}" step="${TYPE_RANGES.leading.step}" />
+        </label>
+        <label class="type-row">
+          <span class="type-row-head">
+            <span data-type-name="gap" data-i18n="typeGap">段距</span>
+            <span class="type-val" data-type-val="gap">0.65</span>
+          </span>
+          <input type="range" data-type-key="gap" min="${TYPE_RANGES.gap.min}" max="${TYPE_RANGES.gap.max}" step="${TYPE_RANGES.gap.step}" />
+        </label>
+        <label class="type-row">
+          <span class="type-row-head">
+            <span data-type-name="tracking" data-i18n="typeTracking">字距</span>
+            <span class="type-val" data-type-val="tracking">0</span>
+          </span>
+          <input type="range" data-type-key="tracking" min="${TYPE_RANGES.tracking.min}" max="${TYPE_RANGES.tracking.max}" step="${TYPE_RANGES.tracking.step}" />
+        </label>
+        <button type="button" class="type-reset" id="typeReset" data-i18n="typeReset">恢复默认</button>
+      `;
+      wrap.appendChild(menu);
+      menu.addEventListener("click", (e) => e.stopPropagation());
+      menu.querySelectorAll("[data-type-key]").forEach((input) => {
+        input.addEventListener("input", () => {
+          setTypeValue(input.getAttribute("data-type-key"), input.value, false);
+        });
+        input.addEventListener("change", () => persistType());
+      });
+      menu.querySelector("#typeReset")?.addEventListener("click", () => resetType());
+    }
+    const btn = document.getElementById("typeBtn");
+    btn?.setAttribute("aria-expanded", "false");
+    btn?.setAttribute("aria-haspopup", "dialog");
+    btn?.setAttribute("aria-controls", "typeMenu");
+    applyTypeI18n();
+    paintTypeControls();
+    document.addEventListener("pointerdown", (e) => {
+      if (e.target.closest(".type-prefs")) return;
+      closeType();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeType();
+    });
+  }
+
+  const THEMES = ["xuan", "night", "hack", "rose"];
+  const THEME_KEY = "molan-theme";
+  const THEME_I18N = { xuan: "themeXuan", night: "themeNight", hack: "themeHack", rose: "themeRose" };
+  const THEME_TITLE = {
+    xuan: "themeXuanTitle",
+    night: "themeNightTitle",
+    hack: "themeHackTitle",
+    rose: "themeRoseTitle",
+  };
+  const THEME_FONTS = {
+    night: "family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500",
+    hack: "family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400",
+    xuan: "family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500",
+    rose: "family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500",
+  };
+
+  const headerPrefsState = {
+    open: false,
+    animToken: 0,
+  };
+
+  function isVscodeHost() {
+    return document.documentElement.classList.contains("molan-host-vscode")
+      || document.body.classList.contains("molan-host-vscode");
+  }
+
+  function loadThemeFonts(theme) {
+    if (isVscodeHost()) return;
+    const query = THEME_FONTS[theme] || THEME_FONTS.night;
+    const href = "https://fonts.googleapis.com/css2?" + query + "&display=swap";
+    let link = document.getElementById("molan-fonts");
+    if (!link) {
+      link = document.createElement("link");
+      link.id = "molan-fonts";
+      link.rel = "stylesheet";
+      document.head.appendChild(link);
+    }
+    if (link.getAttribute("href") === href) return;
+    link.href = href;
+  }
+
+  function readStoredTheme() {
+    try {
+      const id = localStorage.getItem(THEME_KEY);
+      if (THEMES.includes(id)) return id;
+    } catch (_) { /* ignore */ }
+    return "night";
+  }
+
+  function paintThemeSwitch(theme) {
+    document.querySelectorAll(".theme-switch [data-theme]").forEach((btn) => {
+      btn.setAttribute("aria-checked", btn.getAttribute("data-theme") === theme ? "true" : "false");
+    });
+  }
+
+  function applyTheme(theme, persist) {
+    const next = THEMES.includes(theme) ? theme : "night";
+    document.documentElement.setAttribute("data-theme", next);
+    loadThemeFonts(next);
+    if (persist !== false) {
+      try { localStorage.setItem(THEME_KEY, next); } catch (_) { /* ignore */ }
+    }
+    paintThemeSwitch(next);
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: "theme", theme: next }, window.location.origin);
+      }
+    } catch (_) { /* ignore */ }
+    try {
+      scheduleMermaidThemeRefresh();
+    } catch (_) { /* ignore */ }
+  }
+
+  function bindThemeSwitch(switchEl) {
+    if (!switchEl || switchEl.dataset.bound) return;
+    switchEl.dataset.bound = "1";
+    switchEl.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-theme]");
+      if (!btn) return;
+      const id = btn.getAttribute("data-theme");
+      applyTheme(id);
+      toast(t("themeSwitched", { name: t(THEME_I18N[id] || id) }));
+    });
+  }
+
+  function applyThemeI18n() {
+    const head = document.querySelector("#headerPrefsMenu .type-head");
+    if (head) head.textContent = t("prefsTheme");
+    const menu = document.getElementById("headerPrefsMenu");
+    if (menu) menu.setAttribute("aria-label", t("prefsAria"));
+    const prefsBtn = document.getElementById("headerPrefsBtn");
+    if (prefsBtn) {
+      prefsBtn.title = t("prefsAria");
+      prefsBtn.setAttribute("aria-label", t("prefsAria"));
+    }
+    document.querySelectorAll(".theme-switch").forEach((el) => {
+      el.setAttribute("aria-label", t("themeAria"));
+    });
+    document.querySelectorAll(".theme-switch [data-theme]").forEach((el) => {
+      const id = el.getAttribute("data-theme");
+      if (!THEME_I18N[id]) return;
+      el.title = t(THEME_TITLE[id]);
+      el.setAttribute("aria-label", t(THEME_I18N[id]));
+    });
+  }
+
+  function headerPrefsIsOpen() {
+    const menu = document.getElementById("headerPrefsMenu");
+    return !!(headerPrefsState.open && menu && !menu.hidden && menu.classList.contains("is-open"));
+  }
+
+  function openHeaderPrefs() {
+    closeType();
+    initHeaderPrefs();
+    const menu = document.getElementById("headerPrefsMenu");
+    const btn = document.getElementById("headerPrefsBtn");
+    if (!menu || !btn) return;
+    headerPrefsState.animToken += 1;
+    const already = headerPrefsIsOpen();
+    headerPrefsState.open = true;
+    menu.hidden = false;
+    btn.setAttribute("aria-expanded", "true");
+    btn.classList.add("is-on");
+    if (!already) {
+      menu.classList.remove("is-out", "is-open");
+      void menu.offsetWidth;
+      menu.classList.add("is-open");
+    }
+  }
+
+  function closeHeaderPrefs() {
+    const menu = document.getElementById("headerPrefsMenu");
+    const btn = document.getElementById("headerPrefsBtn");
+    if (!menu || menu.hidden || menu.classList.contains("is-out")) {
+      headerPrefsState.open = false;
+      btn?.setAttribute("aria-expanded", "false");
+      btn?.classList.remove("is-on");
+      return;
+    }
+    const token = headerPrefsState.animToken + 1;
+    headerPrefsState.animToken = token;
+    headerPrefsState.open = false;
+    menu.classList.remove("is-open");
+    menu.classList.add("is-out");
+    btn?.setAttribute("aria-expanded", "false");
+    btn?.classList.remove("is-on");
+    const finish = () => {
+      if (token !== headerPrefsState.animToken) return;
+      menu.hidden = true;
+      menu.classList.remove("is-out");
+    };
+    if (prefersReducedMotion()) {
+      finish();
+      return;
+    }
+    menu.addEventListener("animationend", (e) => {
+      if (e.target === menu) finish();
+    }, { once: true });
+    window.setTimeout(finish, 280);
+  }
+
+  function toggleHeaderPrefs() {
+    if (headerPrefsIsOpen()) closeHeaderPrefs();
+    else openHeaderPrefs();
+  }
+
+  function initHeaderPrefs() {
+    const wrap = document.getElementById("headerPrefs");
+    const btn = document.getElementById("headerPrefsBtn");
+    const menu = document.getElementById("headerPrefsMenu");
+    if (!wrap || !btn || !menu) return;
+    if (initHeaderPrefs.done) {
+      applyThemeI18n();
+      return;
+    }
+    initHeaderPrefs.done = true;
+    if (!btn.dataset.bound) {
+      btn.dataset.bound = "1";
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        toggleHeaderPrefs();
+      });
+    }
+    menu.addEventListener("click", (e) => e.stopPropagation());
+    document.addEventListener("pointerdown", (e) => {
+      if (e.target.closest("#headerPrefs")) return;
+      closeHeaderPrefs();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeHeaderPrefs();
+    });
+    applyThemeI18n();
+  }
+
+  function initTheme() {
+    if (initTheme.done) {
+      applyThemeI18n();
+      paintThemeSwitch(readStoredTheme());
+      return;
+    }
+    initTheme.done = true;
+    applyTheme(readStoredTheme(), false);
+    document.querySelectorAll(".theme-switch").forEach(bindThemeSwitch);
+    applyThemeI18n();
+    paintThemeSwitch(readStoredTheme());
+  }
+
+  function revealVditorIcons() {
+    const xlink = "http://www.w3.org/1999/xlink";
+    document.querySelectorAll("use").forEach((use) => {
+      const ref = use.getAttribute("href")
+        || use.getAttributeNS(xlink, "href")
+        || use.getAttribute("xlink:href");
+      if (ref) use.setAttribute("href", ref);
+    });
+  }
+
+  function ensureLitePreviewDom(vditorEl) {
+    const wrap = vditorEl.parentElement;
+    let host = document.getElementById("molanPreview");
+    if (!host && wrap) {
+      host = document.createElement("div");
+      host.id = "molanPreview";
+      host.className = "molan-preview vditor-preview";
+      wrap.insertBefore(host, vditorEl);
+    }
+    let body = document.getElementById("molanPreviewBody");
+    if (!body && host) {
+      body = document.createElement("div");
+      body.id = "molanPreviewBody";
+      body.className = "vditor-reset";
+      host.appendChild(body);
+    }
+    return { wrap, host, body };
+  }
+
+  const INSERT_ITEMS = [
+    { id: "h1", group: "text", key: "insertH1", md: "# 标题" },
+    { id: "h2", group: "text", key: "insertH2", md: "## 标题" },
+    { id: "h3", group: "text", key: "insertH3", md: "### 标题" },
+    { id: "quote", group: "text", key: "insertQuote", md: "> " },
+    { id: "hr", group: "text", key: "insertHr", md: "---" },
+    { id: "ul", group: "list", key: "insertUl", md: "- " },
+    { id: "ol", group: "list", key: "insertOl", md: "1. " },
+    { id: "task", group: "list", key: "insertTask", md: "- [ ] " },
+    { id: "code", group: "insert", key: "insertCode", md: "```\n\n```" },
+    { id: "table", group: "insert", key: "insertTable", md: "| 列 1 | 列 2 |\n| --- | --- |\n|  |  |" },
+    { id: "math", group: "insert", key: "insertMath", md: "$$\n\n$$" },
+    { id: "mermaid", group: "insert", key: "insertMermaid", md: "```mermaid\nflowchart TD\n  A[开始] --> B[结束]\n```" },
+    { id: "image", group: "insert", key: "insertImage", pick: "image" },
+    { id: "link", group: "insert", key: "insertLink", md: "[]()" },
+  ];
+
+  const INSERT_GROUPS = [
+    { id: "text", key: "insertGroupText" },
+    { id: "list", key: "insertGroupList" },
+    { id: "insert", key: "insertGroupInsert" },
+  ];
+
+  function escapeMdAlt(name) {
+    return String(name || "").replace(/[[\]\n]/g, " ").trim() || "image";
+  }
+
+  function parseOnlineImageUrl(raw) {
+    const s = String(raw || "").trim().replace(/^<|>$/g, "");
+    if (!s) return "";
+    try {
+      const url = new URL(s);
+      if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+      return url.href;
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function parseInlineHref(raw) {
+    const s = String(raw || "").trim().replace(/^<|>$/g, "");
+    if (!s || /[\s<>]/.test(s)) return "";
+    if (/^(javascript|data|vbscript):/i.test(s)) return "";
+    return s;
+  }
+
+  function altFromImageUrl(href) {
+    try {
+      const leaf = new URL(href).pathname.split("/").filter(Boolean).pop() || "";
+      const name = decodeURIComponent(leaf).replace(/\.[^.]+$/, "");
+      return escapeMdAlt(name);
+    } catch (_) {
+      return "image";
+    }
+  }
+
+  function promptImageUrl() {
+    return new Promise((resolve) => {
+      document.getElementById("molanImageUrlDialog")?.remove();
+      const mask = document.createElement("div");
+      mask.id = "molanImageUrlDialog";
+      mask.className = "molan-image-url-mask";
+      mask.innerHTML = `
+        <form class="molan-image-url-dialog" role="dialog" aria-modal="true" aria-labelledby="molanImageUrlTitle" novalidate>
+          <div class="molan-image-url-title" id="molanImageUrlTitle"></div>
+          <p class="molan-image-url-hint"></p>
+          <input class="molan-image-url-input" type="url" inputmode="url" autocomplete="off" spellcheck="false" />
+          <div class="molan-image-url-actions">
+            <button type="button" class="molan-image-url-cancel"></button>
+            <button type="submit" class="molan-image-url-ok"></button>
+          </div>
+        </form>
+      `;
+      const form = mask.querySelector(".molan-image-url-dialog");
+      const input = mask.querySelector(".molan-image-url-input");
+      const cancel = mask.querySelector(".molan-image-url-cancel");
+      mask.querySelector(".molan-image-url-title").textContent = t("imageUrlTitle");
+      mask.querySelector(".molan-image-url-hint").textContent = t("imageUrlHint");
+      input.placeholder = t("imageUrlPlaceholder");
+      cancel.textContent = t("imageUrlCancel");
+      mask.querySelector(".molan-image-url-ok").textContent = t("imageUrlConfirm");
+      let settled = false;
+      const finish = (md) => {
+        if (settled) return;
+        settled = true;
+        window.removeEventListener("keydown", onKey, true);
+        mask.remove();
+        resolve(md);
+      };
+      const onKey = (e) => {
+        if (e.key !== "Escape") return;
+        e.preventDefault();
+        e.stopPropagation();
+        finish("");
+      };
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const href = parseOnlineImageUrl(input.value);
+        if (!href) {
+          input.classList.add("is-invalid");
+          toast(t("imageUrlInvalid"));
+          input.focus();
+          input.select();
+          return;
+        }
+        finish(`![${altFromImageUrl(href)}](${href})`);
+      });
+      cancel.addEventListener("click", () => finish(""));
+      mask.addEventListener("click", (e) => {
+        if (e.target === mask) finish("");
+      });
+      form.addEventListener("click", (e) => e.stopPropagation());
+      window.addEventListener("keydown", onKey, true);
+      document.body.appendChild(mask);
+      requestAnimationFrame(() => input.focus());
+    });
+  }
+
+  function openMermaidEditorDialog({ source, onApply, lightbox }) {
+    const MERMAID_SNIPPETS = [
+      { key: "mermaidSnippetFlowchart", body: "flowchart TD\n  A[开始] --> B[结束]" },
+      { key: "mermaidSnippetSequence", body: "sequenceDiagram\n  participant A as 参与者 A\n  participant B as 参与者 B\n  A->>B: 消息" },
+      { key: "mermaidSnippetClass", body: "classDiagram\n  class Animal\n  class Dog\n  Animal <|-- Dog" },
+    ];
+    return new Promise((resolve) => {
+      document.getElementById("molanMermaidEditor")?.remove();
+      const mask = document.createElement("div");
+      mask.id = "molanMermaidEditor";
+      mask.className = "molan-mermaid-editor-mask";
+      mask.innerHTML = `
+        <div class="molan-mermaid-editor" role="dialog" aria-modal="true" aria-labelledby="molanMermaidEditorTitle">
+          <div class="molan-mermaid-editor-head">
+            <div>
+              <div class="molan-mermaid-editor-title" id="molanMermaidEditorTitle"></div>
+              <p class="molan-mermaid-editor-hint"></p>
+            </div>
+            <button type="button" class="icon-btn molan-mermaid-editor-close" aria-label="">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <div class="molan-mermaid-editor-body">
+            <label class="molan-mermaid-editor-pane">
+              <span class="molan-mermaid-editor-pane-label"></span>
+              <textarea class="molan-mermaid-editor-source" spellcheck="false"></textarea>
+              <div class="molan-mermaid-editor-snippets">
+                <span class="molan-mermaid-editor-snippets-label"></span>
+                <div class="molan-mermaid-editor-snippet-list"></div>
+              </div>
+            </label>
+            <div class="molan-mermaid-editor-pane molan-mermaid-editor-preview-pane">
+              <div class="molan-mermaid-editor-pane-head">
+                <span class="molan-mermaid-editor-pane-label molan-mermaid-editor-preview-label"></span>
+                <button type="button" class="icon-btn molan-mermaid-editor-copy" title="" aria-label="">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2"/><rect x="4" y="8" width="12" height="12" rx="2"/></svg>
+                </button>
+              </div>
+              <div class="molan-mermaid-editor-preview" aria-live="polite"></div>
+            </div>
+          </div>
+          <div class="molan-mermaid-editor-actions">
+            <button type="button" class="molan-mermaid-editor-cancel"></button>
+            <button type="button" class="molan-mermaid-editor-apply"></button>
+          </div>
+        </div>
+      `;
+      const dialog = mask.querySelector(".molan-mermaid-editor");
+      const textarea = mask.querySelector(".molan-mermaid-editor-source");
+      const preview = mask.querySelector(".molan-mermaid-editor-preview");
+      const cancelBtn = mask.querySelector(".molan-mermaid-editor-cancel");
+      const applyBtn = mask.querySelector(".molan-mermaid-editor-apply");
+      const closeBtn = mask.querySelector(".molan-mermaid-editor-close");
+      const copyBtn = mask.querySelector(".molan-mermaid-editor-copy");
+      mask.querySelector(".molan-mermaid-editor-title").textContent = t("mermaidEditorTitle");
+      mask.querySelector(".molan-mermaid-editor-hint").textContent = t("mermaidEditorHint");
+      mask.querySelector(".molan-mermaid-editor-pane-label").textContent = t("editSource");
+      mask.querySelector(".molan-mermaid-editor-preview-label").textContent = t("viewDiagram");
+      cancelBtn.textContent = t("mermaidEditorCancel");
+      applyBtn.textContent = t("mermaidEditorApply");
+      closeBtn.setAttribute("aria-label", t("mermaidEditorCancel"));
+      copyBtn.title = t("copyCode");
+      copyBtn.setAttribute("aria-label", t("copyCode"));
+      const snippetList = mask.querySelector(".molan-mermaid-editor-snippet-list");
+      mask.querySelector(".molan-mermaid-editor-snippets-label").textContent = t("mermaidSnippetsLabel");
+      MERMAID_SNIPPETS.forEach((item) => {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "molan-mermaid-editor-snippet";
+        chip.textContent = t(item.key);
+        chip.addEventListener("click", () => {
+          const body = item.body;
+          if (!textarea.value.trim()) {
+            textarea.value = body;
+          } else {
+            const start = textarea.selectionStart ?? textarea.value.length;
+            const end = textarea.selectionEnd ?? textarea.value.length;
+            const prefix = textarea.value.slice(0, start);
+            const suffix = textarea.value.slice(end);
+            const glue = prefix && !prefix.endsWith("\n") ? "\n\n" : "";
+            textarea.value = `${prefix}${glue}${body}${suffix}`;
+            const pos = (prefix + glue + body).length;
+            textarea.setSelectionRange(pos, pos);
+          }
+          schedulePreview();
+          textarea.focus();
+        });
+        snippetList.appendChild(chip);
+      });
+      textarea.value = String(source || "").trim();
+
+      let settled = false;
+      let previewTimer = 0;
+      let previewSeq = 0;
+
+      const finish = (applied) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(previewTimer);
+        window.removeEventListener("keydown", onKey, true);
+        mask.remove();
+        resolve(Boolean(applied));
+      };
+
+      const showPreviewError = (err) => {
+        const msg = err?.message || err?.str || String(err || t("mermaidSyntaxError"));
+        preview.classList.add("is-error");
+        preview.innerHTML = `<pre class="molan-mermaid-editor-error">${msg.replace(/[<>&]/g, (c) => ({
+          "<": "&lt;",
+          ">": "&gt;",
+          "&": "&amp;",
+        }[c]))}</pre>`;
+      };
+
+      const renderPreview = async () => {
+        const seq = ++previewSeq;
+        const text = textarea.value.trim();
+        if (!text) {
+          preview.classList.remove("is-error");
+          preview.innerHTML = "";
+          return;
+        }
+        if (!global.mermaid || typeof global.mermaid.render !== "function") {
+          showPreviewError(t("diagramNotReady"));
+          return;
+        }
+        try {
+          applyMermaidTheme();
+          const svg = await renderMermaidSvg(text);
+          if (seq !== previewSeq) return;
+          preview.classList.remove("is-error");
+          preview.innerHTML = svg;
+        } catch (err) {
+          if (seq !== previewSeq) return;
+          showPreviewError(err);
+        }
+      };
+
+      const schedulePreview = () => {
+        clearTimeout(previewTimer);
+        previewTimer = window.setTimeout(renderPreview, 320);
+      };
+
+      const tryApply = () => {
+        const next = textarea.value.trim();
+        if (!next) {
+          toast(t("noMermaidSource"));
+          textarea.focus();
+          return;
+        }
+        if (typeof onApply === "function") {
+          const ok = onApply(next);
+          if (ok === false) return;
+        }
+        finish(true);
+      };
+
+      const onKey = (e) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          e.stopPropagation();
+          finish(false);
+          return;
+        }
+        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+          e.preventDefault();
+          tryApply();
+        }
+      };
+
+      copyBtn.addEventListener("click", async () => {
+        const text = textarea.value.trim();
+        if (!text) {
+          toast(t("noMermaidSource"));
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(text);
+          toast(t("copiedMermaidCode"));
+        } catch {
+          toast(t("copyFail"));
+        }
+      });
+      preview.addEventListener("click", () => {
+        const svg = preview.querySelector("svg");
+        if (svg && lightbox?.openFromSvg) lightbox.openFromSvg(svg);
+      });
+
+      textarea.addEventListener("input", schedulePreview);
+      cancelBtn.addEventListener("click", () => finish(false));
+      closeBtn.addEventListener("click", () => finish(false));
+      applyBtn.addEventListener("click", tryApply);
+      mask.addEventListener("click", (e) => {
+        if (e.target !== mask) return;
+        e.preventDefault();
+        e.stopPropagation();
+      });
+      dialog.addEventListener("click", (e) => e.stopPropagation());
+      window.addEventListener("keydown", onKey, true);
+      document.body.appendChild(mask);
+      schedulePreview();
+      requestAnimationFrame(() => {
+        textarea.focus();
+        textarea.setSelectionRange(0, textarea.value.length);
+      });
+    });
+  }
+
+  function isFenceLine(line) {
+    return /^ {0,3}(`{3,}|~{3,})/.test(line);
+  }
+
+  function fenceClose(line, mark, len) {
+    const m = line.match(/^ {0,3}(`{3,}|~{3,})\s*$/);
+    return !!(m && m[1][0] === mark && m[1].length >= len);
+  }
+
+  function splitMdBlocks(md) {
+    const lines = String(md || "").replace(/\r\n/g, "\n").split("\n");
+    const blocks = [];
+    let i = 0;
+    const push = (start, end) => {
+      const text = lines.slice(start, end).join("\n");
+      if (text.trim() === "") return;
+      blocks.push({ start, end, text });
+    };
+    while (i < lines.length) {
+      if (lines[i].trim() === "") {
+        i++;
+        continue;
+      }
+      const trimmed = lines[i].replace(/^ {0,3}/, "");
+      if (isFenceLine(lines[i])) {
+        const open = trimmed.match(/^(`{3,}|~{3,})/);
+        const mark = open[1][0];
+        const len = open[1].length;
+        const start = i++;
+        while (i < lines.length && !fenceClose(lines[i], mark, len)) i++;
+        if (i < lines.length) i++;
+        push(start, i);
+        continue;
+      }
+      if (/^(#{1,6})(?:\s|$)/.test(trimmed)) {
+        push(i, i + 1);
+        i++;
+        continue;
+      }
+      if (/^([-*_])\s*\1\s*\1(?:\s*\1)*\s*$/.test(trimmed) && !/^[-*+] /.test(trimmed)) {
+        push(i, i + 1);
+        i++;
+        continue;
+      }
+      if (/^>/.test(trimmed)) {
+        const start = i++;
+        while (i < lines.length) {
+          const next = lines[i].replace(/^ {0,3}/, "");
+          if (lines[i].trim() === "") {
+            if (i + 1 < lines.length && /^>/.test(lines[i + 1].replace(/^ {0,3}/, ""))) {
+              i++;
+              continue;
+            }
+            break;
+          }
+          if (!/^>/.test(next)) break;
+          i++;
+        }
+        push(start, i);
+        continue;
+      }
+      if (/^([-*+]|\d+[.)])(?:\s\[.?\])?\s/.test(trimmed) || /^[-*+] \[[ xX]\]\s/.test(trimmed)) {
+        const start = i++;
+        while (i < lines.length) {
+          if (lines[i].trim() === "") {
+            const peek = lines[i + 1] || "";
+            if (/^\s+/.test(peek) || /^ {0,3}([-*+]|\d+[.)])\s/.test(peek)) {
+              i++;
+              continue;
+            }
+            break;
+          }
+          if (/^ {0,3}([-*+]|\d+[.)])\s/.test(lines[i]) || /^\s+\S/.test(lines[i])) {
+            i++;
+            continue;
+          }
+          break;
+        }
+        push(start, i);
+        continue;
+      }
+      if (/\|/.test(lines[i]) && i + 1 < lines.length && /^\s*\|?[\s:|-]*-{3,}/.test(lines[i + 1])) {
+        const start = i;
+        i += 2;
+        while (i < lines.length && /\|/.test(lines[i]) && lines[i].trim() !== "") i++;
+        push(start, i);
+        continue;
+      }
+      const start = i++;
+      while (i < lines.length && lines[i].trim() !== "") {
+        const next = lines[i].replace(/^ {0,3}/, "");
+        if (/^(#{1,6})\s/.test(next) || isFenceLine(lines[i]) || /^>/.test(next)
+          || /^([-*+]|\d+[.)])\s/.test(next)) break;
+        i++;
+      }
+      push(start, i);
+    }
+    return blocks;
+  }
+
+  function isEmptyMdBlock(text) {
+    return !String(text || "").replace(/[\u200b\s]/g, "");
+  }
+
+  function insertSnippetInMarkdown(md, blockIndex, snippet, replaceEmpty) {
+    const piece = String(snippet || "").replace(/^\n+/, "").replace(/\n+$/, "");
+    const blocks = splitMdBlocks(md);
+    if (!blocks.length) return piece + "\n";
+    const idx = Math.max(0, Math.min(blockIndex, blocks.length - 1));
+    if (replaceEmpty && isEmptyMdBlock(blocks[idx].text)) {
+      blocks[idx] = { ...blocks[idx], text: piece };
+    } else {
+      blocks.splice(idx + 1, 0, { text: piece });
+    }
+    return blocks.map((b) => b.text).join("\n\n").replace(/\n{3,}/g, "\n\n") + "\n";
+  }
+
+  function topLevelBlocks(root) {
+    if (!root) return [];
+    return [...root.children].filter((el) => {
+      if (el.nodeType !== 1) return false;
+      if (el.classList.contains("molan-block-insert") || el.classList.contains("molan-insert-menu")) {
+        return false;
+      }
+      const tag = el.tagName;
+      if (tag === "BR") return false;
+      return true;
+    });
+  }
+
+  function closestTopBlock(node, root) {
+    if (!node || !root) return null;
+    let el = node.nodeType === 1 ? node : node.parentElement;
+    while (el && el !== root) {
+      if (el.parentElement === root) return el;
+      el = el.parentElement;
+    }
+    return null;
+  }
+
+  function overflowParent(el) {
+    let node = el;
+    while (node && node !== document.documentElement) {
+      const style = getComputedStyle(node);
+      const oy = style.overflowY;
+      if ((oy === "auto" || oy === "scroll" || oy === "overlay") && node.scrollHeight > node.clientHeight + 2) {
+        return node;
+      }
+      node = node.parentElement;
+    }
+    return el;
+  }
+
+  function readingContentRoot(previewing) {
+    if (previewing) return document.getElementById("molanPreviewBody");
+    return document.querySelector(".vditor-ir pre.vditor-reset")
+      || document.querySelector(".vditor-wysiwyg > .vditor-reset")
+      || document.querySelector(".vditor-wysiwyg pre.vditor-reset")
+      || document.querySelector(".vditor-sv .vditor-reset");
+  }
+
+  function readingScroller(previewing) {
+    const root = readingContentRoot(previewing);
+    if (root) {
+      const scroller = overflowParent(root);
+      if (scroller) return scroller;
+    }
+    if (previewing) return document.getElementById("molanPreviewBody") || document.getElementById("molanPreview");
+    return document.querySelector(".vditor-ir")
+      || document.querySelector(".vditor-wysiwyg")
+      || document.querySelector(".vditor-sv");
+  }
+
+  function blockText(el) {
+    if (!el) return "";
+    const clone = el.cloneNode(true);
+    clone.querySelectorAll?.(".vditor-ir__preview, .molan-diagram-toolbar, .vditor-ir__marker, .molan-block-insert").forEach((n) => n.remove());
+    return String(clone.textContent || "").replace(/\s+/g, " ").trim();
+  }
+
+  function findBlockByText(blocks, text) {
+    const key = String(text || "").trim();
+    if (!key) return null;
+    const exact = blocks.find((block) => blockText(block) === key);
+    if (exact) return exact;
+    const needle = key.slice(0, 48);
+    return blocks.find((block) => {
+      const t = blockText(block);
+      return t && (t.includes(needle) || key.includes(t.slice(0, 48)));
+    }) || null;
+  }
+
+  function captureReadingSpot(previewing) {
+    const root = readingContentRoot(previewing);
+    const scroller = readingScroller(previewing);
+    if (!root || !scroller) return null;
+    const box = scroller.getBoundingClientRect();
+    if (box.height < 8) return null;
+    const x = box.left + Math.min(Math.max(72, box.width * 0.42), Math.max(24, box.width - 16));
+    const y = box.top + Math.min(32, Math.max(12, box.height * 0.08));
+    const hitEl = document.elementFromPoint(x, y);
+    const fromPoint = hitEl && root.contains(hitEl) ? closestTopBlock(hitEl, root) : null;
+    const topY = box.top + 16;
+    const blocks = topLevelBlocks(root);
+    let hit = fromPoint;
+    let index = hit ? blocks.indexOf(hit) : -1;
+    if (!hit) {
+      for (let i = 0; i < blocks.length; i += 1) {
+        const rect = blocks[i].getBoundingClientRect();
+        if (rect.bottom <= topY) continue;
+        hit = blocks[i];
+        index = i;
+        break;
+      }
+    }
+    const max = Math.max(1, scroller.scrollHeight - scroller.clientHeight);
+    const rect = hit?.getBoundingClientRect();
+    return {
+      text: blockText(hit),
+      index: index < 0 ? undefined : index,
+      offset: rect ? rect.top - box.top : 16,
+      ratio: scroller.scrollTop / max,
+      scrollTop: scroller.scrollTop,
+      scrollHeight: scroller.scrollHeight,
+    };
+  }
+
+  function restoreReadingSpot(previewing, spot, opts = {}) {
+    if (!spot) return;
+    const root = readingContentRoot(previewing);
+    const scroller = readingScroller(previewing);
+    if (!root || !scroller) return;
+    const blocks = topLevelBlocks(root);
+    const el = findBlockByText(blocks, spot.text)
+      || (Number.isInteger(spot.index) ? blocks[spot.index] : null);
+    if (el) {
+      const box = scroller.getBoundingClientRect();
+      const rect = el.getBoundingClientRect();
+      const desired = typeof spot.offset === "number" ? spot.offset : 16;
+      const next = scroller.scrollTop + (rect.top - box.top) - desired;
+      scroller.scrollTop = Math.max(0, next);
+    } else if (typeof spot.scrollTop === "number" && Math.abs((scroller.scrollHeight / Math.max(1, spot.scrollHeight || 0)) - 1) < 0.08) {
+      scroller.scrollTop = spot.scrollTop;
+    } else {
+      const max = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+      scroller.scrollTop = max * (spot.ratio || 0);
+    }
+    if (!previewing && opts.caret && el) {
+      const editable = el.closest("[contenteditable='true']");
+      if (!editable) return;
+      try { editable.focus({ preventScroll: true }); } catch (_) { /* ignore */ }
+      try {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        range.collapse(true);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      } catch (_) { /* ignore */ }
+    }
+  }
+
+  function keepReadingSpot(previewing, spot) {
+    if (!spot) return;
+    const run = (caret) => restoreReadingSpot(previewing, spot, { caret });
+    run(Boolean(!previewing));
+    requestAnimationFrame(() => {
+      run(false);
+      requestAnimationFrame(() => run(false));
+    });
+    window.setTimeout(() => run(false), 80);
+    window.setTimeout(() => run(false), 220);
+    window.setTimeout(() => run(false), 480);
+  }
+
+  function blockLooksEmpty(el) {
+    if (!el) return true;
+    const clone = el.cloneNode(true);
+    clone.querySelectorAll?.(".vditor-ir__preview, .molan-diagram-toolbar, .vditor-ir__marker").forEach((n) => n.remove());
+    return !String(clone.textContent || "").replace(/[\u200b\s]/g, "");
+  }
+
+  function placeCaretAfter(el) {
+    const editable = el?.closest?.("[contenteditable='true']");
+    if (!editable) return false;
+    try { editable.focus(); } catch (_) { /* ignore */ }
+    const range = document.createRange();
+    if (blockLooksEmpty(el)) {
+      range.selectNodeContents(el);
+      range.collapse(true);
+    } else {
+      range.setStartAfter(el);
+      range.collapse(true);
+    }
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    return true;
+  }
+
+  function bindBlockInsert(ctx) {
+    const wrap = ctx.getWrap();
+    if (!wrap) return { sync() {}, hide() {}, refreshI18n() {} };
+
+    let handle = wrap.querySelector(":scope > .molan-block-insert");
+    if (!handle) {
+      handle = document.createElement("div");
+      handle.className = "molan-block-insert";
+      handle.hidden = true;
+      handle.innerHTML = `<button type="button" class="molan-block-plus" aria-haspopup="menu" aria-expanded="false">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>
+      </button>`;
+      wrap.appendChild(handle);
+    }
+    const plusBtn = handle.querySelector(".molan-block-plus");
+
+    let menu = wrap.querySelector(":scope > .molan-insert-menu");
+    if (!menu) {
+      menu = document.createElement("div");
+      menu.className = "molan-insert-menu";
+      menu.hidden = true;
+      menu.setAttribute("role", "menu");
+      wrap.appendChild(menu);
+    }
+
+    let hover = null;
+    let menuOpen = false;
+    let activeIndex = 0;
+    let hideTimer = 0;
+    let moveRaf = 0;
+
+    const items = () => INSERT_ITEMS;
+
+    function paintMenu() {
+      const parts = [];
+      INSERT_GROUPS.forEach((group) => {
+        const rows = INSERT_ITEMS.filter((item) => item.group === group.id);
+        if (!rows.length) return;
+        parts.push(`<div class="molan-insert-group" role="none">${t(group.key)}</div>`);
+        rows.forEach((item) => {
+          parts.push(`<button type="button" class="molan-insert-item" role="menuitem" data-insert-id="${item.id}">
+            <span class="molan-insert-item-label">${t(item.key)}</span>
+          </button>`);
+        });
+      });
+      menu.innerHTML = parts.join("");
+      plusBtn.setAttribute("aria-label", t("insertBlock"));
+      plusBtn.setAttribute("title", t("insertBlock"));
+      menu.setAttribute("aria-label", t("insertBlock"));
+    }
+
+    function visibleItems() {
+      return [...menu.querySelectorAll(".molan-insert-item")];
+    }
+
+    function paintActive() {
+      visibleItems().forEach((el, i) => el.classList.toggle("is-active", i === activeIndex));
+    }
+
+    function contentRoot() {
+      if (ctx.getPreviewing()) return ctx.getPreviewBody();
+      const vditorRoot = ctx.getVditorRoot();
+      return vditorRoot?.querySelector(".vditor-ir pre.vditor-reset")
+        || vditorRoot?.querySelector(".vditor-ir .vditor-reset")
+        || vditorRoot?.querySelector(".vditor-wysiwyg pre.vditor-reset")
+        || vditorRoot?.querySelector(".vditor-wysiwyg .vditor-reset")
+        || null;
+    }
+
+    function hideHandle() {
+      if (menuOpen) return;
+      handle.hidden = true;
+      handle.classList.remove("is-visible");
+      hover = null;
+    }
+
+    function hideMenu() {
+      menuOpen = false;
+      menu.hidden = true;
+      plusBtn.setAttribute("aria-expanded", "false");
+    }
+
+    function positionHandle(el) {
+      if (!el) {
+        hideHandle();
+        return;
+      }
+      const wrapRect = wrap.getBoundingClientRect();
+      const rect = el.getBoundingClientRect();
+      if (rect.bottom < wrapRect.top + 8 || rect.top > wrapRect.bottom - 8) {
+        handle.hidden = true;
+        return;
+      }
+      const rtl = document.documentElement.dir === "rtl";
+      const size = 26;
+      const top = rect.top - wrapRect.top + Math.min(Math.max((Math.min(rect.height, 32) - size) / 2, 0), 8);
+      let left = rtl
+        ? rect.right - wrapRect.left + 8
+        : rect.left - wrapRect.left - size - 8;
+      left = Math.max(4, Math.min(left, wrapRect.width - size - 4));
+      handle.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
+      handle.hidden = false;
+      handle.classList.add("is-visible");
+    }
+
+    function positionMenu() {
+      const wrapRect = wrap.getBoundingClientRect();
+      const btnRect = plusBtn.getBoundingClientRect();
+      menu.hidden = false;
+      const menuRect = menu.getBoundingClientRect();
+      let left = btnRect.left - wrapRect.left;
+      let top = btnRect.bottom - wrapRect.top + 6;
+      if (left + menuRect.width > wrapRect.width - 8) {
+        left = Math.max(8, wrapRect.width - menuRect.width - 8);
+      }
+      if (top + menuRect.height > wrapRect.height - 8) {
+        top = Math.max(8, btnRect.top - wrapRect.top - menuRect.height - 6);
+      }
+      menu.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
+    }
+
+    function setHover(next) {
+      hover = next;
+      if (!next || !next.el) {
+        hideHandle();
+        return;
+      }
+      positionHandle(next.el);
+    }
+
+    function hitFromPoint(clientX, clientY) {
+      const root = contentRoot();
+      if (!root) return null;
+      const blocks = topLevelBlocks(root);
+      const rootRect = root.getBoundingClientRect();
+      const x = Math.min(rootRect.right - 8, Math.max(rootRect.left + 12, rootRect.left + 36));
+      const hitNode = document.elementFromPoint(x, clientY);
+      if (hitNode && (hitNode.closest(".molan-block-insert") || hitNode.closest(".molan-insert-menu"))) {
+        return hover;
+      }
+      let el = closestTopBlock(hitNode, root);
+      if (!el && blocks.length) {
+        for (let i = 0; i < blocks.length; i++) {
+          const r = blocks[i].getBoundingClientRect();
+          if (clientY >= r.top && clientY <= r.bottom) {
+            el = blocks[i];
+            break;
+          }
+        }
+        if (!el) {
+          const last = blocks[blocks.length - 1];
+          const first = blocks[0];
+          if (clientY > last.getBoundingClientRect().bottom) el = last;
+          else if (clientY < first.getBoundingClientRect().top) el = first;
+        }
+      }
+      if (!el && !blocks.length) {
+        return { el: root, index: 0, emptyDoc: true };
+      }
+      if (!el) return null;
+      const index = Math.max(0, blocks.indexOf(el));
+      return { el, index, empty: blockLooksEmpty(el) };
+    }
+
+    function onMove(event) {
+      if (menuOpen) return;
+      if (moveRaf) cancelAnimationFrame(moveRaf);
+      const { clientX, clientY } = event;
+      moveRaf = requestAnimationFrame(() => {
+        moveRaf = 0;
+        const next = hitFromPoint(clientX, clientY);
+        if (!next) {
+          if (hideTimer) clearTimeout(hideTimer);
+          hideTimer = window.setTimeout(hideHandle, 180);
+          return;
+        }
+        if (hideTimer) {
+          clearTimeout(hideTimer);
+          hideTimer = 0;
+        }
+        setHover(next);
+      });
+    }
+
+    function onLeave(event) {
+      if (menuOpen) return;
+      const to = event.relatedTarget;
+      if (to && (handle.contains(to) || menu.contains(to))) return;
+      if (hideTimer) clearTimeout(hideTimer);
+      hideTimer = window.setTimeout(hideHandle, 220);
+    }
+
+    function openMenu() {
+      if (!hover) return;
+      paintMenu();
+      menuOpen = true;
+      activeIndex = 0;
+      plusBtn.setAttribute("aria-expanded", "true");
+      positionHandle(hover.el);
+      positionMenu();
+      paintActive();
+      const first = visibleItems()[0];
+      first?.focus();
+    }
+
+    function applyItem(id) {
+      const item = items().find((row) => row.id === id);
+      const target = hover;
+      if (!item || !target) return;
+      hideMenu();
+      const run = async () => {
+        let md = item.md;
+        if (item.pick === "image") {
+          hideHandle();
+          try {
+            md = await ctx.pickImage?.();
+          } catch (_) {
+            toast(t("pickImageFail"));
+            return;
+          }
+          if (!md) return;
+        }
+        ctx.insertSnippet(md, target);
+        hideHandle();
+      };
+      void run();
+    }
+
+    plusBtn.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    plusBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (menuOpen) hideMenu();
+      else openMenu();
+    });
+    handle.addEventListener("mouseenter", () => {
+      if (hideTimer) {
+        clearTimeout(hideTimer);
+        hideTimer = 0;
+      }
+    });
+    menu.addEventListener("click", (event) => {
+      const btn = event.target.closest(".molan-insert-item");
+      if (!btn) return;
+      event.preventDefault();
+      applyItem(btn.getAttribute("data-insert-id"));
+    });
+    menu.addEventListener("mouseover", (event) => {
+      const btn = event.target.closest(".molan-insert-item");
+      if (!btn) return;
+      const rows = visibleItems();
+      activeIndex = Math.max(0, rows.indexOf(btn));
+      paintActive();
+    });
+
+    document.addEventListener("pointerdown", (event) => {
+      if (!menuOpen) return;
+      if (menu.contains(event.target) || handle.contains(event.target)) return;
+      hideMenu();
+    }, true);
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && menuOpen) {
+        event.preventDefault();
+        hideMenu();
+        plusBtn.focus();
+        return;
+      }
+      if (!menuOpen) return;
+      const rows = visibleItems();
+      if (!rows.length) return;
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const delta = event.key === "ArrowDown" ? 1 : -1;
+        activeIndex = (activeIndex + delta + rows.length) % rows.length;
+        paintActive();
+        rows[activeIndex]?.focus();
+      } else if (event.key === "Enter") {
+        event.preventDefault();
+        const id = rows[activeIndex]?.getAttribute("data-insert-id");
+        if (id) applyItem(id);
+      }
+    });
+
+    wrap.addEventListener("mousemove", onMove);
+    wrap.addEventListener("mouseleave", onLeave);
+    const onScroll = () => {
+      if (hover?.el) positionHandle(hover.el);
+      if (menuOpen) positionMenu();
+    };
+    wrap.addEventListener("scroll", onScroll, true);
+    const scrollBound = new WeakSet();
+    function watchScroller(el) {
+      if (!el || scrollBound.has(el)) return;
+      scrollBound.add(el);
+      el.addEventListener("scroll", onScroll, { passive: true });
+    }
+
+    paintMenu();
+    watchScroller(ctx.getPreviewBody());
+
+    return {
+      sync() {
+        watchScroller(ctx.getPreviewBody());
+        watchScroller(ctx.getVditorRoot()?.querySelector(".vditor-ir"));
+        if (menuOpen && hover?.el) {
+          positionHandle(hover.el);
+          positionMenu();
+        } else if (!menuOpen) {
+          hideHandle();
+        }
+      },
+      hide() {
+        hideMenu();
+        hideHandle();
+      },
+      refreshI18n() {
+        paintMenu();
+        if (menuOpen) {
+          paintActive();
+          positionMenu();
+        }
+      },
+    };
+  }
+
+  function create(options = {}) {
+    const elementId = options.elementId || "vditor";
+    const cdn = options.cdn || DEFAULT_CDN;
+    const placeholder = options.placeholder || t("placeholder");
+    toastEl = document.getElementById("toast");
+    patchMermaidLoader();
+    preloadLute(cdn);
+
+    const lightbox = initLightbox();
+    const vditorRoot = document.getElementById(elementId);
+    if (!vditorRoot) {
+      return Promise.reject(new Error(`找不到编辑器容器 #${elementId}`));
+    }
+    if (typeof global.Vditor?.preview !== "function") {
+      return Promise.reject(new Error("Vditor 预览未加载"));
+    }
+
+    const { wrap, host: previewHost, body: previewBody } = ensureLitePreviewDom(vditorRoot);
+    const previewRoot = wrap || vditorRoot;
+    let vditor = null;
+    let vditorReady = null;
+    let markdown = "";
+    let previewing = options.defaultPreview !== false;
+    let previewSeq = 0;
+    let muteInput = false;
+    const previewListeners = [];
+    let blockInsert = { sync() {}, hide() {}, refreshI18n() {} };
+    let lastPreviewSource = null;
+    const mermaidBridge = {
+      getPreviewing: () => previewing,
+      onApplyMermaidEdit: null,
+    };
+
+    setMermaidMarkdownProvider(() => {
+      if (previewing) return markdown;
+      if (vditor) {
+        try { return vditor.getValue(); } catch (_) { /* ignore */ }
+      }
+      return markdown;
+    });
+    bindMermaidInteractions(previewRoot, () => vditor, lightbox, mermaidBridge);
+    watchMermaidPreviews(previewRoot);
+    watchTables(previewRoot);
+    initFind();
+    initType();
+    initTheme();
+    initHeaderPrefs();
+    observeFindTarget(previewRoot);
+
+    const markdownOpts = {
+      linkBase: options.linkBase || "",
+      toc: false,
+      fixTermTypo: false,
+      autoSpace: false,
+      paragraphBeginningSpace: false,
+      listStyle: false,
+      sanitize: true,
+      codeBlockPreview: true,
+      mathBlockPreview: true,
+    };
+    const lazyLoadImage = `${cdn}/dist/images/img-loading.svg`;
+
+    const notifyPreview = () => {
+      previewListeners.forEach((cb) => {
+        try { cb(previewing); } catch (_) { /* ignore */ }
+      });
+    };
+
+    const syncLiteClass = () => {
+      wrap?.classList.toggle("is-lite-preview", previewing);
+      vditorRoot.classList.toggle("is-preview", previewing);
+      if (previewing) hideFormatBar();
+      if (outlineIsOpen()) {
+        relocateVditorOutline();
+        const inner = innerVditor(vditor);
+        try { inner?.outline?.render?.(inner); } catch (_) { /* ignore */ }
+      }
+    };
+
+    const renderLitePreview = (text, spot) => {
+      if (!previewBody || typeof global.Vditor?.preview !== "function") return;
+      const seq = ++previewSeq;
+      const sourceText = text ?? "";
+      const restoreScroll = renderLitePreview._scrollTop;
+      renderLitePreview._scrollTop = null;
+      syncLiteClass();
+      const finishPreview = () => {
+        if (seq !== previewSeq) return;
+        if (spot) keepReadingSpot(true, spot);
+        if (findState.open) runFind({ keepIndex: true, reveal: false });
+        blockInsert.sync();
+        scheduleOutlineRefresh();
+      };
+      if (spot && lastPreviewSource === sourceText && previewBody.childElementCount) {
+        finishPreview();
+        return;
+      }
+      maybePreloadMermaid(cdn, sourceText);
+      const run = () => {
+        if (seq !== previewSeq) return;
+        global.Vditor.preview(previewBody, sourceText, {
+          cdn,
+          lazyLoadImage,
+          mode: "light",
+          hljs: { style: "kimbie-dark", lineNumber: false },
+          math: { engine: "KaTeX", inlineDigit: true },
+          markdown: markdownOpts,
+          after() {
+            if (seq !== previewSeq) return;
+            lastPreviewSource = sourceText;
+            const root = previewHost || previewBody;
+            stampMermaidSources(root, sourceText);
+            enhanceMermaidPreviews(root);
+            scheduleFitTables(root);
+            if (typeof restoreScroll === "number" && previewBody) {
+              previewBody.scrollTop = restoreScroll;
+            }
+            finishPreview();
+          },
+        });
+      };
+      Promise.resolve(preloadLute(cdn)).then(run, run);
+    };
+
+    mermaidBridge.onApplyMermaidEdit = (index, newSource) => {
+      if (index < 0) {
+        toast(t("cannotEdit"));
+        return false;
+      }
+      const next = replaceMermaidBlock(markdown, index, newSource);
+      if (next === markdown) {
+        toast(t("cannotEdit"));
+        return false;
+      }
+      markdown = next;
+      if (previewing) {
+        const spot = captureReadingSpot(true);
+        renderLitePreview(markdown, spot);
+      } else {
+        muteInput = true;
+        bootEditor().then(() => {
+          if (!vditor) return;
+          vditor.setValue(markdown, false);
+          applyMermaidTheme();
+          setTimeout(() => {
+            muteInput = false;
+            refreshMermaidDiagrams(vditorRoot).finally(() => scheduleFitTables(vditorRoot));
+          }, 400);
+        });
+      }
+      try { options.onInput?.(); } catch (_) { /* ignore */ }
+      toast(t("mermaidUpdated"));
+      return true;
+    };
+
+    onThemeChange(() => {
+      applyMermaidTheme();
+      if (previewing) {
+        if (previewBody) renderLitePreview._scrollTop = previewBody.scrollTop;
+        renderLitePreview(markdown);
+      } else {
+        refreshMermaidDiagrams(vditorRoot);
+      }
+    });
+
+    const bootEditor = () => {
+      if (vditor) return Promise.resolve(vditor);
+      if (vditorReady) return vditorReady;
+      vditorReady = ensureFullVditor(cdn).then(() => new Promise((resolve) => {
+        maybePreloadMermaid(cdn, markdown);
+        vditor = new global.Vditor(elementId, {
+          cdn,
+          height: "100%",
+          mode: "ir",
+          theme: "classic",
+          icon: "ant",
+          lang: options.lang || (global.MolanI18n && global.MolanI18n.vditorLang()) || "zh_CN",
+          placeholder,
+          cache: { enable: false },
+          undoDelay: 200,
+          hint: { delay: 400 },
+          toolbar: [
+            "bold", "italic", "link",
+            "edit-mode", "outline",
+          ],
+          toolbarConfig: { pin: true, hide: false },
+          preview: {
+            delay: 800,
+            maxWidth: 2400,
+            actions: options.previewActions || [],
+            theme: { current: "light" },
+            hljs: { style: "kimbie-dark", lineNumber: false },
+            math: { engine: "KaTeX", inlineDigit: true },
+            markdown: markdownOpts,
+            lazyLoadImage,
+          },
+          counter: {
+            enable: false,
+          },
+          input: () => {
+            if (previewing || muteInput) return;
+            scheduleFitTables(vditorRoot);
+            scheduleOutlineRefresh();
+            try {
+              options.onInput?.();
+            } catch (_) { /* ignore */ }
+          },
+          ctrlEnter: () => {
+            options.onSave?.();
+          },
+          after: () => {
+            applyMermaidTheme();
+            watchMermaidIrExpand(vditorRoot, mermaidBridge, lightbox);
+            watchMermaidPreviews(previewRoot);
+            watchTables(vditorRoot);
+            bindTableInsertPicker(vditorRoot, () => vditor);
+            bindTableControls(vditorRoot, () => vditor);
+            bindFormatBar(vditorRoot, () => vditor, () => previewing);
+            relocateVditorOutline();
+            revealVditorIcons();
+            blockInsert.sync();
+            scheduleOutlineRefresh();
+            resolve(vditor);
+          },
+        });
+      })).catch((err) => {
+        vditorReady = null;
+        throw err;
+      });
+      return vditorReady;
+    };
+
+    const pickImage = () => promptImageUrl();
+
+    const applySnippet = (snippet, hover) => {
+      const piece = String(snippet || "").replace(/^\n+/, "").replace(/\n+$/, "");
+      if (!piece) return;
+      maybePreloadMermaid(cdn, piece);
+      if (previewing || !vditor) {
+        const next = insertSnippetInMarkdown(
+          markdown,
+          hover?.emptyDoc ? 0 : (hover?.index ?? 0),
+          piece,
+          !!(hover?.empty || hover?.emptyDoc),
+        );
+        markdown = next;
+        renderLitePreview(markdown);
+        try { options.onInput?.(); } catch (_) { /* ignore */ }
+        return;
+      }
+      const irRoot = vditorRoot.querySelector(".vditor-ir pre.vditor-reset")
+        || vditorRoot.querySelector(".vditor-ir .vditor-reset");
+      if (hover?.el && irRoot && irRoot.contains(hover.el)) {
+        placeCaretAfter(hover.el);
+      }
+      try { vditor.focus(); } catch (_) { /* ignore */ }
+      const md = (hover?.empty || hover?.emptyDoc) ? piece : `\n\n${piece}\n`;
+      if (typeof vditor.insertMD === "function") {
+        vditor.insertMD(md);
+      } else if (typeof vditor.insertValue === "function") {
+        vditor.insertValue(md, true);
+      } else {
+        const next = insertSnippetInMarkdown(
+          vditor.getValue(),
+          hover?.index ?? 0,
+          piece,
+          !!(hover?.empty || hover?.emptyDoc),
+        );
+        muteInput = true;
+        vditor.setValue(next, false);
+        setTimeout(() => { muteInput = false; }, 200);
+        try { options.onInput?.(); } catch (_) { /* ignore */ }
+      }
+    };
+
+    blockInsert = bindBlockInsert({
+      getWrap: () => wrap,
+      getPreviewBody: () => previewBody,
+      getVditorRoot: () => vditorRoot,
+      getPreviewing: () => previewing,
+      insertSnippet: applySnippet,
+      pickImage,
+    });
+    activeBlockInsert = blockInsert;
+
+    const api = {
+      async setValue(text, clearStack = true) {
+        markdown = text ?? "";
+        if (previewing) {
+          renderLitePreview(markdown);
+          return;
+        }
+        muteInput = true;
+        await bootEditor();
+        vditor.setValue(markdown, clearStack);
+        applyMermaidTheme();
+        setTimeout(() => {
+          muteInput = false;
+          refreshMermaidDiagrams(vditorRoot).finally(() => {
+            scheduleFitTables(vditorRoot);
+            if (findState.open) runFind({ keepIndex: true, reveal: false });
+            blockInsert.sync();
+            scheduleOutlineRefresh();
+          });
+        }, 400);
+      },
+      getValue() {
+        if (previewing || !vditor) return markdown;
+        clearMolanTableLayout(vditorRoot);
+        const value = vditor.getValue();
+        scheduleFitTables(vditorRoot);
+        return value;
+      },
+      focus() {
+        if (previewing || !vditor) return;
+        const editable = readingContentRoot(false);
+        if (editable && typeof editable.focus === "function") {
+          try { editable.focus({ preventScroll: true }); return; } catch (_) { /* ignore */ }
+        }
+        try { vditor.focus(); } catch (_) { /* ignore */ }
+      },
+      isPreview() {
+        return previewing;
+      },
+      async setPreview(on) {
+        const want = Boolean(on);
+        if (want === previewing) return previewing;
+        const spot = captureReadingSpot(previewing);
+        if (want) {
+          hideTablePicker();
+          hideTableToolbar(document.getElementById("molanTableToolbar"));
+          hideFormatBar();
+          if (vditor) {
+            try { markdown = vditor.getValue(); } catch (_) { /* ignore */ }
+          }
+          previewing = true;
+          blockInsert.hide();
+          renderLitePreview(markdown, spot);
+          notifyPreview();
+          return true;
+        }
+        previewing = false;
+        muteInput = true;
+        blockInsert.hide();
+        syncLiteClass();
+        await bootEditor();
+        vditor.setValue(markdown, true);
+        applyMermaidTheme();
+        keepReadingSpot(false, spot);
+        setTimeout(() => {
+          muteInput = false;
+          refreshMermaidDiagrams(vditorRoot).finally(() => {
+            scheduleFitTables(vditorRoot);
+            if (findState.open) runFind({ keepIndex: true, reveal: false });
+            blockInsert.sync();
+            scheduleOutlineRefresh();
+            restoreReadingSpot(false, spot);
+          });
+        }, 400);
+        notifyPreview();
+        return false;
+      },
+      onPreviewChange(cb) {
+        if (typeof cb !== "function") return () => {};
+        previewListeners.push(cb);
+        return () => {
+          const i = previewListeners.indexOf(cb);
+          if (i >= 0) previewListeners.splice(i, 1);
+        };
+      },
+      getVditor() {
+        return vditor;
+      },
+    };
+
+    ensureEditorChrome({
+      getVditor: () => vditor,
+      getVditorRoot: () => vditorRoot,
+      getPreviewing: () => previewing,
+      getMarkdown: () => {
+        if (previewing || !vditor) return markdown;
+        try { return vditor.getValue(); } catch (_) { return markdown; }
+      },
+      enterEdit: () => api.setPreview(false),
+      bootEditor,
+      hydrateVditor: async () => {
+        await bootEditor();
+        if (!vditor) return;
+        relocateVditorOutline();
+        if (!previewing) return;
+        let current = "";
+        try { current = vditor.getValue(); } catch (_) { /* ignore */ }
+        if (current === markdown) return;
+        muteInput = true;
+        try { vditor.setValue(markdown, true); } catch (_) { /* ignore */ }
+        await new Promise((resolve) => setTimeout(resolve, 220));
+        muteInput = false;
+      },
+    });
+
+    syncLiteClass();
+    if (options.defaultPreview === false) {
+      return bootEditor().then(() => {
+        options.onReady?.(api);
+        return api;
+      });
+    }
+    options.onReady?.(api);
+    return Promise.resolve(api);
+  }
+
+  global.MolanEditor = {
+    DEFAULT_CDN,
+    create,
+    toast,
+    countWords,
+    escapeMdAlt,
+    applyMermaidTheme,
+    refreshMermaidDiagrams,
+    refreshI18n,
+    enhanceMermaidPreviews,
+    watchMermaidPreviews,
+    buildTableMarkdown,
+    find: {
+      open: openFind,
+      close: closeFind,
+      next() { moveFind(1); },
+      prev() { moveFind(-1); },
+    },
+    type: {
+      open: openType,
+      close: closeType,
+    },
+    prefs: {
+      open: openHeaderPrefs,
+      close: closeHeaderPrefs,
+    },
+    outline: {
+      close: closeOutline,
+      pin: pinOutlineDock,
+    },
+  };
+
+  applyStoredType();
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => {
+      initFind();
+      initType();
+      initTheme();
+      initHeaderPrefs();
+    });
+  } else {
+    initFind();
+    initType();
+    initTheme();
+    initHeaderPrefs();
+  }
+})(window);
