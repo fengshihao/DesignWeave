@@ -203,7 +203,15 @@
         edgeLabelBackground: cssVar("--paper-lift", "#faf7f1"),
         fontFamily: font,
       },
-      themeCSS: `/* molan-theme:${themeName} */`,
+      themeCSS: `
+        /* molan-theme:${themeName} */
+        .node rect,
+        .node polygon,
+        .cluster rect {
+          rx: 8px;
+          ry: 8px;
+        }
+      `,
     };
   }
 
@@ -282,13 +290,35 @@
     }
   }
 
+  function isValidMermaidSource(text) {
+    const s = String(text || "").trim();
+    if (!s || /^svg\s*$/i.test(s)) return false;
+    if (/^<\s*svg[\s>]/i.test(s)) return false;
+    return /^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram|stateDiagram-v2|erDiagram|journey|gantt|pie|mindmap|timeline|gitGraph|C4Context|sankey|xychart|block-beta|%%)/im.test(s);
+  }
+
+  function mermaidDisplayHosts(root = document) {
+    return Array.from(root.querySelectorAll(".language-mermaid")).filter((host) => {
+      if (host.closest(".vditor-ir__marker--pre, .vditor-ir__marker")) return false;
+      if (host.closest(".vditor-ir__preview, #molanPreviewBody, .molan-preview")) return true;
+      return host.classList.contains("molan-mermaid-shell");
+    });
+  }
+
   function captureMermaidSource(el) {
     if (!el || el.nodeType !== 1) return;
     if (el.getAttribute("data-molan-source")) return;
+    const node = el.closest(".vditor-ir__node");
+    const marker = node?.querySelector?.(".vditor-ir__marker--pre code.language-mermaid");
+    const markerText = marker?.textContent?.trim();
+    if (markerText && isValidMermaidSource(markerText)) {
+      el.setAttribute("data-molan-source", markerText);
+      return;
+    }
     if (el.getAttribute("data-processed") === "true") return;
     if (el.querySelector("svg")) return;
     const text = (el.textContent || "").trim();
-    if (text) el.setAttribute("data-molan-source", text);
+    if (text && isValidMermaidSource(text)) el.setAttribute("data-molan-source", text);
   }
 
   function captureMermaidSources(root = document) {
@@ -298,9 +328,12 @@
   function stampMermaidSources(root, text) {
     if (!root) return;
     const sources = extractMermaidSources(text);
-    root.querySelectorAll(".language-mermaid").forEach((el, i) => {
-      if (sources[i]) el.setAttribute("data-molan-source", sources[i]);
-      else captureMermaidSource(el);
+    mermaidDisplayHosts(root).forEach((el, i) => {
+      if (sources[i] && isValidMermaidSource(sources[i])) {
+        el.setAttribute("data-molan-source", sources[i]);
+      } else {
+        captureMermaidSource(el);
+      }
     });
   }
 
@@ -414,11 +447,66 @@
         `translate(${lightboxPanX}px, ${lightboxPanY}px) scale(${lightboxScale})`;
     }
 
-    function resetLightboxView() {
-      lightboxScale = 1.15;
+    function lightboxSvgNaturalSize(svg) {
+      const vb = svg.viewBox?.baseVal;
+      if (vb && vb.width > 0 && vb.height > 0) {
+        return { width: vb.width, height: vb.height };
+      }
+      const w = parseFloat(svg.getAttribute("width"));
+      const h = parseFloat(svg.getAttribute("height"));
+      if (Number.isFinite(w) && w > 0 && Number.isFinite(h) && h > 0) {
+        return { width: w, height: h };
+      }
+      try {
+        const box = svg.getBBox();
+        if (box.width > 0 && box.height > 0) {
+          return { width: box.width, height: box.height };
+        }
+      } catch (_) { /* ignore */ }
+      const rect = svg.getBoundingClientRect();
+      return {
+        width: rect.width > 0 ? rect.width : 1,
+        height: rect.height > 0 ? rect.height : 1,
+      };
+    }
+
+    function prepareLightboxSvg(clone) {
+      clone.removeAttribute("style");
+      const natural = lightboxSvgNaturalSize(clone);
+      clone.setAttribute("width", String(natural.width));
+      clone.setAttribute("height", String(natural.height));
+      clone.style.width = `${natural.width}px`;
+      clone.style.height = `${natural.height}px`;
+      clone.style.maxWidth = "none";
+    }
+
+    function fitLightboxView() {
+      const svg = lightboxCanvas.querySelector("svg");
+      if (!svg) {
+        lightboxScale = 1;
+        lightboxPanX = 0;
+        lightboxPanY = 0;
+        applyLightboxTransform();
+        return;
+      }
+      lightboxScale = 1;
       lightboxPanX = 0;
       lightboxPanY = 0;
       applyLightboxTransform();
+      const stage = lightboxStage.getBoundingClientRect();
+      const inset = 40;
+      const maxW = Math.max(120, stage.width - inset * 2);
+      const maxH = Math.max(120, stage.height - inset * 2);
+      const natural = lightboxSvgNaturalSize(svg);
+      const fit = Math.min(maxW / natural.width, maxH / natural.height, 1) * 0.94;
+      lightboxScale = Math.max(0.35, Math.min(fit, 1));
+      lightboxPanX = 0;
+      lightboxPanY = 0;
+      applyLightboxTransform();
+    }
+
+    function resetLightboxView() {
+      fitLightboxView();
     }
 
     function openLightboxFromSvg(svg) {
@@ -428,14 +516,11 @@
       }
       lightboxCanvas.innerHTML = "";
       const clone = svg.cloneNode(true);
-      clone.removeAttribute("style");
-      clone.style.maxWidth = "none";
-      clone.style.width = clone.getAttribute("width") || "auto";
-      clone.style.height = "auto";
+      prepareLightboxSvg(clone);
       lightboxCanvas.appendChild(clone);
-      resetLightboxView();
       lightbox.classList.add("open");
       lightbox.setAttribute("aria-hidden", "false");
+      requestAnimationFrame(() => requestAnimationFrame(fitLightboxView));
     }
 
     if (!lightboxBound) {
@@ -563,17 +648,19 @@
   function getMermaidSourceNear(previewEl) {
     const node = previewEl?.closest?.(".vditor-ir__node");
     const marker = node?.querySelector?.(".vditor-ir__marker--pre code.language-mermaid");
-    if (marker?.textContent?.trim()) return marker.textContent.trim();
+    const markerText = marker?.textContent?.trim();
+    if (markerText && isValidMermaidSource(markerText)) return markerText;
     const host = previewEl?.matches?.(".language-mermaid")
       ? previewEl
       : (previewEl?.querySelector?.(".language-mermaid") || previewEl);
     const saved = host?.getAttribute?.("data-molan-source")
       || previewEl?.getAttribute?.("data-molan-source");
-    if (saved) return saved;
+    if (saved && isValidMermaidSource(saved)) return saved;
     const code = previewEl?.querySelector?.("code.language-mermaid, .language-mermaid") || host;
     if (!code) return "";
     if (code.getAttribute?.("data-processed")) return "";
-    return (code.textContent || "").trim();
+    const text = (code.textContent || "").trim();
+    return isValidMermaidSource(text) ? text : "";
   }
 
   let mermaidRenderSeq = 0;
@@ -624,15 +711,18 @@
       applyMermaidTheme();
       captureMermaidSources(root);
       const fromMd = mermaidSourcesFromMarkdown();
-      const hosts = Array.from(root.querySelectorAll(".language-mermaid"));
+      const hosts = mermaidDisplayHosts(root);
+      let sourceIndex = 0;
       for (let i = 0; i < hosts.length; i += 1) {
         const host = hosts[i];
         const preview = host.closest(".vditor-ir__preview") || host;
         const source = getMermaidSourceNear(preview)
           || host.getAttribute("data-molan-source")
+          || fromMd[sourceIndex]
           || fromMd[i]
           || "";
-        if (!source) continue;
+        sourceIndex += 1;
+        if (!isValidMermaidSource(source)) continue;
         host.setAttribute("data-molan-source", source);
         try {
           const svg = await renderMermaidSvg(source);
@@ -4094,11 +4184,12 @@
         applyMermaidTheme();
         setTimeout(() => {
           muteInput = false;
-          enhanceMermaidPreviews(vditorRoot);
-          scheduleFitTables(vditorRoot);
-          if (findState.open) runFind({ keepIndex: true, reveal: false });
-          blockInsert.sync();
-          scheduleOutlineRefresh();
+          refreshMermaidDiagrams(vditorRoot).finally(() => {
+            scheduleFitTables(vditorRoot);
+            if (findState.open) runFind({ keepIndex: true, reveal: false });
+            blockInsert.sync();
+            scheduleOutlineRefresh();
+          });
         }, 400);
       },
       getValue() {
@@ -4146,12 +4237,13 @@
         keepReadingSpot(false, spot);
         setTimeout(() => {
           muteInput = false;
-          enhanceMermaidPreviews(vditorRoot);
-          scheduleFitTables(vditorRoot);
-          if (findState.open) runFind({ keepIndex: true, reveal: false });
-          blockInsert.sync();
-          scheduleOutlineRefresh();
-          restoreReadingSpot(false, spot);
+          refreshMermaidDiagrams(vditorRoot).finally(() => {
+            scheduleFitTables(vditorRoot);
+            if (findState.open) runFind({ keepIndex: true, reveal: false });
+            blockInsert.sync();
+            scheduleOutlineRefresh();
+            restoreReadingSpot(false, spot);
+          });
         }, 400);
         notifyPreview();
         return false;

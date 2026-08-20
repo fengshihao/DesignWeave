@@ -2928,21 +2928,59 @@
       color: rgba(240, 230, 216, 0.75) !important;
     }
 
-    /* 流程图 / 公式预览：浅色卡片，不要套代码暗底 */
+    /*
+     * 流程图 / 公式预览：浅色卡片。
+     * 编辑台 shell 是 pre.vditor-ir__preview，预览台是 div.language-mermaid（见 enhanceMermaidPreviews）。
+     * 统一用 .molan-mermaid-shell，避免预览台圆角/高度与编辑台不一致。
+     */
+    .vditor-reset .molan-mermaid-shell,
     .vditor-reset pre.vditor-ir__preview:has(.language-mermaid),
     .vditor-reset pre.vditor-ir__preview:has(.language-math),
     .vditor-reset pre.vditor-ir__preview:has(.katex),
     .vditor-reset pre.vditor-ir__preview:has(.katex-display),
-    .vditor-wysiwyg pre.vditor-reset .language-mermaid,
-    .vditor-preview .vditor-reset .language-mermaid,
-    .vditor-preview .vditor-reset .language-math {
+    .vditor-reset pre:has(> .language-mermaid):not(.vditor-ir__marker--pre),
+    .vditor-reset pre:has(> .language-math):not(.vditor-ir__marker--pre),
+    .vditor-reset pre:has(> .katex):not(.vditor-ir__marker--pre),
+    .vditor-reset pre:has(> .katex-display):not(.vditor-ir__marker--pre),
+    #molanPreviewBody pre:has(.language-mermaid),
+    #molanPreviewBody pre:has(.language-math),
+    #molanPreviewBody pre:has(.katex),
+    #molanPreviewBody pre:has(.katex-display) {
       background: var(--diagram-card) !important;
       border: 1px solid var(--hairline) !important;
+      border-radius: 14px !important;
       box-shadow: var(--shadow) !important;
       color: var(--ink) !important;
       text-align: center;
       padding: 18px 16px !important;
       position: relative;
+      font-family: var(--font-ui) !important;
+      font-size: var(--reader-size) !important;
+      line-height: 1.55 !important;
+      box-sizing: border-box !important;
+    }
+
+    .vditor-ir__node:has(> .molan-mermaid-shell) > .molan-mermaid-shell,
+    .vditor-ir__node:has(> .vditor-ir__preview:has(.language-mermaid)) > .vditor-ir__preview {
+      margin: 0 !important;
+    }
+
+    #molanPreviewBody .molan-mermaid-shell,
+    .molan-preview .molan-mermaid-shell {
+      margin: 1.3em 0 !important;
+    }
+
+    .molan-mermaid-shell .language-mermaid,
+    .vditor-reset pre:has(.language-mermaid) .language-mermaid,
+    .vditor-reset pre:has(.language-math) .language-math,
+    .vditor-reset pre:has(.katex) .katex,
+    .vditor-reset pre:has(.katex-display) .katex-display {
+      padding: 0 !important;
+      margin: 0 !important;
+      border: none !important;
+      box-shadow: none !important;
+      background: transparent !important;
+      display: block;
     }
 
     /*
@@ -3019,8 +3057,8 @@
       margin: 0 !important;
     }
 
-    .vditor-reset .language-mermaid,
-    .vditor-reset [data-type="mermaid"] {
+    .vditor-reset .language-mermaid:not(.molan-mermaid-shell),
+    .vditor-reset [data-type="mermaid"]:not(.molan-mermaid-shell) {
       background: transparent !important;
       border: none !important;
       border-radius: 0 !important;
@@ -3416,7 +3454,7 @@
     }
 
     .lightbox-canvas svg {
-      max-width: none !important;
+      max-width: none;
       width: auto;
       height: auto;
       margin: 0;
