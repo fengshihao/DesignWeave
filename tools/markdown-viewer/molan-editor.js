@@ -91,7 +91,7 @@
       noMermaidSource: "未找到流程图源码",
       copiedMermaidCode: "已复制流程图代码",
       mermaidEditorTitle: "编辑流程图",
-      mermaidEditorHint: "左侧编辑源码，右侧实时预览 · ⌘/Ctrl+Enter 应用",
+      mermaidEditorHint: "左侧编辑源码，右侧实时预览 · ⌘/Ctrl+Enter 应用 · Esc 关闭",
       mermaidEditorApply: "应用",
       mermaidEditorCancel: "取消",
       mermaidSyntaxError: "语法错误",
@@ -804,35 +804,78 @@
     return null;
   }
 
-  function enterMermaidEdit(shell) {
-    const node = shell?.closest?.(".vditor-ir__node");
-    const code = node?.querySelector?.(".vditor-ir__marker--pre code.language-mermaid");
-    const editable = document.querySelector(".vditor-ir pre.vditor-reset");
-    if (!code || !editable) {
-      toast(t("cannotEdit"));
+  function collapseMermaidIrNodes(root = document) {
+    root.querySelectorAll?.(".vditor-ir__node--expand")?.forEach((node) => {
+      if (!node.querySelector?.(".language-mermaid")) return;
+      node.classList.remove("vditor-ir__node--expand");
+      node.classList.remove("vditor-ir__node--hidden");
+    });
+  }
+
+  function watchMermaidIrExpand(vditorRoot, ctx, lightbox) {
+    const ir = vditorRoot?.querySelector?.(".vditor-ir");
+    if (!ir || ir.dataset.molanMermaidExpandGuard) return;
+    ir.dataset.molanMermaidExpandGuard = "1";
+    const observer = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.type !== "attributes" || m.attributeName !== "class") continue;
+        const node = m.target;
+        if (!node.classList?.contains("vditor-ir__node--expand")) continue;
+        if (!node.querySelector?.(".language-mermaid")) continue;
+        node.classList.remove("vditor-ir__node--expand");
+        node.classList.remove("vditor-ir__node--hidden");
+        if (document.getElementById("molanMermaidEditor")) continue;
+        const shell = node.querySelector(".vditor-ir__preview") || node;
+        const source = getMermaidSourceNear(shell);
+        if (!source) continue;
+        const index = getMermaidShellIndex(shell, ir);
+        openMermaidEditorDialog({
+          source,
+          lightbox,
+          onApply: (newSource) => ctx.onApplyMermaidEdit?.(index, newSource),
+        });
+      }
+    });
+    observer.observe(ir, { attributes: true, subtree: true, attributeFilter: ["class"] });
+  }
+
+  function openMermaidEditorFromShell(shell, ctx, lightbox, vditorRoot) {
+    const source = getMermaidSourceNear(shell);
+    if (!source) {
+      toast(t("noMermaidSource"));
       return;
     }
-    try {
-      editable.focus();
-      const range = document.createRange();
-      const textNode = code.firstChild || code;
-      if (textNode.nodeType === Node.TEXT_NODE) {
-        range.setStart(textNode, 0);
-        range.collapse(true);
-      } else {
-        range.selectNodeContents(code);
-        range.collapse(true);
-      }
-      const sel = window.getSelection();
-      sel.removeAllRanges();
-      sel.addRange(range);
-      node.classList.add("vditor-ir__node--expand");
-      node.classList.remove("vditor-ir__node--hidden");
-      toast(t("enteredEdit"));
-    } catch (err) {
-      console.warn(err);
-      toast(t("cannotEdit"));
+    collapseMermaidIrNodes(vditorRoot || document);
+    const scope = shell.closest("#molanPreviewBody, .molan-preview, .vditor-ir") || vditorRoot || document;
+    const index = getMermaidShellIndex(shell, scope);
+    openMermaidEditorDialog({
+      source,
+      lightbox,
+      onApply: (newSource) => ctx.onApplyMermaidEdit?.(index, newSource),
+    });
+  }
+
+  function collapseMermaidIrNodes() {
+    document.querySelectorAll(".vditor-ir__node--expand").forEach((node) => {
+      if (!node.querySelector(".language-mermaid")) return;
+      node.classList.remove("vditor-ir__node--expand");
+    });
+  }
+
+  function openMermaidEditorFromShell(shell, ctx, lightbox) {
+    const source = getMermaidSourceNear(shell);
+    if (!source) {
+      toast(t("noMermaidSource"));
+      return;
     }
+    collapseMermaidIrNodes();
+    const scope = shell.closest("#molanPreviewBody, .molan-preview, .vditor-ir") || document;
+    const index = getMermaidShellIndex(shell, scope);
+    openMermaidEditorDialog({
+      source,
+      lightbox,
+      onApply: (newSource) => ctx.onApplyMermaidEdit?.(index, newSource),
+    });
   }
 
   function enhanceMermaidPreviews(root = document) {
@@ -2111,15 +2154,21 @@
   }
 
   function bindMermaidInteractions(vditorRoot, getVditor, lightbox, ctx = {}) {
+    watchMermaidIrExpand(vditorRoot, ctx, lightbox);
     const blockMermaidPreviewExpand = (e) => {
       if (e.target.closest("[data-molan-action]")) return;
+      if (document.getElementById("molanMermaidEditor")) return;
       const shell = findMermaidPreviewShell(e.target);
       if (!shell) return;
       if (shell.closest(".vditor-ir__node--expand")) return;
       e.preventDefault();
       e.stopPropagation();
       if (e.type === "click" || e.type === "pointerup") {
-        lightbox.openFromSvg(shell.querySelector("svg"));
+        if (ctx.getPreviewing?.()) {
+          lightbox.openFromSvg(shell.querySelector("svg"));
+          return;
+        }
+        openMermaidEditorFromShell(shell, ctx, lightbox, vditorRoot);
       }
     };
     vditorRoot.addEventListener("mousedown", blockMermaidPreviewExpand, true);
@@ -2135,18 +2184,7 @@
       const shell = btn.closest(".vditor-ir__preview, pre, .language-mermaid");
       const svg = shell?.querySelector("svg");
       if (action === "edit") {
-        const source = getMermaidSourceNear(shell);
-        if (!source) {
-          toast(t("noMermaidSource"));
-          return;
-        }
-        const scope = shell.closest("#molanPreviewBody, .molan-preview, .vditor-ir") || vditorRoot;
-        const index = getMermaidShellIndex(shell, scope);
-        openMermaidEditorDialog({
-          source,
-          lightbox,
-          onApply: (newSource) => ctx.onApplyMermaidEdit?.(index, newSource),
-        });
+        openMermaidEditorFromShell(shell, ctx, lightbox, vditorRoot);
         return;
       }
       if (action === "zoom") {
@@ -3544,7 +3582,9 @@
       closeBtn.addEventListener("click", () => finish(false));
       applyBtn.addEventListener("click", tryApply);
       mask.addEventListener("click", (e) => {
-        if (e.target === mask) finish(false);
+        if (e.target !== mask) return;
+        e.preventDefault();
+        e.stopPropagation();
       });
       dialog.addEventListener("click", (e) => e.stopPropagation());
       window.addEventListener("keydown", onKey, true);
@@ -4397,6 +4437,7 @@
           },
           after: () => {
             applyMermaidTheme();
+            watchMermaidIrExpand(vditorRoot, mermaidBridge, lightbox);
             watchMermaidPreviews(previewRoot);
             watchTables(vditorRoot);
             bindTableInsertPicker(vditorRoot, () => vditor);

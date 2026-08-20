@@ -3084,6 +3084,24 @@
     }
 
     /*
+     * mermaid 块统一走弹窗编辑，不在 IR 里内联展开源码。
+     * 隐藏围栏 marker 与伪元素，避免出现头尾「半圆」碎块。
+     */
+    .vditor-ir__node:has(.language-mermaid)::before,
+    .vditor-ir__node:has(.language-mermaid)::after,
+    .vditor-ir__node:has(.language-mermaid) > .vditor-ir__marker--pre,
+    .vditor-ir__node:has(.language-mermaid) > .vditor-ir__marker--info,
+    .vditor-ir__node:has(.language-mermaid) .vditor-ir__marker--pre,
+    .vditor-ir__node:has(.language-mermaid) .vditor-ir__marker--info {
+      display: none !important;
+      content: none !important;
+    }
+
+    .vditor-ir__node:has(.language-mermaid).vditor-ir__node--expand > .vditor-ir__preview {
+      display: block !important;
+    }
+
+    /*
      * 展开编辑 mermaid/math：Vditor 会把 .vditor-ir__marker 设成 display:inline，
      * 若再套圆角/虚线边框会碎成头尾「怪形状」。强制 block + 实线干净代码区。
      */
@@ -3830,12 +3848,12 @@
     .molan-mermaid-editor-mask {
       position: fixed;
       inset: 0;
-      z-index: 45;
+      z-index: 90;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 24px;
-      background: color-mix(in srgb, var(--ink) 22%, transparent);
+      background: var(--lightbox-dim);
     }
     .molan-mermaid-editor {
       display: flex;
@@ -3849,6 +3867,7 @@
       color: var(--ink);
       font-family: var(--font-ui);
       overflow: hidden;
+      isolation: isolate;
     }
     .molan-mermaid-editor-head {
       display: flex;
@@ -3909,12 +3928,14 @@
       resize: vertical;
       box-sizing: border-box;
       padding: 10px 12px;
-      border: 1px solid var(--hairline-strong);
+      border: 1px solid var(--code-border, var(--hairline-strong));
       border-radius: 10px;
-      background: var(--paper);
-      color: inherit;
-      font: 0.84rem/1.45 var(--font-mono, ui-monospace, monospace);
+      background: var(--code-bg);
+      color: var(--code-fg);
+      caret-color: var(--code-fg);
+      font: 0.84rem/1.55 var(--font-mono, ui-monospace, monospace);
       tab-size: 2;
+      -webkit-text-fill-color: var(--code-fg);
     }
     .molan-mermaid-editor-source:focus {
       outline: 2px solid var(--accent);
@@ -3956,11 +3977,12 @@
       overflow: auto;
       border: 1px solid var(--hairline-strong);
       border-radius: 10px;
-      background: var(--paper);
+      background: var(--diagram-card, var(--paper));
       padding: 12px;
       display: flex;
       align-items: center;
       justify-content: center;
+      color: var(--ink);
     }
     .molan-mermaid-editor-preview svg {
       max-width: 100%;
