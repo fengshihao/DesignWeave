@@ -54,7 +54,7 @@ install_cli() {
 
 run_compile() {
   ensure_deps
-  echo "==> 编译墨览扩展（同步 molan.css / molan-editor.js + tsc）"
+  echo "==> 编译墨览扩展（molan-core/host 构建 + sync-media + tsc）"
   pnpm --filter molan-markdown compile
   echo "编译完成：${EXT_DIR}/out"
   echo "调试：仓库根目录按 F5（「运行墨览扩展」）"

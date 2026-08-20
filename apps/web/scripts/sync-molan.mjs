@@ -3,6 +3,9 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { renderHostHtml } from "@designweave/molan-host";
+import { ensureMolanPackagesBuilt } from "../../../scripts/ensure-molan-build.mjs";
+
+ensureMolanPackagesBuilt();
 
 const require = createRequire(import.meta.url);
 const webRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -84,4 +87,4 @@ const hostHtml = renderHostHtml({
 
 writeFileSync(join(dest, "host.html"), hostHtml);
 
-console.log("synced molan-core + molan-host → public/molan/");
+console.log("synced molan-core + molan-host → public/molan/（host.html 为 legacy 直链，工作台 inline 不依赖）");

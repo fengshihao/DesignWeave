@@ -132,10 +132,14 @@ vendor_vditor() {
     exit 1
   fi
   if ! command -v node >/dev/null 2>&1; then
-    echo "需要 Node.js 才能同步本地 Vditor" >&2
+    echo "需要 Node.js 才能同步墨览资源" >&2
     exit 1
   fi
-  echo "==> 同步本地 Vditor"
+  if ! command -v pnpm >/dev/null 2>&1; then
+    echo "需要 pnpm 才能构建 molan-core / molan-host" >&2
+    exit 1
+  fi
+  echo "==> 构建并同步墨览资源（molan-core → studio + vditor）"
   node "${sync}"
 }
 

@@ -2,6 +2,9 @@ import { createRequire } from "node:module";
 import { cpSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { ensureMolanPackagesBuilt } from "../../../scripts/ensure-molan-build.mjs";
+
+ensureMolanPackagesBuilt();
 
 const require = createRequire(import.meta.url);
 const extRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
