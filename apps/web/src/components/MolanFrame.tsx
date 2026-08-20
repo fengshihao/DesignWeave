@@ -1,7 +1,12 @@
 "use client";
 
-import type { HostToFrameMessage, MolanState } from "@designweave/molan-protocol";
-import { parseFrameToHostMessage } from "@designweave/molan-protocol";
+import type { MolanState } from "@designweave/molan-protocol";
+import {
+  loadMolanRuntime,
+  mountInlineHost,
+  renderInlineShell,
+  type InlineHostHandle,
+} from "@designweave/molan-host";
 import {
   forwardRef,
   useCallback,
@@ -32,120 +37,107 @@ export const MolanFrame = forwardRef<
     onOpenRelative?: (path: string) => void;
   }
 >(function MolanFrame(props, ref) {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const hostRef = useRef<HTMLDivElement>(null);
+  const handleRef = useRef<InlineHostHandle | null>(null);
   const readyRef = useRef(false);
-  const pending = useRef(new Map<number, (state: MolanState) => void>());
-  const reqId = useRef(1);
   const propsRef = useRef(props);
   propsRef.current = props;
 
-  const post = useCallback((msg: HostToFrameMessage) => {
-    iframeRef.current?.contentWindow?.postMessage(msg, window.location.origin);
-  }, []);
-
-  const sendInit = useCallback(() => {
-    if (!readyRef.current) return;
-    post({
+  const sendInit = useCallback(async () => {
+    if (!readyRef.current || !handleRef.current) return;
+    await handleRef.current.applyHostMessage({
       type: "init",
       value: propsRef.current.content,
       fileName: propsRef.current.fileName,
       readOnly: propsRef.current.readOnly,
       dirty: false,
     });
-  }, [post]);
+  }, []);
 
   useImperativeHandle(
     ref,
     () => ({
       getState() {
-        return new Promise<MolanState>((resolve) => {
-          const id = reqId.current++;
-          pending.current.set(id, resolve);
-          post({ type: "getState", requestId: id });
-          setTimeout(() => {
-            if (pending.current.has(id)) {
-              pending.current.delete(id);
-              resolve({ value: propsRef.current.content, dirty: false, isPreview: true });
-            }
-          }, 800);
+        if (handleRef.current) return handleRef.current.getState();
+        return Promise.resolve({
+          value: propsRef.current.content,
+          dirty: false,
+          isPreview: true,
         });
       },
       markSaved() {
-        post({ type: "saved" });
+        void handleRef.current?.markSaved();
       },
       exitEdit() {
-        post({ type: "exitEdit" });
+        void handleRef.current?.exitEdit();
       },
     }),
-    [post]
+    [],
   );
 
   useEffect(() => {
-    function onMessage(event: MessageEvent) {
-      if (event.origin !== window.location.origin) return;
-      if (event.source !== iframeRef.current?.contentWindow) return;
-      const msg = parseFrameToHostMessage(event.data);
-      if (!msg) return;
-      if (msg.type === "ready") {
-        readyRef.current = true;
-        sendInit();
-        return;
-      }
-      if (msg.type === "save") {
-        const value = msg.value;
-        if (value != null) propsRef.current.onSave(value);
-        else {
-          const id = reqId.current++;
-          pending.current.set(id, (state) => propsRef.current.onSave(state.value));
-          post({ type: "getState", requestId: id });
+    const root = hostRef.current;
+    if (!root || root.dataset.molanMounted === "1") return;
+    root.dataset.molanMounted = "1";
+    root.innerHTML = renderInlineShell();
+
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        await loadMolanRuntime();
+        if (cancelled || !hostRef.current) return;
+
+        const handle = mountInlineHost(hostRef.current, {
+          onSave: () => {
+            void handleRef.current?.getState().then((state) => {
+              propsRef.current.onSave(state.value);
+            });
+          },
+          onChange: (dirty) => propsRef.current.onDirtyChange(dirty),
+          onPreviewChange: (isPreview) => propsRef.current.onEditingChange(!isPreview),
+          onWantEdit: () => propsRef.current.onBlockedEdit?.(),
+          onReady: () => {
+            readyRef.current = true;
+            void sendInit();
+          },
+        });
+
+        if (cancelled) {
+          handle.dispose();
+          return;
         }
-        return;
+        handleRef.current = handle;
+      } catch (err) {
+        console.error("墨览 inline 初始化失败", err);
       }
-      if (msg.type === "change") {
-        propsRef.current.onDirtyChange(Boolean(msg.dirty));
-        return;
+    })();
+
+    return () => {
+      cancelled = true;
+      handleRef.current?.dispose();
+      handleRef.current = null;
+      readyRef.current = false;
+      if (root) {
+        root.dataset.molanMounted = "0";
+        root.innerHTML = "";
       }
-      if (msg.type === "previewChange") {
-        propsRef.current.onEditingChange(msg.isPreview === false);
-        return;
-      }
-      if (msg.type === "wantEdit") {
-        propsRef.current.onBlockedEdit?.();
-        return;
-      }
-      if (msg.type === "theme") {
-        document.documentElement.setAttribute("data-theme", msg.theme);
-        return;
-      }
-      if (msg.type === "state") {
-        const resolve = pending.current.get(msg.requestId);
-        if (resolve) {
-          pending.current.delete(msg.requestId);
-          resolve({
-            value: msg.value,
-            dirty: msg.dirty,
-            isPreview: msg.isPreview,
-          });
-        }
-      }
-    }
-    window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, [post, sendInit]);
+    };
+  }, [sendInit]);
 
   useEffect(() => {
-    sendInit();
+    void sendInit();
   }, [props.fileName, props.etag, props.readOnly, sendInit]);
 
+  useEffect(() => {
+    hostRef.current?.classList.toggle("is-readonly", props.readOnly);
+  }, [props.readOnly]);
+
   return (
-    <iframe
-      ref={iframeRef}
-      className="molan-frame"
-      title="墨览"
-      src="/molan/host.html"
-      onLoad={() => {
-        if (readyRef.current) sendInit();
-      }}
+    <div
+      ref={hostRef}
+      className="molan-inline molan-host-vscode"
+      aria-label="墨览"
     />
   );
 });

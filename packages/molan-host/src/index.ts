@@ -6,3 +6,10 @@ export {
   stripMarkdownExtension,
 } from "./link-utils.js";
 export { renderHostHtml, type HostHtmlAssets, type HostHtmlVariant, type RenderHostHtmlOptions } from "./html.js";
+export { renderInlineShell, type InlineShellOptions } from "./shell.js";
+export { loadMolanRuntime } from "./load-runtime.js";
+export {
+  mountInlineHost,
+  type InlineHostCallbacks,
+  type InlineHostHandle,
+} from "./inline-host.js";

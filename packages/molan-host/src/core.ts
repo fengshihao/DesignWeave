@@ -19,6 +19,8 @@ export type BridgeCoreOptions = {
   /** Web 工作台：只读模式与 eyebrow 状态 */
   readOnlyFeatures?: boolean;
   statusRightSuffix?: string;
+  /** 切换 is-readonly 的容器（默认 document.body） */
+  readonlyRoot?: HTMLElement;
 };
 
 export function createBridgeCore(options: BridgeCoreOptions) {
@@ -30,7 +32,14 @@ export function createBridgeCore(options: BridgeCoreOptions) {
     ensureEditor,
     readOnlyFeatures = false,
     statusRightSuffix = "",
+    readonlyRoot,
   } = options;
+
+  const readonlyEl = readonlyRoot ?? (typeof document !== "undefined" ? document.body : null);
+
+  function setReadonlyClass(on: boolean) {
+    readonlyEl?.classList.toggle("is-readonly", on);
+  }
 
   let editorApi: EditorApi | null = null;
   let applyingRemote = false;
@@ -49,7 +58,7 @@ export function createBridgeCore(options: BridgeCoreOptions) {
     modeBtn.title = label;
     modeBtn.setAttribute("aria-label", label);
     if (readOnlyFeatures) {
-      document.body.classList.toggle("is-readonly", readOnly);
+      setReadonlyClass(readOnly);
     }
   }
 
@@ -126,7 +135,7 @@ export function createBridgeCore(options: BridgeCoreOptions) {
       isDirty: !!msg.dirty,
     });
     if (readOnlyFeatures) {
-      document.body.classList.toggle("is-readonly", readOnly);
+      setReadonlyClass(readOnly);
       post({ type: "previewChange", isPreview: true });
     }
   }
@@ -134,7 +143,7 @@ export function createBridgeCore(options: BridgeCoreOptions) {
   async function applyReadOnly(next: boolean) {
     if (!readOnlyFeatures) return;
     readOnly = Boolean(next);
-    document.body.classList.toggle("is-readonly", readOnly);
+    setReadonlyClass(readOnly);
     if (readOnly && editorApi && !editorApi.isPreview()) {
       await editorApi.setPreview(true);
     }
@@ -237,6 +246,7 @@ export function createBridgeCore(options: BridgeCoreOptions) {
     onEditorInput,
     onEditorCounter,
     handleHostMessage,
+    ensureEditor,
     setBaseline(value: string) {
       baseline = value;
     },
