@@ -3191,18 +3191,20 @@
       background: var(--toolbar-bg);
       border: 1px solid var(--hairline);
       box-shadow: var(--shadow);
-      opacity: 0.78;
+      opacity: 0;
       transform: translateY(0);
       transition: opacity 0.18s ease;
-      pointer-events: auto;
+      pointer-events: none;
       backdrop-filter: blur(6px);
     }
 
     .vditor-ir__preview:has(.language-mermaid):hover .molan-diagram-toolbar,
     .vditor-ir__preview:has(.language-mermaid):focus-within .molan-diagram-toolbar,
     .language-mermaid:hover .molan-diagram-toolbar,
+    .molan-diagram-toolbar:hover,
     .molan-diagram-toolbar:focus-within {
       opacity: 1;
+      pointer-events: auto;
     }
 
     .icon-btn {
