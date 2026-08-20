@@ -1,0 +1,102 @@
+import { z } from "zod";
+
+/** 四款纸面主题 */
+export const MolanThemeSchema = z.enum(["night", "hack", "rose", "xuan"]);
+export type MolanTheme = z.infer<typeof MolanThemeSchema>;
+
+/** 宿主向 iframe/webview 查询编辑器快照 */
+export const MolanStateSchema = z.object({
+  value: z.string(),
+  dirty: z.boolean(),
+  isPreview: z.boolean(),
+});
+export type MolanState = z.infer<typeof MolanStateSchema>;
+
+/** `MolanEditor.create` 入参（浏览器侧运行时契约） */
+export type EditorOptions = {
+  elementId?: string;
+  cdn?: string;
+  linkBase?: string;
+  defaultPreview?: boolean;
+  lang?: string;
+  placeholder?: string;
+  previewActions?: unknown[];
+  onInput?: () => void;
+  onCounter?: () => void;
+  onSave?: () => void;
+  onReady?: (api: EditorApi) => void;
+};
+
+/** 编辑器实例 API（浏览器侧运行时契约） */
+export type EditorApi = {
+  getValue(): string;
+  setValue(value: string, clearStack?: boolean): void | Promise<void>;
+  setPreview(preview: boolean): boolean | Promise<boolean>;
+  isPreview(): boolean;
+  focus(): void;
+  onPreviewChange(cb: (previewing: boolean) => void): () => void;
+  getVditor?(): unknown;
+};
+
+const contentPayload = {
+  value: z.string(),
+  fileName: z.string(),
+  readOnly: z.boolean().optional(),
+  dirty: z.boolean().optional(),
+};
+
+/** 宿主 → 编辑器 iframe/webview */
+export const HostToFrameMessageSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("init"), ...contentPayload }),
+  z.object({ type: z.literal("setContent"), ...contentPayload }),
+  z.object({ type: z.literal("setReadOnly"), readOnly: z.boolean() }),
+  z.object({ type: z.literal("saved") }),
+  z.object({ type: z.literal("getState"), requestId: z.number() }),
+  z.object({ type: z.literal("exitEdit") }),
+  z.object({ type: z.literal("find") }),
+  z.object({ type: z.literal("findNext") }),
+  z.object({ type: z.literal("findPrev") }),
+]);
+export type HostToFrameMessage = z.infer<typeof HostToFrameMessageSchema>;
+
+/** 编辑器 iframe/webview → 宿主 */
+export const FrameToHostMessageSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("ready") }),
+  z.object({ type: z.literal("save"), value: z.string().optional() }),
+  z.object({
+    type: z.literal("change"),
+    value: z.string(),
+    dirty: z.boolean().optional(),
+  }),
+  z.object({ type: z.literal("previewChange"), isPreview: z.boolean() }),
+  z.object({ type: z.literal("wantEdit") }),
+  z.object({ type: z.literal("theme"), theme: MolanThemeSchema }),
+  z.object({
+    type: z.literal("state"),
+    requestId: z.number(),
+    value: z.string(),
+    dirty: z.boolean(),
+    isPreview: z.boolean(),
+  }),
+  z.object({ type: z.literal("openRelative"), value: z.string() }),
+  z.object({ type: z.literal("openExternal"), value: z.string() }),
+]);
+export type FrameToHostMessage = z.infer<typeof FrameToHostMessageSchema>;
+
+export function parseHostToFrameMessage(data: unknown): HostToFrameMessage | null {
+  const result = HostToFrameMessageSchema.safeParse(data);
+  return result.success ? result.data : null;
+}
+
+export function parseFrameToHostMessage(data: unknown): FrameToHostMessage | null {
+  const result = FrameToHostMessageSchema.safeParse(data);
+  return result.success ? result.data : null;
+}
+
+export function isHostToFrameMessage(data: unknown): data is HostToFrameMessage {
+  return HostToFrameMessageSchema.safeParse(data).success;
+}
+
+export function isFrameToHostMessage(data: unknown): data is FrameToHostMessage {
+  return FrameToHostMessageSchema.safeParse(data).success;
+}

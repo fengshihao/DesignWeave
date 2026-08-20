@@ -1,5 +1,7 @@
 "use client";
 
+import type { HostToFrameMessage, MolanState } from "@designweave/molan-protocol";
+import { parseFrameToHostMessage } from "@designweave/molan-protocol";
 import {
   forwardRef,
   useCallback,
@@ -8,30 +10,13 @@ import {
   useRef,
 } from "react";
 
-export type MolanState = {
-  value: string;
-  dirty: boolean;
-  isPreview: boolean;
-};
+export type { MolanState };
 
 export type MolanHandle = {
   getState: () => Promise<MolanState>;
   markSaved: () => void;
   exitEdit: () => void;
 };
-
-type HostToFrame =
-  | {
-      type: "init" | "setContent";
-      value: string;
-      fileName: string;
-      readOnly: boolean;
-      dirty?: boolean;
-    }
-  | { type: "setReadOnly"; readOnly: boolean }
-  | { type: "saved" }
-  | { type: "getState"; requestId: number }
-  | { type: "exitEdit" };
 
 export const MolanFrame = forwardRef<
   MolanHandle,
@@ -54,7 +39,7 @@ export const MolanFrame = forwardRef<
   const propsRef = useRef(props);
   propsRef.current = props;
 
-  const post = useCallback((msg: HostToFrame) => {
+  const post = useCallback((msg: HostToFrameMessage) => {
     iframeRef.current?.contentWindow?.postMessage(msg, window.location.origin);
   }, []);
 
@@ -99,21 +84,15 @@ export const MolanFrame = forwardRef<
     function onMessage(event: MessageEvent) {
       if (event.origin !== window.location.origin) return;
       if (event.source !== iframeRef.current?.contentWindow) return;
-      const msg = event.data as {
-        type?: string;
-        value?: string;
-        dirty?: boolean;
-        isPreview?: boolean;
-        requestId?: number;
-      };
-      if (!msg || typeof msg !== "object") return;
+      const msg = parseFrameToHostMessage(event.data);
+      if (!msg) return;
       if (msg.type === "ready") {
         readyRef.current = true;
         sendInit();
         return;
       }
       if (msg.type === "save") {
-        const value = typeof msg.value === "string" ? msg.value : undefined;
+        const value = msg.value;
         if (value != null) propsRef.current.onSave(value);
         else {
           const id = reqId.current++;
@@ -134,21 +113,18 @@ export const MolanFrame = forwardRef<
         propsRef.current.onBlockedEdit?.();
         return;
       }
-      if (msg.type === "theme" && typeof msg.theme === "string") {
-        const theme = msg.theme;
-        if (theme === "night" || theme === "hack" || theme === "rose" || theme === "xuan") {
-          document.documentElement.setAttribute("data-theme", theme);
-        }
+      if (msg.type === "theme") {
+        document.documentElement.setAttribute("data-theme", msg.theme);
         return;
       }
-      if (msg.type === "state" && typeof msg.requestId === "number") {
+      if (msg.type === "state") {
         const resolve = pending.current.get(msg.requestId);
         if (resolve) {
           pending.current.delete(msg.requestId);
           resolve({
-            value: String(msg.value ?? ""),
-            dirty: Boolean(msg.dirty),
-            isPreview: msg.isPreview !== false,
+            value: msg.value,
+            dirty: msg.dirty,
+            isPreview: msg.isPreview,
           });
         }
       }

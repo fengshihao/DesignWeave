@@ -1,6 +1,7 @@
 /**
  * VSCode webview ↔ 墨览编辑器桥：把 Vditor 的内容同步给扩展宿主。
  * 打开后默认预览（只读）；点「编辑」后，只有用户真正改过 Markdown 才通知宿主标脏。
+ * 消息类型见 @designweave/molan-protocol（HostToFrameMessage / FrameToHostMessage）。
  */
 (function () {
   const vscode = acquireVsCodeApi();

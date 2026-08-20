@@ -1,6 +1,7 @@
 /**
  * 工作台宿主 ↔ 墨览：postMessage。
  * 只编辑字符串；写回由外层页面走服务端 PUT。
+ * 消息类型见 @designweave/molan-protocol（HostToFrameMessage / FrameToHostMessage）。
  */
 (function () {
   const toast = (msg) => window.MolanEditor.toast(msg);

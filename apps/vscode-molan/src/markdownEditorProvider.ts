@@ -1,4 +1,12 @@
 import * as vscode from "vscode";
+import type { FrameToHostMessage, HostToFrameMessage } from "@designweave/molan-protocol";
+
+function asFrameMessage(raw: unknown): FrameToHostMessage | null {
+  if (!raw || typeof raw !== "object" || !("type" in raw)) return null;
+  const type = (raw as { type?: unknown }).type;
+  if (typeof type !== "string") return null;
+  return raw as FrameToHostMessage;
+}
 
 export class MolanDocument implements vscode.CustomDocument {
   readonly uri: vscode.Uri;
@@ -96,22 +104,24 @@ export class MolanEditorProvider implements vscode.CustomEditorProvider<MolanDoc
     let ready = false;
 
     const sendInit = () => {
-      void webviewPanel.webview.postMessage({
+      const msg: HostToFrameMessage = {
         type: "init",
         value: document.content,
         fileName,
         dirty: document.restoredFromBackup,
-      });
+      };
+      void webviewPanel.webview.postMessage(msg);
     };
 
-    const changeSub = webviewPanel.webview.onDidReceiveMessage(async (msg: { type?: string; value?: string }) => {
-      if (!msg || typeof msg !== "object") return;
+    const changeSub = webviewPanel.webview.onDidReceiveMessage(async (raw) => {
+      const msg = asFrameMessage(raw);
+      if (!msg) return;
       if (msg.type === "ready") {
         ready = true;
         sendInit();
         return;
       }
-      if (msg.type === "change" && typeof msg.value === "string") {
+      if (msg.type === "change") {
         // Vditor setValue/getValue 往返可能规范化 Markdown；webview 已过滤，这里再挡一层。
         if (msg.value === document.content) return;
         document.content = msg.value;
@@ -122,11 +132,11 @@ export class MolanEditorProvider implements vscode.CustomEditorProvider<MolanDoc
         await vscode.commands.executeCommand("workbench.action.files.save");
         return;
       }
-      if (msg.type === "openRelative" && typeof msg.value === "string") {
+      if (msg.type === "openRelative") {
         await this.openRelativeMarkdown(document.uri, msg.value);
         return;
       }
-      if (msg.type === "openExternal" && typeof msg.value === "string") {
+      if (msg.type === "openExternal") {
         await vscode.env.openExternal(vscode.Uri.parse(msg.value));
       }
     });
@@ -150,12 +160,13 @@ export class MolanEditorProvider implements vscode.CustomEditorProvider<MolanDoc
       if (dirty) return;
       document.content = text;
       if (ready) {
-        void panel.webview.postMessage({
+        const msg: HostToFrameMessage = {
           type: "setContent",
           value: text,
           fileName,
           dirty: false,
-        });
+        };
+        void panel.webview.postMessage(msg);
       }
     };
     watcher.onDidChange(() => { void reloadIfClean(); });
@@ -174,7 +185,8 @@ export class MolanEditorProvider implements vscode.CustomEditorProvider<MolanDoc
     await this.writeFile(document.uri, document.content);
     const panel = this.panels.get(document.uri.toString());
     if (panel) {
-      void panel.webview.postMessage({ type: "saved" });
+      const msg: HostToFrameMessage = { type: "saved" };
+      void panel.webview.postMessage(msg);
     }
   }
 
@@ -194,12 +206,13 @@ export class MolanEditorProvider implements vscode.CustomEditorProvider<MolanDoc
     document.content = new TextDecoder("utf-8").decode(data);
     const panel = this.panels.get(document.uri.toString());
     if (panel) {
-      void panel.webview.postMessage({
+      const msg: HostToFrameMessage = {
         type: "setContent",
         value: document.content,
         fileName: this.fileName(document.uri),
         dirty: false,
-      });
+      };
+      void panel.webview.postMessage(msg);
     }
   }
 
