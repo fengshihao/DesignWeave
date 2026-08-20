@@ -1055,6 +1055,38 @@
       contain: layout style;
     }
 
+    .side-demo {
+      appearance: none;
+      display: block;
+      flex-shrink: 0;
+      margin: 2px var(--rail) 10px;
+      padding: 8px 10px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--sidebar-fg-dim);
+      font-family: var(--font-ui);
+      font-size: 0.78rem;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      text-align: start;
+      cursor: pointer;
+    }
+
+    .side-demo:hover {
+      color: var(--sidebar-fg);
+      background: var(--sidebar-fill);
+    }
+
+    .side-demo:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px var(--sidebar-lift), 0 0 0 3.5px var(--accent-soft);
+    }
+
+    .side-demo[hidden] {
+      display: none;
+    }
+
     html[dir="rtl"] .file-list {
       padding: 4px 8px 14px var(--rail);
     }
@@ -2264,67 +2296,6 @@
         0 0 0 5px var(--accent-soft);
     }
 
-    .welcome-demo {
-      appearance: none;
-      position: absolute;
-      z-index: 2;
-      left: 26px;
-      bottom: 22px;
-      margin: 0;
-      padding: 0;
-      border: 0;
-      background: none;
-      color: var(--ink-muted);
-      font-family: var(--font-display);
-      font-size: 0.92rem;
-      font-weight: 600;
-      letter-spacing: 0.16em;
-      cursor: pointer;
-      text-decoration: none;
-    }
-
-    .welcome-demo::after {
-      content: "";
-      display: block;
-      width: 100%;
-      height: 1px;
-      margin-top: 4px;
-      background: color-mix(in srgb, var(--ink-muted) 55%, transparent);
-      transform: scaleX(0.42);
-      transform-origin: left center;
-      transition: transform 0.22s var(--ease), background 0.22s ease;
-    }
-
-    .welcome-demo:hover {
-      color: var(--accent-deep);
-    }
-
-    .welcome-demo:hover::after {
-      transform: scaleX(1);
-      background: var(--accent);
-    }
-
-    .welcome-demo:focus-visible {
-      outline: none;
-      color: var(--accent-deep);
-      box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
-      border-radius: 4px;
-    }
-
-    html[dir="rtl"] .welcome-demo {
-      left: auto;
-      right: 26px;
-    }
-
-    html[dir="rtl"] .welcome-demo::after {
-      transform-origin: right center;
-    }
-
-    html[data-theme="hack"] .welcome-demo {
-      font-family: var(--font-mono);
-      letter-spacing: 0.08em;
-    }
-
     html[dir="rtl"] .aphorism { text-align: right; }
 
     html[data-theme="night"] .welcome-cta,
@@ -2336,14 +2307,6 @@
     html[data-theme="night"] .welcome-folio::after {
       mix-blend-mode: overlay;
       opacity: 0.3;
-    }
-
-    html[data-theme="night"] .welcome-demo {
-      color: var(--accent-soft);
-    }
-
-    html[data-theme="night"] .welcome-demo::after {
-      background: color-mix(in srgb, var(--accent-soft) 55%, transparent);
     }
 
     html[data-theme="hack"] .aphorism {
@@ -2949,7 +2912,8 @@
     }
 
     /* 普通代码块：暖色暗底（对齐旧版 atelier 气质） */
-    .vditor-reset pre {
+    .vditor-reset pre,
+    .vditor-ir__node[data-type="code-block"] > .vditor-ir__preview {
       margin: 1.3em 0 !important;
       padding: 16px 18px !important;
       border-radius: 14px !important;
@@ -2958,10 +2922,15 @@
       overflow-x: auto;
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
       color: var(--code-fg) !important;
+      font-size: var(--reader-size) !important;
+      line-height: 1.55 !important;
+      letter-spacing: 0 !important;
     }
 
     .vditor-reset pre code,
-    .vditor-reset pre .hljs {
+    .vditor-reset pre .hljs,
+    .vditor-ir__node[data-type="code-block"] > .vditor-ir__preview code,
+    .vditor-ir__node[data-type="code-block"] > .vditor-ir__preview .hljs {
       font-family: var(--font-mono) !important;
       background: transparent !important;
       /* 不加 !important，避免压过 kimbie-dark 的 token 色 */
@@ -2969,6 +2938,7 @@
       padding: 0 !important;
       font-size: 0.82em !important;
       line-height: 1.55 !important;
+      letter-spacing: 0 !important;
       border-radius: 0 !important;
       display: block;
     }
@@ -3027,6 +2997,58 @@
       box-shadow: none !important;
       min-height: 0 !important;
       overflow: hidden !important;
+    }
+
+    /*
+     * 普通代码块折叠时只留高亮预览，和阅读态同一块；展开编辑时只留源码。
+     * 否则源码 + 预览叠在一起，编辑态会明显更高，切模式滚动就会跑。
+     */
+    .vditor-ir__node[data-type="code-block"]:not(.vditor-ir__node--expand) > :not(.vditor-ir__preview),
+    .vditor-ir__node[data-type="code-block"]:not(.vditor-ir__node--expand)::before,
+    .vditor-ir__node[data-type="code-block"]:not(.vditor-ir__node--expand)::after {
+      display: none !important;
+    }
+
+    .vditor-ir__node[data-type="code-block"]:not(.vditor-ir__node--expand) {
+      margin: 1.3em 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      line-height: 1.55;
+    }
+
+    .vditor-ir__node[data-type="code-block"]:not(.vditor-ir__node--expand) > .vditor-ir__preview {
+      margin: 0 !important;
+    }
+
+    .vditor-ir__node--expand[data-type="code-block"] > .vditor-ir__preview:not(:has(.language-mermaid)):not(:has(.language-math)):not(:has(.katex)):not(:has(.katex-display)) {
+      display: none !important;
+    }
+
+    /*
+     * 流程图/公式折叠时同样只留渲染结果。
+     * 语言标签 mermaid 是 .vditor-ir__marker--info，不一定是 code-block 的直接子节点。
+     */
+    .vditor-ir__node:not(.vditor-ir__node--expand):has(.language-mermaid) .vditor-ir__marker,
+    .vditor-ir__node:not(.vditor-ir__node--expand):has(.language-mermaid) .vditor-ir__marker--pre,
+    .vditor-ir__node:not(.vditor-ir__node--expand):has(.language-math) .vditor-ir__marker,
+    .vditor-ir__node:not(.vditor-ir__node--expand):has(.language-math) .vditor-ir__marker--pre,
+    .vditor-ir__node:not(.vditor-ir__node--expand):has(.language-mermaid)::before,
+    .vditor-ir__node:not(.vditor-ir__node--expand):has(.language-mermaid)::after,
+    .vditor-ir__node:not(.vditor-ir__node--expand):has(.language-math)::before,
+    .vditor-ir__node:not(.vditor-ir__node--expand):has(.language-math)::after {
+      display: none !important;
+    }
+
+    .vditor-ir__node:not(.vditor-ir__node--expand):has(.language-mermaid),
+    .vditor-ir__node:not(.vditor-ir__node--expand):has(.language-math) {
+      margin: 1.3em 0;
+      padding: 0;
+    }
+
+    .vditor-ir__node:not(.vditor-ir__node--expand):has(.language-mermaid) > .vditor-ir__preview,
+    .vditor-ir__node:not(.vditor-ir__node--expand):has(.language-math) > .vditor-ir__preview {
+      margin: 0 !important;
     }
 
     .vditor-reset .language-mermaid,

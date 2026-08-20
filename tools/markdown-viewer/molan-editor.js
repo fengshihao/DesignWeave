@@ -3344,6 +3344,141 @@
     return null;
   }
 
+  function overflowParent(el) {
+    let node = el;
+    while (node && node !== document.documentElement) {
+      const style = getComputedStyle(node);
+      const oy = style.overflowY;
+      if ((oy === "auto" || oy === "scroll" || oy === "overlay") && node.scrollHeight > node.clientHeight + 2) {
+        return node;
+      }
+      node = node.parentElement;
+    }
+    return el;
+  }
+
+  function readingContentRoot(previewing) {
+    if (previewing) return document.getElementById("molanPreviewBody");
+    return document.querySelector(".vditor-ir pre.vditor-reset")
+      || document.querySelector(".vditor-wysiwyg > .vditor-reset")
+      || document.querySelector(".vditor-wysiwyg pre.vditor-reset")
+      || document.querySelector(".vditor-sv .vditor-reset");
+  }
+
+  function readingScroller(previewing) {
+    const root = readingContentRoot(previewing);
+    if (root) {
+      const scroller = overflowParent(root);
+      if (scroller) return scroller;
+    }
+    if (previewing) return document.getElementById("molanPreviewBody") || document.getElementById("molanPreview");
+    return document.querySelector(".vditor-ir")
+      || document.querySelector(".vditor-wysiwyg")
+      || document.querySelector(".vditor-sv");
+  }
+
+  function blockText(el) {
+    if (!el) return "";
+    const clone = el.cloneNode(true);
+    clone.querySelectorAll?.(".vditor-ir__preview, .molan-diagram-toolbar, .vditor-ir__marker, .molan-block-insert").forEach((n) => n.remove());
+    return String(clone.textContent || "").replace(/\s+/g, " ").trim();
+  }
+
+  function findBlockByText(blocks, text) {
+    const key = String(text || "").trim();
+    if (!key) return null;
+    const exact = blocks.find((block) => blockText(block) === key);
+    if (exact) return exact;
+    const needle = key.slice(0, 48);
+    return blocks.find((block) => {
+      const t = blockText(block);
+      return t && (t.includes(needle) || key.includes(t.slice(0, 48)));
+    }) || null;
+  }
+
+  function captureReadingSpot(previewing) {
+    const root = readingContentRoot(previewing);
+    const scroller = readingScroller(previewing);
+    if (!root || !scroller) return null;
+    const box = scroller.getBoundingClientRect();
+    if (box.height < 8) return null;
+    const x = box.left + Math.min(Math.max(72, box.width * 0.42), Math.max(24, box.width - 16));
+    const y = box.top + Math.min(32, Math.max(12, box.height * 0.08));
+    const hitEl = document.elementFromPoint(x, y);
+    const fromPoint = hitEl && root.contains(hitEl) ? closestTopBlock(hitEl, root) : null;
+    const topY = box.top + 16;
+    const blocks = topLevelBlocks(root);
+    let hit = fromPoint;
+    let index = hit ? blocks.indexOf(hit) : -1;
+    if (!hit) {
+      for (let i = 0; i < blocks.length; i += 1) {
+        const rect = blocks[i].getBoundingClientRect();
+        if (rect.bottom <= topY) continue;
+        hit = blocks[i];
+        index = i;
+        break;
+      }
+    }
+    const max = Math.max(1, scroller.scrollHeight - scroller.clientHeight);
+    const rect = hit?.getBoundingClientRect();
+    return {
+      text: blockText(hit),
+      index: index < 0 ? undefined : index,
+      offset: rect ? rect.top - box.top : 16,
+      ratio: scroller.scrollTop / max,
+      scrollTop: scroller.scrollTop,
+      scrollHeight: scroller.scrollHeight,
+    };
+  }
+
+  function restoreReadingSpot(previewing, spot, opts = {}) {
+    if (!spot) return;
+    const root = readingContentRoot(previewing);
+    const scroller = readingScroller(previewing);
+    if (!root || !scroller) return;
+    const blocks = topLevelBlocks(root);
+    const el = findBlockByText(blocks, spot.text)
+      || (Number.isInteger(spot.index) ? blocks[spot.index] : null);
+    if (el) {
+      const box = scroller.getBoundingClientRect();
+      const rect = el.getBoundingClientRect();
+      const desired = typeof spot.offset === "number" ? spot.offset : 16;
+      const next = scroller.scrollTop + (rect.top - box.top) - desired;
+      scroller.scrollTop = Math.max(0, next);
+    } else if (typeof spot.scrollTop === "number" && Math.abs((scroller.scrollHeight / Math.max(1, spot.scrollHeight || 0)) - 1) < 0.08) {
+      scroller.scrollTop = spot.scrollTop;
+    } else {
+      const max = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+      scroller.scrollTop = max * (spot.ratio || 0);
+    }
+    if (!previewing && opts.caret && el) {
+      const editable = el.closest("[contenteditable='true']");
+      if (!editable) return;
+      try { editable.focus({ preventScroll: true }); } catch (_) { /* ignore */ }
+      try {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        range.collapse(true);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      } catch (_) { /* ignore */ }
+    }
+  }
+
+  function keepReadingSpot(previewing, spot) {
+    if (!spot) return;
+    const run = (caret) => restoreReadingSpot(previewing, spot, { caret });
+    run(Boolean(!previewing));
+    requestAnimationFrame(() => {
+      run(false);
+      requestAnimationFrame(() => run(false));
+    });
+    window.setTimeout(() => run(false), 80);
+    window.setTimeout(() => run(false), 220);
+    window.setTimeout(() => run(false), 480);
+  }
+
   function blockLooksEmpty(el) {
     if (!el) return true;
     const clone = el.cloneNode(true);
@@ -3724,6 +3859,7 @@
     let muteInput = false;
     const previewListeners = [];
     let blockInsert = { sync() {}, hide() {}, refreshI18n() {} };
+    let lastPreviewSource = null;
 
     setMermaidMarkdownProvider(() => {
       if (previewing) return markdown;
@@ -3771,13 +3907,24 @@
       }
     };
 
-    const renderLitePreview = (text) => {
+    const renderLitePreview = (text, spot) => {
       if (!previewBody || typeof global.Vditor?.preview !== "function") return;
       const seq = ++previewSeq;
       const sourceText = text ?? "";
       const restoreScroll = renderLitePreview._scrollTop;
       renderLitePreview._scrollTop = null;
       syncLiteClass();
+      const finishPreview = () => {
+        if (seq !== previewSeq) return;
+        if (spot) keepReadingSpot(true, spot);
+        if (findState.open) runFind({ keepIndex: true, reveal: false });
+        blockInsert.sync();
+        scheduleOutlineRefresh();
+      };
+      if (spot && lastPreviewSource === sourceText && previewBody.childElementCount) {
+        finishPreview();
+        return;
+      }
       maybePreloadMermaid(cdn, sourceText);
       const run = () => {
         if (seq !== previewSeq) return;
@@ -3790,6 +3937,7 @@
           markdown: markdownOpts,
           after() {
             if (seq !== previewSeq) return;
+            lastPreviewSource = sourceText;
             const root = previewHost || previewBody;
             stampMermaidSources(root, sourceText);
             enhanceMermaidPreviews(root);
@@ -3797,9 +3945,7 @@
             if (typeof restoreScroll === "number" && previewBody) {
               previewBody.scrollTop = restoreScroll;
             }
-            if (findState.open) runFind({ keepIndex: true, reveal: false });
-            blockInsert.sync();
-            scheduleOutlineRefresh();
+            finishPreview();
           },
         });
       };
@@ -3964,6 +4110,10 @@
       },
       focus() {
         if (previewing || !vditor) return;
+        const editable = readingContentRoot(false);
+        if (editable && typeof editable.focus === "function") {
+          try { editable.focus({ preventScroll: true }); return; } catch (_) { /* ignore */ }
+        }
         try { vditor.focus(); } catch (_) { /* ignore */ }
       },
       isPreview() {
@@ -3972,6 +4122,7 @@
       async setPreview(on) {
         const want = Boolean(on);
         if (want === previewing) return previewing;
+        const spot = captureReadingSpot(previewing);
         if (want) {
           hideTablePicker();
           hideTableToolbar(document.getElementById("molanTableToolbar"));
@@ -3981,7 +4132,7 @@
           }
           previewing = true;
           blockInsert.hide();
-          renderLitePreview(markdown);
+          renderLitePreview(markdown, spot);
           notifyPreview();
           return true;
         }
@@ -3992,6 +4143,7 @@
         await bootEditor();
         vditor.setValue(markdown, true);
         applyMermaidTheme();
+        keepReadingSpot(false, spot);
         setTimeout(() => {
           muteInput = false;
           enhanceMermaidPreviews(vditorRoot);
@@ -3999,6 +4151,7 @@
           if (findState.open) runFind({ keepIndex: true, reveal: false });
           blockInsert.sync();
           scheduleOutlineRefresh();
+          restoreReadingSpot(false, spot);
         }, 400);
         notifyPreview();
         return false;

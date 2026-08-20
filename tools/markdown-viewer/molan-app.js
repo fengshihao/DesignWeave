@@ -908,6 +908,7 @@
     sidebar?.classList.toggle("is-compact", !hasLibrary);
     toolbar?.classList.toggle("has-search", showSearch);
     if (fileList) fileList.hidden = !hasLibrary;
+    if (welcomeDemoBtn) welcomeDemoBtn.hidden = files.length > 0;
     if (searchWrap) {
       if (!showSearch && searchInput?.value) searchInput.value = "";
       if (!showSearch && document.activeElement === searchInput) searchInput.blur();
