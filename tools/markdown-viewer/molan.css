@@ -487,13 +487,25 @@
     }
 
     @keyframes molan-outline-in {
-      from { opacity: 0.35; }
-      to { opacity: 1; }
+      from {
+        opacity: 0;
+        transform: translateX(-12px);
+      }
+      to {
+        opacity: 1;
+        transform: none;
+      }
     }
 
     @keyframes molan-outline-out {
-      from { opacity: 1; }
-      to { opacity: 0; }
+      from {
+        opacity: 1;
+        transform: none;
+      }
+      to {
+        opacity: 0;
+        transform: translateX(-12px);
+      }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -511,8 +523,8 @@
       .theme-menu.is-out,
       .molan-outline-panel.is-open,
       .molan-outline-panel.is-out,
-      .editor-wrap > .vditor-outline.is-out,
-      .editor-wrap.is-outline-open > .vditor-outline {
+      .editor-wrap > .vditor-outline.is-in,
+      .editor-wrap > .vditor-outline.is-out {
         animation: none;
       }
       .molan-outline-fab svg {
@@ -1420,8 +1432,8 @@
       outline-offset: 2px;
     }
     .editor-wrap > .vditor-outline {
-      flex: 0 0 250px;
-      width: 250px !important;
+      flex: 0 0 var(--molan-outline-w);
+      width: var(--molan-outline-w) !important;
       height: 100%;
       align-self: stretch;
       border: 0 !important;
@@ -1431,27 +1443,34 @@
       box-shadow: none;
       overflow: auto;
       color: var(--ink);
+      font-size: calc(var(--reader-size, 0.98rem) * 0.82);
+      line-height: 1.6;
     }
     html[dir="rtl"] .editor-wrap > .vditor-outline {
       border-right: 0 !important;
       border-left: 1px solid var(--hairline) !important;
     }
-    .editor-wrap > .vditor-outline.is-out {
-      animation: molan-outline-out 0.16s ease both;
+    .editor-wrap > .vditor-outline.is-in {
+      animation: molan-outline-in 0.24s var(--ease) both;
     }
-    .editor-wrap.is-outline-open > .vditor-outline {
-      animation: molan-outline-in 0.22s var(--ease) both;
+    .editor-wrap > .vditor-outline.is-out {
+      animation: molan-outline-out 0.18s ease both;
     }
     .editor-wrap > .vditor-outline .vditor-outline__title {
-      padding: 12px 12px 10px 48px;
+      padding: 10px 12px 8px 54px;
       border-bottom: 1px dashed var(--hairline);
       color: var(--ink-muted);
       font-family: var(--font-ui);
       font-size: 0.72rem;
       letter-spacing: 0.12em;
     }
+    html[dir="rtl"] .editor-wrap > .vditor-outline .vditor-outline__title {
+      padding: 10px 54px 8px 12px;
+    }
     .editor-wrap > .vditor-outline li > span {
       color: var(--ink);
+      font-size: inherit;
+      line-height: inherit;
     }
     .editor-wrap > .vditor-outline li > span:hover {
       color: var(--accent-deep);
@@ -2558,8 +2577,8 @@
       .theme-menu.is-out,
       .molan-outline-panel.is-open,
       .molan-outline-panel.is-out,
-      .editor-wrap > .vditor-outline.is-out,
-      .editor-wrap.is-outline-open > .vditor-outline {
+      .editor-wrap > .vditor-outline.is-in,
+      .editor-wrap > .vditor-outline.is-out {
         animation: none;
       }
       .molan-outline-fab svg {
@@ -2590,7 +2609,7 @@
     }
 
     .editor-wrap {
-      flex: 1 1 0;
+      flex: 1 1 0%;
       min-width: 0;
       min-height: 0;
       display: none;
@@ -2598,6 +2617,7 @@
       background: var(--paper-lift);
       position: relative;
       overflow: hidden;
+      --molan-outline-w: 250px;
     }
 
     .editor-wrap.visible {
@@ -2719,6 +2739,7 @@
       letter-spacing: var(--reader-tracking);
       color: var(--ink) !important;
       background: transparent !important;
+      scroll-margin-top: 4px;
     }
 
     .vditor-reset h1,
@@ -2732,6 +2753,7 @@
       margin: 1.25em 0 0.4em !important;
       border-bottom: none !important;
       padding-bottom: 0 !important;
+      scroll-margin-top: 52px;
     }
 
     .vditor-reset h1 {
@@ -3530,6 +3552,7 @@
         padding: 14px 18px 10px;
       }
       .reader-body { min-height: 52vh; }
+      .editor-wrap { --molan-outline-w: 220px; }
       .vditor-ir pre.vditor-reset,
       .vditor-wysiwyg pre.vditor-reset,
       .vditor-wysiwyg > .vditor-reset,

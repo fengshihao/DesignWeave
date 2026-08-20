@@ -1257,9 +1257,13 @@
   const OUTLINE_ICON = '<svg class="icon-outline" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 6h16M8 12h12M8 18h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="4" cy="12" r="1.15" fill="currentColor"/><circle cx="4" cy="18" r="1.15" fill="currentColor"/></svg>';
   const OUTLINE_CLOSE_ICON = '<svg class="icon-outline-close" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
 
-  function scrollToHeading(root, index) {
-    if (!root || index == null || index < 0) return;
-    const el = root.querySelectorAll("h1,h2,h3,h4,h5,h6")[index];
+  function scrollToHeading(index) {
+    const wrap = document.getElementById("editorWrap") || document.querySelector(".editor-wrap");
+    if (!wrap || index == null || index < 0) return;
+    const el = wrap.querySelector(".molan-preview h1, .molan-preview h2, .molan-preview h3, .molan-preview h4, .molan-preview h5, .molan-preview h6")
+      ?.parentElement?.closest(".molan-preview")
+      ? [...wrap.querySelectorAll(".molan-preview h1, .molan-preview h2, .molan-preview h3, .molan-preview h4, .molan-preview h5, .molan-preview h6")][index]
+      : null;
     el?.scrollIntoView({ block: "start", behavior: "smooth" });
   }
 
@@ -1340,9 +1344,8 @@
   function bindOutlineDockPin() {
     if (bindOutlineDockPin.done) return;
     bindOutlineDockPin.done = true;
-    const pin = () => pinOutlineDock();
+    const pin = () => requestAnimationFrame(pinOutlineDock);
     window.addEventListener("resize", pin);
-    window.addEventListener("scroll", pin, true);
     window.visualViewport?.addEventListener("resize", pin);
     window.visualViewport?.addEventListener("scroll", pin);
     if (typeof ResizeObserver === "function") {
@@ -1399,15 +1402,14 @@
     if (!panel) return;
     relocateVditorOutline();
     const wrap = document.getElementById("editorWrap") || document.querySelector(".editor-wrap");
+    panel.classList.remove("is-in", "is-out");
     if (show) {
-      panel.classList.remove("is-out");
       panel.style.display = "block";
       wrap?.classList.add("is-outline-open");
       try { inner?.outline?.render?.(inner); } catch (_) { /* ignore */ }
       inner?.toolbar?.elements?.outline?.firstElementChild?.classList.add("vditor-menu--current");
     } else {
       panel.style.display = "none";
-      panel.classList.remove("is-out");
       wrap?.classList.remove("is-outline-open");
       inner?.toolbar?.elements?.outline?.firstElementChild?.classList.remove("vditor-menu--current");
     }
@@ -1429,6 +1431,7 @@
       return;
     }
     const token = ++outlineAnimToken;
+    panel.classList.remove("is-in");
     panel.classList.add("is-out");
     setOutlineFab(false);
     const done = () => {
@@ -1438,19 +1441,24 @@
     panel.addEventListener("animationend", (e) => {
       if (e.target === panel) done();
     }, { once: true });
-    window.setTimeout(done, 260);
+    window.setTimeout(done, 400);
   }
 
   async function openOutline() {
     await outlineCtx?.hydrateVditor?.();
     relocateVditorOutline();
     outlineAnimToken += 1;
-    const already = outlineIsOpen();
+    const wrap = document.getElementById("editorWrap") || document.querySelector(".editor-wrap");
+    const wasOpen = wrap?.classList.contains("is-outline-open");
+    const closing = vditorOutlineEl()?.classList.contains("is-out");
     setVditorOutline(true);
-    const panel = vditorOutlineEl();
-    if (panel && !already) {
-      panel.classList.remove("is-out");
-      void panel.offsetWidth;
+    const shown = vditorOutlineEl();
+    if (shown && !wasOpen && !closing) {
+      shown.classList.remove("is-in");
+      void shown.offsetWidth;
+      shown.classList.add("is-in");
+    } else if (shown) {
+      shown.classList.add("is-in");
     }
     pinOutlineDock();
   }
@@ -1569,7 +1577,7 @@
         e.preventDefault();
         e.stopPropagation();
         const items = [...(span.closest(".vditor-outline")?.querySelectorAll("[data-target-id]") || [])];
-        scrollToHeading(outlineCtx.getPreviewRoot?.(), items.indexOf(span));
+        scrollToHeading(items.indexOf(span));
       }, true);
     }
 
@@ -4016,7 +4024,6 @@
         if (previewing || !vditor) return markdown;
         try { return vditor.getValue(); } catch (_) { return markdown; }
       },
-      getPreviewRoot: () => previewBody,
       enterEdit: () => api.setPreview(false),
       bootEditor,
       hydrateVditor: async () => {

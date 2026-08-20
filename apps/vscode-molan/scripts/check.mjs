@@ -69,9 +69,9 @@ assert(existsSync(join(viewer, "shots/edit-table.jpg")), "table editing screensh
 assert(html.indexOf('id="molanFindBtn"') < html.indexOf('id="copyBtn"'), "find comes before copy");
 assert(html.includes("./vendor/vditor/dist/method.min.js"), "html loads local method.min.js");
 assert(html.includes("./vendor/vditor/dist/js/lute/lute.min.js"), "html preloads local lute");
-assert(html.includes("molan-editor.js?v=20260819fab"), "studio html cache-busts table editor");
-assert(html.includes("molan.css?v=20260819fab"), "studio html cache-busts table css");
-assert(html.includes("molan-i18n.js?v=20260819fab"), "studio html cache-busts table i18n");
+assert(html.includes("molan-editor.js?v=20260819polish"), "studio html cache-busts table editor");
+assert(html.includes("molan.css?v=20260819polish"), "studio html cache-busts table css");
+assert(html.includes("molan-i18n.js?v=20260819polish"), "studio html cache-busts table i18n");
 assert(!html.includes("cdn.jsdelivr.net"), "html must not load vditor from jsdelivr");
 assert(existsSync(join(viewer, "molan.css")), "viewer molan.css");
 assert(readFileSync(join(viewer, "molan.css"), "utf8").includes(".molan-table-toolbar"), "css for table toolbar");
@@ -121,6 +121,7 @@ assert(editorSource.includes("bindTableInsertPicker"), "table insert size picker
 assert(editorSource.includes("ensureEditorChrome"), "header has edit-mode in reading and editing");
 assert(editorSource.includes('document.querySelector(".reader-body")'), "outline dock pins to the reader pane");
 assert(editorSource.includes("pinOutlineDock"), "outline button is position-fixed over the reader pane");
+assert(editorSource.includes("is-in"), "outline pane has a slide-in animation state");
 assert(editorSource.includes("scheduleOutlineRefresh"), "open outline follows document updates");
 assert(editorSource.includes("relocateVditorOutline"), "uses Vditor outline on the article overlay");
 assert(editorSource.includes('"outline"'), "vditor toolbar still has outline for the native panel");
