@@ -9,7 +9,6 @@
   const fileList = document.getElementById("fileList");
   const welcome = document.getElementById("welcome");
   const welcomePickBtn = document.getElementById("welcomePickBtn");
-  const welcomeDemoBtn = document.getElementById("welcomeDemoBtn");
   const aphorismText = document.getElementById("aphorismText");
   const editorWrap = document.getElementById("editorWrap");
   const readerBody = document.getElementById("readerBody");
@@ -786,40 +785,45 @@
     return false;
   }
 
-  async function loadDemoLibrary() {
-    if (!confirmDiscardIfDirty()) return;
+  const SAMPLE_DOC = "软件架构.md";
+
+  async function fetchSampleFiles() {
     const folder = t("demoFolder");
-    const docs = [
-      { file: "软件架构.md" },
-      { file: "开卷.md" },
-    ];
-    statusLeft.textContent = t("openingName", { name: folder });
+    const res = await fetch("./demo/" + encodeURIComponent(SAMPLE_DOC));
+    if (!res.ok) throw new Error(SAMPLE_DOC);
+    const text = await res.text();
+    return {
+      folder,
+      list: [{
+        path: `${folder}/${SAMPLE_DOC}`,
+        name: SAMPLE_DOC,
+        dir: folder,
+        size: new Blob([text]).size,
+        text,
+      }],
+    };
+  }
+
+  async function seedSampleLibrary() {
+    if (files.length) return;
     try {
-      const list = [];
-      for (const doc of docs) {
-        const res = await fetch("./demo/" + encodeURIComponent(doc.file));
-        if (!res.ok) throw new Error(doc.file);
-        const text = await res.text();
-        list.push({
-          path: `${folder}/${doc.file}`,
-          name: doc.file,
-          dir: folder,
-          size: new Blob([text]).size,
-          text,
-        });
-      }
+      const { folder, list } = await fetchSampleFiles();
       folderName = folder;
       folderSource = "legacy";
       folderHandle = null;
       currentFolderId = null;
-      setFiles(list, `${folder}/软件架构.md`);
-      statusRight.textContent = t("demoHint");
-      toast(t("demoLoaded"));
+      files = list;
+      renderSidebarList();
     } catch (err) {
       console.warn(err);
-      statusLeft.textContent = t("readFail");
-      toast(t("readFailToast"));
     }
+  }
+
+  async function loadDemoLibrary() {
+    if (!confirmDiscardIfDirty()) return;
+    await seedSampleLibrary();
+    const path = files[0]?.path;
+    if (path) openFile(path);
   }
 
   function setFiles(list, openPath) {
@@ -908,7 +912,6 @@
     sidebar?.classList.toggle("is-compact", !hasLibrary);
     toolbar?.classList.toggle("has-search", showSearch);
     if (fileList) fileList.hidden = !hasLibrary;
-    if (welcomeDemoBtn) welcomeDemoBtn.hidden = files.length > 0;
     if (searchWrap) {
       if (!showSearch && searchInput?.value) searchInput.value = "";
       if (!showSearch && document.activeElement === searchInput) searchInput.blur();
@@ -1530,11 +1533,6 @@
     pickFolder();
   });
 
-  welcomeDemoBtn?.addEventListener("click", () => {
-    markPickHintSeen();
-    void loadDemoLibrary();
-  });
-
   aphorismText?.addEventListener("click", () => advanceAphorism(true));
   aphorismText?.addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === " ") {
@@ -1718,6 +1716,7 @@
   }
 
   refreshRecentFolders()
+    .then(() => seedSampleLibrary())
     .then(() => {
       renderSidebarList();
       if (wantsDemo()) return loadDemoLibrary();

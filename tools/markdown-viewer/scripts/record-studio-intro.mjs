@@ -102,7 +102,7 @@ async function main() {
 
   console.log("open", url);
   await page.goto(url, { waitUntil: "networkidle2", timeout: 60000 });
-  await page.waitForSelector("#welcomeDemoBtn", { timeout: 20000 });
+  await page.waitForSelector(".file-item", { timeout: 20000 });
   await page.evaluate(() => document.fonts.ready);
   await sleep(800);
 
@@ -260,10 +260,9 @@ async function main() {
   await hold(900);
   await shot("welcome");
 
-  await moveTo("#welcomeDemoBtn", 700);
+  await moveTo(".file-item", 700);
   await hold(220);
-  await clickSel("#welcomeDemoBtn");
-  await page.waitForSelector(".file-item", { timeout: 15000 });
+  await clickSel(".file-item");
   await waitDocReady();
   await hold(1100);
   await shot("preview-night");
