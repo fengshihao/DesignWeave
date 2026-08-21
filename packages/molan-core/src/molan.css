@@ -3007,7 +3007,7 @@
 
     /*
      * 普通代码块折叠时只留高亮预览，和阅读态同一块；展开编辑时只留源码。
-     * 否则源码 + 预览叠在一起，编辑态会明显更高，切模式滚动就会跑。
+     * 节点外边距在折叠/展开时保持 1.3em，源码区与预览区同盒模型，避免切态跳动。
      */
     .vditor-ir__node[data-type="code-block"]:not(.vditor-ir__node--expand) > :not(.vditor-ir__preview),
     .vditor-ir__node[data-type="code-block"]:not(.vditor-ir__node--expand)::before,
@@ -3015,7 +3015,7 @@
       display: none !important;
     }
 
-    .vditor-ir__node[data-type="code-block"]:not(.vditor-ir__node--expand) {
+    .vditor-ir__node[data-type="code-block"] {
       margin: 1.3em 0;
       padding: 0;
       border: 0;
@@ -3023,11 +3023,64 @@
       line-height: 1.55;
     }
 
-    .vditor-ir__node[data-type="code-block"]:not(.vditor-ir__node--expand) > .vditor-ir__preview {
+    .vditor-ir__node[data-type="code-block"] > .vditor-ir__preview {
       margin: 0 !important;
+      box-sizing: border-box !important;
+      white-space: pre-wrap !important;
     }
 
     .vditor-ir__node--expand[data-type="code-block"] > .vditor-ir__preview:not(:has(.language-mermaid)):not(:has(.language-math)):not(:has(.katex)):not(:has(.katex-display)) {
+      display: none !important;
+    }
+
+    /*
+     * 普通代码块展开编辑：Vditor 在开启 codeBlockPreview 时给源码 pre 加上
+     * .vditor-ir__marker，并设成 display:inline。再叠上全局 pre 的圆角暗底，
+     * 行盒会碎成头尾「碗 / 反 D」；源码色又是深字叠深底，几乎看不清。
+     * 源码改成一块完整代码区；语言标签对普通代码块隐藏，避免多出胶囊按钮。
+     */
+    .vditor-ir__node--expand[data-type="code-block"]::before,
+    .vditor-ir__node--expand[data-type="code-block"]::after {
+      content: none !important;
+      display: none !important;
+    }
+
+    .vditor-ir__node--expand[data-type="code-block"] > .vditor-ir__marker--pre {
+      display: block !important;
+      width: 100% !important;
+      box-sizing: border-box !important;
+      margin: 0 !important;
+      padding: 16px 18px !important;
+      border-radius: 14px !important;
+      background: var(--code-bg) !important;
+      border: 1px solid var(--code-border) !important;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      color: var(--code-fg) !important;
+      overflow-x: auto !important;
+      overflow-y: hidden !important;
+      white-space: pre-wrap !important;
+      font-family: var(--font-mono) !important;
+      font-size: var(--reader-size) !important;
+      line-height: 1.55 !important;
+      letter-spacing: 0 !important;
+    }
+
+    .vditor-ir__node--expand[data-type="code-block"] > .vditor-ir__marker--pre code {
+      display: block !important;
+      background: transparent !important;
+      color: var(--code-fg) !important;
+      font-family: var(--font-mono) !important;
+      font-size: 0.82em !important;
+      line-height: 1.55 !important;
+      letter-spacing: 0 !important;
+      padding: 0 !important;
+      white-space: pre-wrap !important;
+      text-align: left !important;
+    }
+
+    /* 普通代码块不要语言胶囊（那是 mermaid/math 展开用的）。 */
+    .vditor-ir__node--expand[data-type="code-block"]:not(:has(.language-mermaid)):not(:has(.language-math)):not(:has(.katex)):not(:has(.katex-display)) > .vditor-ir__marker--info,
+    .vditor-ir__node--expand[data-type="code-block"]:not(:has(.language-mermaid)):not(:has(.language-math)):not(:has(.katex)):not(:has(.katex-display)) > span.vditor-ir__marker {
       display: none !important;
     }
 
