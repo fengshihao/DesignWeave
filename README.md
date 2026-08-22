@@ -2,7 +2,7 @@
 
 当前重点是 **[墨览（Molan）](https://molan.guoyoutech.cn/extension.html)**：一套开源的 Markdown 阅读 / 编辑器。点开即可阅读，需要时再编辑，保存写回原文件。
 
-原先规划的产品设计工作台（PRD 共创、架构 SR、测试方案）会在墨览的编辑能力完善后再跟进，见下方[后续](#后续产品设计工作台)。
+产品设计工作台的现行设计见 [`doc/18-工程目录与标准PRD.md`](doc/18-工程目录与标准PRD.md)；文档目录从 [`doc/README.md`](doc/README.md) 读起。
 
 ## 墨览 Markdown
 
@@ -66,8 +66,11 @@ tools/markdown-viewer/   浏览器工作室与编辑器核心（样式、Vditor�
 apps/vscode-molan/       VS Code / Cursor 扩展（编译时拷入上述核心）
 ```
 
-## 后续：产品设计工作台
+## 产品设计工作台
 
-给产品 / 设计用的本机服务器工作台（墨览改文档 + Claude Agent 看代码）。**已拍板的架构与第一刀**见 [`doc/09-云端迭代入口.md`](doc/09-云端迭代入口.md)；从那一篇按序读 `doc/`。
+给产品 / 设计用的本机服务器（墨览改标准 PRD 文档包 + Claude Agent 读已批准的代码目录）。
 
-相关代码仍在 `apps/web`、`apps/agent` 与 `packages/`，当前 Web 只是探针，不是 UX 定稿。
+- 现行产品设计：[doc/18-工程目录与标准PRD.md](doc/18-工程目录与标准PRD.md)
+- 文档入口：[doc/README.md](doc/README.md)
+
+相关代码在 `apps/web`、`apps/agent` 与 `packages/`。未按 18 改代码之前，Web 仍是旧探针壳。
