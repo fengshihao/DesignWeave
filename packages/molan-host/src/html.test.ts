@@ -21,6 +21,7 @@ test("renderHostHtml iframe 含 eyebrow 与 fonts", () => {
   assert.match(html, /googleapis/);
   assert.match(html, /web-bridge\.js/);
   assert.match(html, /lightbox/);
+  assert.match(html, /id="lightboxEdit"/);
   assert.doesNotMatch(html, /type-prefs/);
 });
 

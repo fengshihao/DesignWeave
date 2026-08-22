@@ -101,6 +101,8 @@
       mermaidSnippetSequence: "时序图",
       mermaidSnippetClass: "类图",
       copyFail: "复制失败",
+      zoomIn: "放大",
+      zoomOut: "缩小",
       find: "查找",
       findPlaceholder: "查找",
       findPrev: "上一个",
@@ -230,6 +232,7 @@
   let activeBlockInsert = null;
   let diagramObserver = null;
   let lightboxBound = false;
+  let lightboxOnEdit = null;
 
   function toast(msg) {
     if (!toastEl) toastEl = document.getElementById("toast");
@@ -443,6 +446,7 @@
     const lightboxClose = document.getElementById("lightboxClose");
     const lightboxZoomIn = document.getElementById("lightboxZoomIn");
     const lightboxZoomOut = document.getElementById("lightboxZoomOut");
+    const lightboxEdit = document.getElementById("lightboxEdit");
     const lightboxReset = document.getElementById("lightboxReset");
     const lightboxCopyImage = document.getElementById("lightboxCopyImage");
     if (!lightbox || !lightboxStage || !lightboxCanvas) {
@@ -450,6 +454,7 @@
         openFromSvg() { toast(t("diagramNotReady")); },
         close() {},
         isOpen() { return false; },
+        setOnEdit(fn) { lightboxOnEdit = fn; },
         copySvgAsPng,
       };
     }
@@ -459,6 +464,12 @@
     let lightboxPanY = 0;
     let lightboxDragging = false;
     let lightboxDragOrigin = null;
+    let lightboxOriginShell = null;
+
+    if (lightboxEdit) {
+      lightboxEdit.title = t("mermaidEditorTitle");
+      lightboxEdit.setAttribute("aria-label", t("mermaidEditorTitle"));
+    }
 
     function closeLightbox() {
       lightbox.classList.remove("open");
@@ -469,6 +480,7 @@
       lightboxPanY = 0;
       lightboxDragging = false;
       lightboxDragOrigin = null;
+      lightboxOriginShell = null;
       lightboxStage.classList.remove("is-dragging");
       applyLightboxTransform();
     }
@@ -545,6 +557,9 @@
         toast(t("diagramNotReady"));
         return;
       }
+      lightboxOriginShell = findMermaidPreviewShell(svg)
+        || svg.closest?.(".molan-mermaid-shell, .vditor-ir__preview, pre, .language-mermaid")
+        || null;
       lightboxCanvas.innerHTML = "";
       const clone = svg.cloneNode(true);
       prepareLightboxSvg(clone);
@@ -567,6 +582,13 @@
       lightboxZoomOut?.addEventListener("click", () => {
         lightboxScale = Math.max(lightboxScale - 0.25, 0.35);
         applyLightboxTransform();
+      });
+      lightboxEdit?.addEventListener("click", () => {
+        const shell = lightboxOriginShell;
+        closeLightbox();
+        if (typeof lightboxOnEdit === "function") {
+          lightboxOnEdit(shell);
+        }
       });
       lightboxReset?.addEventListener("click", resetLightboxView);
       lightboxCopyImage?.addEventListener("click", () => {
@@ -627,6 +649,7 @@
       openFromSvg: openLightboxFromSvg,
       close: closeLightbox,
       isOpen: () => lightbox.classList.contains("open"),
+      setOnEdit(fn) { lightboxOnEdit = fn; },
       copySvgAsPng,
     };
   }
@@ -844,7 +867,6 @@
     const index = getMermaidShellIndex(shell, scope);
     openMermaidEditorDialog({
       source,
-      lightbox,
       onApply: (newSource) => ctx.onApplyMermaidEdit?.(index, newSource),
     });
   }
@@ -2246,6 +2268,13 @@
   }
 
   function bindMermaidInteractions(vditorRoot, getVditor, lightbox, ctx = {}) {
+    lightbox.setOnEdit?.((shell) => {
+      if (!shell) {
+        toast(t("noMermaidSource"));
+        return;
+      }
+      openMermaidEditorFromShell(shell, ctx, lightbox, vditorRoot);
+    });
     watchMermaidIrExpand(vditorRoot, ctx, lightbox);
 
     const blockMermaidIrExpand = (e) => {
@@ -2336,6 +2365,12 @@
       btn.title = label;
       btn.setAttribute("aria-label", label);
     });
+    const lightboxEdit = document.getElementById("lightboxEdit");
+    if (lightboxEdit) {
+      const label = t("mermaidEditorTitle");
+      lightboxEdit.title = label;
+      lightboxEdit.setAttribute("aria-label", label);
+    }
     applyFindI18n();
     applyTypeI18n();
     applyThemeI18n();
@@ -3491,7 +3526,7 @@
     });
   }
 
-  function openMermaidEditorDialog({ source, onApply, lightbox }) {
+  function openMermaidEditorDialog({ source, onApply }) {
     const MERMAID_SNIPPETS = [
       { key: "mermaidSnippetFlowchart", body: "flowchart TD\n  A[开始] --> B[结束]" },
       { key: "mermaidSnippetSequence", body: "sequenceDiagram\n  participant A as 参与者 A\n  participant B as 参与者 B\n  A->>B: 消息" },
@@ -3525,9 +3560,14 @@
             <div class="molan-mermaid-editor-pane molan-mermaid-editor-preview-pane">
               <div class="molan-mermaid-editor-pane-head">
                 <span class="molan-mermaid-editor-pane-label molan-mermaid-editor-preview-label"></span>
-                <button type="button" class="icon-btn molan-mermaid-editor-copy" title="" aria-label="">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2"/><rect x="4" y="8" width="12" height="12" rx="2"/></svg>
-                </button>
+                <div class="molan-mermaid-editor-zoom">
+                  <button type="button" class="icon-btn molan-mermaid-editor-zoom-out" title="" aria-label="">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M8 11h6M21 21l-4.3-4.3"/></svg>
+                  </button>
+                  <button type="button" class="icon-btn molan-mermaid-editor-zoom-in" title="" aria-label="">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M11 8v6M8 11h6M21 21l-4.3-4.3"/></svg>
+                  </button>
+                </div>
               </div>
               <div class="molan-mermaid-editor-preview" aria-live="polite"></div>
             </div>
@@ -3544,7 +3584,8 @@
       const cancelBtn = mask.querySelector(".molan-mermaid-editor-cancel");
       const applyBtn = mask.querySelector(".molan-mermaid-editor-apply");
       const closeBtn = mask.querySelector(".molan-mermaid-editor-close");
-      const copyBtn = mask.querySelector(".molan-mermaid-editor-copy");
+      const zoomInBtn = mask.querySelector(".molan-mermaid-editor-zoom-in");
+      const zoomOutBtn = mask.querySelector(".molan-mermaid-editor-zoom-out");
       mask.querySelector(".molan-mermaid-editor-title").textContent = t("mermaidEditorTitle");
       mask.querySelector(".molan-mermaid-editor-hint").textContent = t("mermaidEditorHint");
       mask.querySelector(".molan-mermaid-editor-pane-label").textContent = t("editSource");
@@ -3552,8 +3593,10 @@
       cancelBtn.textContent = t("mermaidEditorCancel");
       applyBtn.textContent = t("mermaidEditorApply");
       closeBtn.setAttribute("aria-label", t("mermaidEditorCancel"));
-      copyBtn.title = t("copyCode");
-      copyBtn.setAttribute("aria-label", t("copyCode"));
+      zoomInBtn.title = t("zoomIn");
+      zoomInBtn.setAttribute("aria-label", t("zoomIn"));
+      zoomOutBtn.title = t("zoomOut");
+      zoomOutBtn.setAttribute("aria-label", t("zoomOut"));
       const snippetList = mask.querySelector(".molan-mermaid-editor-snippet-list");
       mask.querySelector(".molan-mermaid-editor-snippets-label").textContent = t("mermaidSnippetsLabel");
       MERMAID_SNIPPETS.forEach((item) => {
@@ -3585,6 +3628,11 @@
       let settled = false;
       let previewTimer = 0;
       let previewSeq = 0;
+      let previewScale = 1;
+      let previewPanX = 0;
+      let previewPanY = 0;
+      let previewDragging = false;
+      let previewDragOrigin = null;
 
       const finish = (applied) => {
         if (settled) return;
@@ -3595,9 +3643,40 @@
         resolve(Boolean(applied));
       };
 
+      const applyPreviewTransform = () => {
+        const canvas = preview.querySelector(".molan-mermaid-editor-preview-canvas");
+        if (!canvas) return;
+        canvas.style.transform = `translate(${previewPanX}px, ${previewPanY}px) scale(${previewScale})`;
+      };
+
+      const resetPreviewView = () => {
+        previewScale = 1;
+        previewPanX = 0;
+        previewPanY = 0;
+        previewDragging = false;
+        previewDragOrigin = null;
+        preview.classList.remove("is-dragging");
+        applyPreviewTransform();
+      };
+
+      const setPreviewScale = (next, origin) => {
+        const clamped = Math.min(5, Math.max(0.35, next));
+        if (origin && previewScale > 0) {
+          const rect = preview.getBoundingClientRect();
+          const cx = origin.x - rect.left - rect.width / 2;
+          const cy = origin.y - rect.top - rect.height / 2;
+          const ratio = clamped / previewScale;
+          previewPanX = cx - (cx - previewPanX) * ratio;
+          previewPanY = cy - (cy - previewPanY) * ratio;
+        }
+        previewScale = clamped;
+        applyPreviewTransform();
+      };
+
       const showPreviewError = (err) => {
         const msg = err?.message || err?.str || String(err || t("mermaidSyntaxError"));
         preview.classList.add("is-error");
+        preview.classList.remove("is-dragging");
         preview.innerHTML = `<pre class="molan-mermaid-editor-error">${msg.replace(/[<>&]/g, (c) => ({
           "<": "&lt;",
           ">": "&gt;",
@@ -3611,6 +3690,7 @@
         if (!text) {
           preview.classList.remove("is-error");
           preview.innerHTML = "";
+          resetPreviewView();
           return;
         }
         if (!global.mermaid || typeof global.mermaid.render !== "function") {
@@ -3622,7 +3702,8 @@
           const svg = await renderMermaidSvg(text);
           if (seq !== previewSeq) return;
           preview.classList.remove("is-error");
-          preview.innerHTML = svg;
+          preview.innerHTML = `<div class="molan-mermaid-editor-preview-canvas">${svg}</div>`;
+          resetPreviewView();
         } catch (err) {
           if (seq !== previewSeq) return;
           showPreviewError(err);
@@ -3661,23 +3742,43 @@
         }
       };
 
-      copyBtn.addEventListener("click", async () => {
-        const text = textarea.value.trim();
-        if (!text) {
-          toast(t("noMermaidSource"));
-          return;
-        }
-        try {
-          await navigator.clipboard.writeText(text);
-          toast(t("copiedMermaidCode"));
-        } catch {
-          toast(t("copyFail"));
-        }
+      zoomInBtn.addEventListener("click", () => setPreviewScale(previewScale + 0.25));
+      zoomOutBtn.addEventListener("click", () => setPreviewScale(previewScale - 0.25));
+      preview.addEventListener("pointerdown", (e) => {
+        if (e.button !== 0 || preview.classList.contains("is-error")) return;
+        if (!preview.querySelector("svg")) return;
+        previewDragging = true;
+        previewDragOrigin = {
+          x: e.clientX,
+          y: e.clientY,
+          panX: previewPanX,
+          panY: previewPanY,
+        };
+        preview.classList.add("is-dragging");
+        preview.setPointerCapture?.(e.pointerId);
       });
-      preview.addEventListener("click", () => {
-        const svg = preview.querySelector("svg");
-        if (svg && lightbox?.openFromSvg) lightbox.openFromSvg(svg);
+      preview.addEventListener("pointermove", (e) => {
+        if (!previewDragging || !previewDragOrigin) return;
+        previewPanX = previewDragOrigin.panX + (e.clientX - previewDragOrigin.x);
+        previewPanY = previewDragOrigin.panY + (e.clientY - previewDragOrigin.y);
+        applyPreviewTransform();
       });
+      const endPreviewDrag = (e) => {
+        if (!previewDragging) return;
+        previewDragging = false;
+        previewDragOrigin = null;
+        preview.classList.remove("is-dragging");
+        try { preview.releasePointerCapture?.(e.pointerId); } catch (_) { /* ignore */ }
+      };
+      preview.addEventListener("pointerup", endPreviewDrag);
+      preview.addEventListener("pointercancel", endPreviewDrag);
+      preview.addEventListener("wheel", (e) => {
+        if (!preview.querySelector("svg") || preview.classList.contains("is-error")) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const delta = e.deltaY > 0 ? -0.12 : 0.12;
+        setPreviewScale(previewScale + delta, { x: e.clientX, y: e.clientY });
+      }, { passive: false });
 
       textarea.addEventListener("input", schedulePreview);
       cancelBtn.addEventListener("click", () => finish(false));

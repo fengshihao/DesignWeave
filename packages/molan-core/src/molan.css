@@ -4029,6 +4029,11 @@
       justify-content: space-between;
       gap: 8px;
     }
+    .molan-mermaid-editor-zoom {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
     .molan-mermaid-editor-source {
       flex: 1 1 auto;
       min-height: 280px;
@@ -4082,7 +4087,8 @@
       flex: 1 1 auto;
       min-height: 280px;
       max-height: 52vh;
-      overflow: auto;
+      overflow: hidden;
+      position: relative;
       border: 1px solid var(--hairline-strong);
       border-radius: 10px;
       background: var(--diagram-card, var(--paper));
@@ -4091,17 +4097,36 @@
       align-items: center;
       justify-content: center;
       color: var(--ink);
+      touch-action: none;
+    }
+    .molan-mermaid-editor-preview-canvas {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+      transform-origin: center center;
+      will-change: transform;
     }
     .molan-mermaid-editor-preview svg {
       max-width: 100%;
+      max-height: 100%;
       height: auto;
+      pointer-events: none;
     }
     .molan-mermaid-editor-preview:has(svg) {
-      cursor: zoom-in;
+      cursor: grab;
+    }
+    .molan-mermaid-editor-preview.is-dragging {
+      cursor: grabbing;
     }
     .molan-mermaid-editor-preview.is-error {
       align-items: stretch;
       justify-content: flex-start;
+      cursor: default;
+      touch-action: auto;
+      overflow: auto;
     }
     .molan-mermaid-editor-error {
       margin: 0;

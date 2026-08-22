@@ -101,6 +101,9 @@ const LIGHTBOX = `
           <button class="icon-btn" type="button" id="lightboxZoomIn" title="放大" aria-label="放大">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M11 8v6M8 11h6M21 21l-4.3-4.3"/></svg>
           </button>
+          <button class="icon-btn" type="button" id="lightboxEdit" title="编辑流程图" aria-label="编辑流程图">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg>
+          </button>
           <button class="icon-btn" type="button" id="lightboxReset" title="复位" aria-label="复位">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
           </button>
