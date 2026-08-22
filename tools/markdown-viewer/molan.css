@@ -3962,16 +3962,17 @@
       justify-content: center;
       padding: 24px;
       background: var(--lightbox-dim);
+      backdrop-filter: blur(6px);
     }
     .molan-mermaid-editor {
       display: flex;
       flex-direction: column;
-      width: min(920px, 100%);
-      max-height: min(88vh, 760px);
+      width: min(96vw, 1400px);
+      height: min(90vh, 900px);
       border: 1px solid var(--hairline-strong);
-      border-radius: 14px;
+      border-radius: 16px;
       background: var(--paper-lift);
-      box-shadow: var(--shadow);
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
       color: var(--ink);
       font-family: var(--font-ui);
       overflow: hidden;
@@ -4008,6 +4009,8 @@
     @media (max-width: 760px) {
       .molan-mermaid-editor-body {
         grid-template-columns: 1fr;
+        grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+        overflow: auto;
       }
     }
     .molan-mermaid-editor-pane {
@@ -4036,9 +4039,8 @@
     }
     .molan-mermaid-editor-source {
       flex: 1 1 auto;
-      min-height: 280px;
-      max-height: 52vh;
-      resize: vertical;
+      min-height: 0;
+      resize: none;
       box-sizing: border-box;
       padding: 10px 12px;
       border: 1px solid var(--code-border, var(--hairline-strong));
@@ -4085,8 +4087,7 @@
     }
     .molan-mermaid-editor-preview {
       flex: 1 1 auto;
-      min-height: 280px;
-      max-height: 52vh;
+      min-height: 0;
       overflow: hidden;
       position: relative;
       border: 1px solid var(--hairline-strong);

@@ -22,6 +22,8 @@ test("molan.css 含四主题变量", () => {
   }
   assert.match(css, /molan-source-view/);
   assert.match(css, /molan-mermaid-editor-zoom/);
+  assert.match(css, /\.molan-mermaid-editor \{[\s\S]*width:\s*min\(96vw,\s*1400px\)/);
+  assert.match(css, /\.molan-mermaid-editor \{[\s\S]*height:\s*min\(90vh,\s*900px\)/);
   assert.doesNotMatch(css, /#editModeBtn/);
 });
 
