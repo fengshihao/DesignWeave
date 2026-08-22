@@ -18,6 +18,13 @@ import {
   type WorkbenchMode,
 } from "./workbenchRuns.js";
 import { setEditing } from "./projectLocks.js";
+import { listApprovedCodeDirs } from "./workspaceSettings.js";
+import {
+  buildCodeDirCards,
+  formatCodeDirCards,
+  selectCodeDirsForRun,
+} from "./codeDirCards.js";
+import { isReady } from "./projectMeta.js";
 
 const AI_AUTHOR = { name: "AI", email: "ai@designweave.local" };
 
@@ -39,11 +46,21 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
-function codeRootsOf(meta: RequirementMeta): string[] {
-  return [meta.primaryRepo, ...meta.relatedRepos]
-    .map((p) => (p || "").trim())
-    .filter(Boolean)
-    .filter((p) => fs.existsSync(p));
+function readVaultFile(meta: RequirementMeta, rel: string): string {
+  const p = path.join(meta.vaultPath, rel);
+  if (!fs.existsSync(p)) return "";
+  return fs.readFileSync(p, "utf8");
+}
+
+function codeRootsForRun(meta: RequirementMeta, mode: WorkbenchMode, message: string): string[] {
+  const approved = listApprovedCodeDirs();
+  return selectCodeDirsForRun({
+    mode,
+    title: meta.title,
+    message,
+    readme: readVaultFile(meta, "README.md"),
+    approved,
+  });
 }
 
 function snapshotMtimes(root: string): Map<string, number> {
@@ -79,6 +96,7 @@ function emitChangedFiles(
 }
 
 function modeLabel(mode: WorkbenchMode): string {
+  if (mode === "clarify") return "检查清晰度";
   if (mode === "grill") return "拷问";
   if (mode === "feasibility") return "可行性";
   return "共创";
@@ -95,7 +113,16 @@ function audienceOf(userId: string): { role: AppRole; label: string } {
 function vaultDocInventory(projectId: string): string {
   const files = listDocTree(projectId).filter((f) => !f.isDir);
   const names = new Set(files.map((f) => f.path));
-  const core = ["PRD.md", "gaps.md", "调研.md"];
+  const core = [
+    "README.md",
+    "01-背景与目标.md",
+    "02-用户故事.md",
+    "03-交互与体验.md",
+    "04-规格与约束.md",
+    "05-验收.md",
+    "gaps.md",
+    "调研.md",
+  ];
   const lines = core.map((p) => `- ${p}${names.has(p) ? "（已有）" : "（还没有）"}`);
   const extra = files.filter((f) => !core.includes(f.path)).map((f) => f.path);
   if (extra.length) lines.push(`- 其他：${extra.join("、")}`);
@@ -119,19 +146,28 @@ function audienceHint(role: AppRole, mode: WorkbenchMode): string {
 function systemPrompt(
   meta: RequirementMeta,
   mode: WorkbenchMode,
-  audience: { role: AppRole; label: string }
+  audience: { role: AppRole; label: string },
+  selectedDirs: string[]
 ): string {
-  const roots = codeRootsOf(meta);
-  const codeHint = roots.length
-    ? `代码仓只读（禁止写入），路径如下：\n${roots.map((r) => `- ${r}`).join("\n")}`
-    : "本工程还没有挂代码仓。不要假装读过代码。";
+  const cards = buildCodeDirCards(listApprovedCodeDirs());
+  const codeHint =
+    mode === "feasibility"
+      ? selectedDirs.length
+        ? `本轮只读这些已选代码目录（禁止写入）：\n${selectedDirs.map((r) => `- ${r}`).join("\n")}\n\n目录卡：\n${formatCodeDirCards(cards)}`
+        : `架构师已批准一些代码目录，但这一轮还没对上该读哪几个。先对照目录卡，用产品问题消歧，不要问「要用哪个 Git 仓库」。\n\n目录卡：\n${formatCodeDirCards(cards)}`
+      : "这一档不读代码目录。不要假装读过代码。";
 
   const modeHint =
-    mode === "feasibility"
-      ? `档位：可行性。只读代码仓，只把结论写进文档仓的「调研.md」（已有能力 / 缺口 / 风险 / 建议）。不要改 PRD，除非用户明确要求。`
-      : mode === "grill"
-        ? `档位：拷问。像严厉的产品负责人追问矛盾、缺口、隐含假设。把问题写入 gaps.md。确认过的内容可以补进 PRD.md。`
-        : `档位：共创。根据对方的话更新 PRD.md，每次只问 1～3 个关键问题，并把未决写入 gaps.md。`;
+    mode === "clarify"
+      ? `档位：检查清晰度。只读文档包（导入路径还要对照 import/original.md）。按检查表标清晰 / 缺失 / 含糊，写入 gaps.md，一次追问 1～3 个问题。人答完写回对应篇，不要只留在对话里。
+检查表：背景与用户、目标与非目标、至少 1 条完整用户故事、至少 1 条主流程、入口、规格与 OEM 约束、整包验收。
+「清晰」≠「能开发」。标准是无歧义、可开始设计讨论。占位符、纯「等」「看情况」、用户故事缺验收、主流程有头无尾、规格和故事打架，都不算过。
+全部过关才把 meta.md 的 clarity 改成 ready、phase 改成 ready。没过关不要改成 ready。`
+      : mode === "feasibility"
+        ? `档位：可行性。只读本轮选中的代码目录，只把结论写进「调研.md」（用了哪些、为什么、已有能力 / 缺口 / 风险 / 建议）。不要改业务代码。发送时若仍有 P0 缺口，必须先问。`
+        : mode === "grill"
+          ? `档位：拷问。追问矛盾、缺口、隐含假设。把问题写入 gaps.md。确认过的内容写回 01–05 对应篇。`
+          : `档位：共创。根据对方的话更新文档包对应篇，每次只问 1～3 个关键问题，未决写入 gaps.md。`;
 
   return `
 你是 DesignWeave 工作台里的文档助手。这一轮由${audience.label}托付。
@@ -147,14 +183,15 @@ ${codeHint}
 ${vaultDocInventory(meta.id)}
 
 ## 每一轮都是冷启动
-你并没有预先读过这个产品。动手前先 Read / Glob 文档仓里已有的 Markdown，至少覆盖存在的 PRD.md、gaps.md、调研.md。
+你并没有预先读过这个产品。动手前先 Read / Glob 文档仓，至少覆盖存在的 README.md、01–05、gaps.md、调研.md。
 若同一主题已经有调研章节或阶段性结论：先写明「已经有什么」，再只补缺口或纠正过时判断，不要整篇重写。
 
 ## 硬规则
-- 禁止修改代码仓里的任何文件。代码仓只用来 Read / Glob / Grep。
-- 只写文档仓：PRD.md、gaps.md、调研.md、import/ 下的说明。
+- 禁止修改代码目录里的任何文件。代码目录只用来 Read / Glob / Grep。
+- 只写文档仓：README.md、01–05、gaps.md、调研.md、meta.md、import/ 下的说明。不要再把整包写进单文件 PRD.md。
 - 进行中就可以把章节落到磁盘；不要等全部写完才第一次 Write。
 - 不要输出「请把下面粘贴到文件」——直接用工具写文件。
+- 问产品问题消歧，不问「要用哪个 Git 仓库」。
 
 ## 写给谁
 ${audienceHint(audience.role, mode)}
@@ -162,6 +199,7 @@ ${audienceHint(audience.role, mode)}
 ${modeHint}
 
 工程标题：${meta.title}
+清晰度：${isReady(meta) ? "ready" : meta.clarity}
 `.trim();
 }
 
@@ -188,23 +226,20 @@ async function runMock(
   meta: RequirementMeta,
   mode: WorkbenchMode,
   message: string,
+  selectedDirs: string[],
   signal: AbortSignal
 ): Promise<void> {
-  const roots = codeRootsOf(meta);
   appendEvent(runId, "progress", { text: "演示模式：本机没有模型密钥，也会把结论写进文档仓。" });
   await sleep(400, signal);
 
   appendEvent(runId, "progress", { text: "正在阅读文档仓…" });
   await sleep(500, signal);
 
-  if (roots.length) {
+  if (selectedDirs.length) {
     appendEvent(runId, "progress", {
-      text: `正在只读代码仓：${roots.map((r) => path.basename(r)).join("、")}`,
+      text: `正在只读代码目录：${selectedDirs.map((r) => path.basename(r)).join("、")}`,
     });
     await sleep(500, signal);
-  } else {
-    appendEvent(runId, "progress", { text: "没有挂代码仓，只根据现有文档写。" });
-    await sleep(300, signal);
   }
 
   const stamp = new Date().toISOString().replace("T", " ").slice(0, 16);
@@ -212,28 +247,23 @@ async function runMock(
     const body = `# 调研
 
 > 演示模式 · ${stamp}
-> 只读了代码仓，没有改任何业务代码。
+> 只读了已选代码目录，没有改任何业务代码。
 
 ## 产品经理托付
 
 ${message}
 
-## 只读了哪些代码仓
+## 用了哪些代码目录
 
-${roots.length ? roots.map((r) => `- \`${r}\``).join("\n") : "- （本工程尚未挂代码仓）"}
+${selectedDirs.length ? selectedDirs.map((r) => `- \`${r}\``).join("\n") : "- （这一轮没有对上目录；请用产品问题消歧）"}
 
 ## 已有能力
 
-（演示）从目录名和现有 PRD 推断：工程里已有可对照的代码，但本轮没有调用真实模型，结论仅作结构示例。
+（演示）从目录名和现有文档推断，不能当作可行性结论。
 
 ## 缺口
 
 - 需要对照真实代码确认入口、权限、机型差异是否已覆盖。
-- 验收标准是否可测试，仍待产品经理拍板。
-
-## 风险
-
-- 演示模式没有真正扫仓，不能当作可行性结论。
 
 ## 建议
 
@@ -242,9 +272,30 @@ ${roots.length ? roots.map((r) => `- \`${r}\``).join("\n") : "- （本工程尚�
     fs.writeFileSync(path.join(meta.vaultPath, "调研.md"), body, "utf8");
     appendEvent(runId, "file", { path: "调研.md" });
     appendEvent(runId, "progress", { text: "已写入 调研.md" });
+  } else if (mode === "clarify") {
+    const gapsPath = path.join(meta.vaultPath, "gaps.md");
+    const extra = `# 待补齐
+
+> 检查清晰度（演示 · ${stamp}）
+
+产品经理说：${message}
+
+- [ ] 背景与用户是否无歧义
+- [ ] 目标与非目标是否写清
+- [ ] 至少 1 条完整用户故事（含可勾选验收）
+- [ ] 至少 1 条有头有尾的主流程
+- [ ] 入口
+- [ ] 规格与 OEM 约束
+- [ ] 整包验收
+
+演示模式不会把清晰度标成 ready。接上真实模型后会按检查表写入，并只在全部过关时改 meta.md。
+`;
+    fs.writeFileSync(gapsPath, extra, "utf8");
+    appendEvent(runId, "file", { path: "gaps.md" });
+    appendEvent(runId, "progress", { text: "已把清晰度缺口写进 gaps.md" });
   } else if (mode === "grill") {
     const gapsPath = path.join(meta.vaultPath, "gaps.md");
-    const prev = fs.existsSync(gapsPath) ? fs.readFileSync(gapsPath, "utf8") : "# 缺口与待确认\n";
+    const prev = fs.existsSync(gapsPath) ? fs.readFileSync(gapsPath, "utf8") : "# 待补齐\n";
     const extra = `
 ## 拷问（演示 · ${stamp}）
 
@@ -252,24 +303,26 @@ ${roots.length ? roots.map((r) => `- \`${r}\``).join("\n") : "- （本工程尚�
 
 - [ ] 成功标准是否可观测、可验收？
 - [ ] 范围内外有没有互相打架的句子？
-- [ ] 主仓和关联仓的职责切清了吗？
 `;
     fs.writeFileSync(gapsPath, `${prev.trim()}\n${extra}\n`, "utf8");
     appendEvent(runId, "file", { path: "gaps.md" });
     appendEvent(runId, "progress", { text: "已把拷问写进 gaps.md" });
   } else {
-    const prdPath = path.join(meta.vaultPath, "PRD.md");
+    const target = fs.existsSync(path.join(meta.vaultPath, "01-背景与目标.md"))
+      ? "01-背景与目标.md"
+      : "README.md";
+    const prdPath = path.join(meta.vaultPath, target);
     const prev = fs.existsSync(prdPath) ? fs.readFileSync(prdPath, "utf8") : `# ${meta.title}\n`;
     const extra = `
 ## 共创补充（演示 · ${stamp}）
 
 ${message}
 
-（演示模式记下了这句话。接上真实模型后会按章节写入，而不是永远追加在文末。）
+（演示模式记下了这句话。接上真实模型后会按章节写入对应篇。）
 `;
     fs.writeFileSync(prdPath, `${prev.trim()}\n${extra}\n`, "utf8");
-    appendEvent(runId, "file", { path: "PRD.md" });
-    appendEvent(runId, "progress", { text: "已把这一轮写进 PRD.md" });
+    appendEvent(runId, "file", { path: target });
+    appendEvent(runId, "progress", { text: `已把这一轮写进 ${target}` });
   }
 
   await sleep(300, signal);
@@ -281,14 +334,11 @@ async function runClaude(
   mode: WorkbenchMode,
   message: string,
   audience: { role: AppRole; label: string },
+  selectedDirs: string[],
   signal: AbortSignal
 ): Promise<void> {
-  const roots = codeRootsOf(meta);
   let snap = snapshotMtimes(meta.vaultPath);
-  const allowedTools =
-    mode === "feasibility"
-      ? ["Read", "Write", "Edit", "Glob", "Grep"]
-      : ["Read", "Write", "Edit", "Glob", "Grep"];
+  const allowedTools = ["Read", "Write", "Edit", "Glob", "Grep"];
 
   const q = query({
     prompt: userPrompt(meta, mode, message, audience),
@@ -296,8 +346,8 @@ async function runClaude(
       cwd: meta.vaultPath,
       allowedTools,
       permissionMode: "acceptEdits",
-      additionalDirectories: roots,
-      appendSystemPrompt: systemPrompt(meta, mode, audience),
+      additionalDirectories: selectedDirs,
+      appendSystemPrompt: systemPrompt(meta, mode, audience, selectedDirs),
     }),
   });
 
@@ -355,21 +405,32 @@ export async function executeWorkbenchRun(runId: string): Promise<void> {
   setRunStatus(runId, "running");
   setEditing(run.projectId, false);
 
-  const roots = codeRootsOf(meta);
+  const roots = codeRootsForRun(meta, run.mode, run.message);
   appendEvent(runId, "trust", {
     codeRoots: roots,
     writesDocsOnly: true,
     mockMode: !config.anthropicApiKey,
-    text: roots.length
-      ? `只读代码仓：${roots.join("、")}。不会改业务代码，结论写进文档仓。`
-      : "这一轮没有只读代码仓。不会改业务代码，只写文档仓。",
+    text:
+      run.mode === "feasibility"
+        ? roots.length
+          ? `只读代码目录：${roots.join("、")}。不会改业务代码，结论写进文档仓。`
+          : "这一轮没有对上代码目录。不会改业务代码，只写文档仓。用产品问题消歧。"
+        : "这一档不读代码目录。不会改业务代码，只写文档仓。",
   });
 
   try {
     if (!config.anthropicApiKey) {
-      await runMock(runId, meta, run.mode, run.message, controller.signal);
+      await runMock(runId, meta, run.mode, run.message, roots, controller.signal);
     } else {
-      await runClaude(runId, meta, run.mode, run.message, audienceOf(run.userId), controller.signal);
+      await runClaude(
+        runId,
+        meta,
+        run.mode,
+        run.message,
+        audienceOf(run.userId),
+        roots,
+        controller.signal
+      );
     }
 
     if (controller.signal.aborted) {

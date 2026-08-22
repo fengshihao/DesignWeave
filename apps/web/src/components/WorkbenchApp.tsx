@@ -1,0 +1,959 @@
+"use client";
+
+import { FormEvent, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  api,
+  type ProjectLockInfo,
+  type RequirementMeta,
+  type SessionUser,
+  type WorkbenchMode,
+  type WorkbenchRun,
+} from "@/lib/api";
+import { MolanFrame, type MolanHandle } from "@/components/MolanFrame";
+import { EntrustLayer, type LogItem } from "@/components/EntrustLayer";
+import { VersionDrawer } from "@/components/VersionDrawer";
+import { DocTree } from "@/components/DocTree";
+import { CreateProjectPanel } from "@/components/CreateProjectPanel";
+import { SettingsOverlay } from "@/components/SettingsOverlay";
+import { UsersOverlay } from "@/components/UsersOverlay";
+import { authClient } from "@/lib/auth-client";
+import {
+  forgetProject,
+  lastEntrustSize,
+  lastEntrustWidth,
+  lastFile,
+  lastProjectId,
+  rememberEntrustSize,
+  rememberEntrustWidth,
+  rememberFile,
+  rememberProject,
+  type EntrustSize,
+} from "@/lib/remember";
+
+function clientId(): string {
+  const key = "dw-workbench-client";
+  try {
+    const existing = sessionStorage.getItem(key);
+    if (existing) return existing;
+    const next = crypto.randomUUID();
+    sessionStorage.setItem(key, next);
+    return next;
+  } catch {
+    return "anonymous";
+  }
+}
+
+function isReady(r: Pick<RequirementMeta, "phase" | "clarity">): boolean {
+  return r.clarity === "ready" || r.phase === "ready";
+}
+
+function modesFor(r: RequirementMeta, hasApproved: boolean): WorkbenchMode[] {
+  if (!isReady(r)) return ["clarify"];
+  return hasApproved ? ["coauthor", "grill", "feasibility"] : ["coauthor", "grill"];
+}
+
+function defaultMode(r: RequirementMeta, hasApproved: boolean): WorkbenchMode {
+  return modesFor(r, hasApproved)[0];
+}
+
+export function WorkbenchApp(props: { user: SessionUser }) {
+  const router = useRouter();
+  const search = useSearchParams();
+  const projectId = search.get("p");
+  const overlay = search.get("overlay");
+  const isArchitect = props.user.role === "architect";
+
+  const [projects, setProjects] = useState<RequirementMeta[]>([]);
+  const [orphans, setOrphans] = useState<RequirementMeta[]>([]);
+  const [workspaceRootSet, setWorkspaceRootSet] = useState(true);
+  const [hasApprovedCodeDirs, setHasApprovedCodeDirs] = useState(false);
+
+  function setQuery(next: { p?: string | null; overlay?: string | null }) {
+    const q = new URLSearchParams();
+    const p = next.p === undefined ? projectId : next.p;
+    const o = next.overlay === undefined ? overlay : next.overlay;
+    if (p) q.set("p", p);
+    if (o) q.set("overlay", o);
+    const href = q.toString() ? `/?${q.toString()}` : "/";
+    router.replace(href);
+  }
+
+  async function refreshList() {
+    const list = await api.listRequirements();
+    setProjects(list.requirements);
+    setOrphans(list.orphans || []);
+    setWorkspaceRootSet(list.workspaceRootSet);
+    setHasApprovedCodeDirs(list.hasApprovedCodeDirs);
+    return list.requirements;
+  }
+
+  useEffect(() => {
+    void refreshList().then((list) => {
+      if (projectId) return;
+      const remembered = lastProjectId();
+      if (remembered && list.some((r) => r.id === remembered)) {
+        setQuery({ p: remembered });
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const canCreate = workspaceRootSet;
+  const blockedReason = workspaceRootSet
+    ? ""
+    : isArchitect
+      ? "请先在设置里选定运行根目录。"
+      : "请架构师先设定运行根目录。";
+
+  return (
+    <div className="workbench">
+      {projectId ? (
+        <ProjectPaper
+          key={projectId}
+          id={projectId}
+          user={props.user}
+          projects={projects}
+          hasApprovedCodeDirs={hasApprovedCodeDirs}
+          onSwitch={(id) => setQuery({ p: id })}
+          onCreate={() => setQuery({ overlay: "create" })}
+          onSettings={() => (isArchitect ? setQuery({ overlay: "settings" }) : undefined)}
+          onUsers={() => (isArchitect ? setQuery({ overlay: "users" }) : undefined)}
+          onDeleted={(id) => {
+            forgetProject(id);
+            const next = projects.find((p) => p.id !== id);
+            setQuery({ p: next?.id || null });
+            void refreshList();
+          }}
+        />
+      ) : (
+        <EmptyWorkbench
+          user={props.user}
+          projects={projects}
+          workspaceRootSet={workspaceRootSet}
+          blockedReason={blockedReason}
+          onSwitch={(id) => setQuery({ p: id })}
+          onCreate={() => setQuery({ overlay: "create" })}
+          onSettings={() => (isArchitect ? setQuery({ overlay: "settings" }) : undefined)}
+          onUsers={() => (isArchitect ? setQuery({ overlay: "users" }) : undefined)}
+        />
+      )}
+
+      <CreateProjectPanel
+        open={overlay === "create"}
+        canCreate={canCreate}
+        blockedReason={blockedReason || "还不能建工程。"}
+        onClose={() => setQuery({ overlay: null })}
+        onCreated={(id) => {
+          void refreshList();
+          setQuery({ p: id, overlay: null });
+        }}
+      />
+      {isArchitect ? (
+        <SettingsOverlay
+          open={overlay === "settings"}
+          user={props.user}
+          orphans={orphans}
+          onClose={() => setQuery({ overlay: null })}
+          onWorkspaceChange={() => void refreshList()}
+        />
+      ) : null}
+      {isArchitect ? (
+        <UsersOverlay open={overlay === "users"} onClose={() => setQuery({ overlay: null })} />
+      ) : null}
+    </div>
+  );
+}
+
+function EmptyWorkbench(props: {
+  user: SessionUser;
+  projects: RequirementMeta[];
+  workspaceRootSet: boolean;
+  blockedReason: string;
+  onSwitch: (id: string) => void;
+  onCreate: () => void;
+  onSettings?: () => void;
+  onUsers?: () => void;
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+  return (
+    <div className={`workbench-body${collapsed ? " is-left-collapsed" : ""}`}>
+      <Rail
+        collapsed={collapsed}
+        onCollapsed={setCollapsed}
+        user={props.user}
+        projects={props.projects}
+        currentId=""
+        files={[]}
+        currentPath=""
+        title=""
+        clarityLabel=""
+        onOpenProject={props.onSwitch}
+        onOpenFile={() => undefined}
+        onCreate={props.onCreate}
+        onSettings={props.onSettings}
+        onUsers={props.onUsers}
+      />
+      <section className="workbench-col workbench-center">
+        <div className="empty-paper">
+          <p>
+            {props.projects.length
+              ? "从左侧打开一个工程。"
+              : props.blockedReason || "还没有工程。"}
+          </p>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function Rail(props: {
+  collapsed: boolean;
+  onCollapsed: (v: boolean) => void;
+  user: SessionUser;
+  projects: RequirementMeta[];
+  currentId: string;
+  files: Array<{ path: string; name: string; isDir: boolean }>;
+  currentPath: string;
+  title: string;
+  clarityLabel: string;
+  onOpenProject: (id: string) => void;
+  onOpenFile: (path: string) => void;
+  onCreate: () => void;
+  onSettings?: () => void;
+  onUsers?: () => void;
+  extra?: ReactNode;
+}) {
+  const isArchitect = props.user.role === "architect";
+  if (props.collapsed) {
+    return (
+      <aside className="workbench-col workbench-left is-collapsed">
+        <button className="rail-icon" type="button" title="展开" onClick={() => props.onCollapsed(false)}>
+          工
+        </button>
+        <button className="rail-icon" type="button" title="新建" onClick={props.onCreate}>
+          +
+        </button>
+        {isArchitect ? (
+          <button className="rail-icon" type="button" title="设置" onClick={props.onSettings}>
+            ···
+          </button>
+        ) : null}
+      </aside>
+    );
+  }
+  return (
+    <aside className="workbench-col workbench-left">
+      <div className="workbench-brand">
+        <div className="rail-brand-row">
+          <h1>{props.title || "工作台"}</h1>
+          <button className="side-text" type="button" onClick={() => props.onCollapsed(true)}>
+            收起
+          </button>
+        </div>
+        {props.clarityLabel ? <span className="clarity-dot">{props.clarityLabel}</span> : null}
+      </div>
+      <div className="workbench-side-scroll">
+        <div className="workbench-left-head">
+          <span className="side-kicker">工程</span>
+          <button className="side-text" type="button" onClick={props.onCreate}>
+            新建
+          </button>
+        </div>
+        <ul className="project-switch">
+          {props.projects.map((p) => (
+            <li key={p.id}>
+              <button
+                type="button"
+                className={p.id === props.currentId ? "is-current" : ""}
+                onClick={() => props.onOpenProject(p.id)}
+              >
+                {p.title}
+              </button>
+            </li>
+          ))}
+        </ul>
+        {props.files.length ? (
+          <>
+            <div className="workbench-left-head" style={{ marginTop: 16 }}>
+              <span className="side-kicker">文档</span>
+            </div>
+            <DocTree files={props.files} currentPath={props.currentPath} onOpen={props.onOpenFile} />
+          </>
+        ) : null}
+      </div>
+      <div className="workbench-side-foot">
+        <span>
+          {props.user.name} · {props.user.roleLabel}
+        </span>
+        {props.extra}
+        {isArchitect ? (
+          <>
+            <button className="side-text" type="button" onClick={props.onSettings}>
+              设置
+            </button>
+            <button className="side-text" type="button" onClick={props.onUsers}>
+              用户
+            </button>
+          </>
+        ) : null}
+        <button
+          className="side-text"
+          type="button"
+          onClick={() => void authClient.signOut().then(() => (window.location.href = "/"))}
+        >
+          退出
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+function ProjectPaper(props: {
+  id: string;
+  user: SessionUser;
+  projects: RequirementMeta[];
+  hasApprovedCodeDirs: boolean;
+  onSwitch: (id: string) => void;
+  onCreate: () => void;
+  onSettings?: () => void;
+  onUsers?: () => void;
+  onDeleted: (id: string) => void;
+}) {
+  const id = props.id;
+  const [cid, setCid] = useState("");
+  const molanRef = useRef<MolanHandle>(null);
+  const editingRef = useRef(false);
+  const activeRunRef = useRef<WorkbenchRun | null>(null);
+  const followSeq = useRef(0);
+
+  const [title, setTitle] = useState("");
+  const [meta, setMeta] = useState<RequirementMeta | null>(null);
+  const [files, setFiles] = useState<Array<{ path: string; name: string; isDir: boolean }>>([]);
+  const [currentPath, setCurrentPath] = useState("README.md");
+  const [content, setContent] = useState("");
+  const [etag, setEtag] = useState("");
+  const [lock, setLock] = useState<ProjectLockInfo>(null);
+  const [previewReason, setPreviewReason] = useState("");
+  const [activeRun, setActiveRun] = useState<WorkbenchRun | null>(null);
+  const [mode, setMode] = useState<WorkbenchMode>("clarify");
+  const [message, setMessage] = useState("");
+  const [log, setLog] = useState<LogItem[]>([]);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [uncommitted, setUncommitted] = useState(false);
+  const [versions, setVersions] = useState<
+    Array<{ id: string; message: string; author: string; createdAt: string }>
+  >([]);
+  const [history, setHistory] = useState<{ sha: string; content: string; message: string } | null>(
+    null
+  );
+  const [compare, setCompare] = useState<{ a: string; b: string; title: string } | null>(null);
+  const [importText, setImportText] = useState("");
+  const [gate, setGate] = useState("");
+  const [showVersions, setShowVersions] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [entrustSize, setEntrustSize] = useState<EntrustSize>("collapsed");
+  const [entrustWidth, setEntrustWidth] = useState(420);
+  const [toast, setToast] = useState("");
+
+  activeRunRef.current = activeRun;
+  editingRef.current = editing;
+
+  const youHold = Boolean(lock?.youHold);
+  const aiRunning = Boolean(
+    activeRun && (activeRun.status === "queued" || activeRun.status === "running")
+  );
+  const readOnly = !youHold || aiRunning || Boolean(history);
+  const allowed = meta ? modesFor(meta, props.hasApprovedCodeDirs) : (["clarify"] as WorkbenchMode[]);
+  const editBlockedReason = history
+    ? "这是旧版，返回纸面后再改。"
+    : aiRunning
+      ? "AI 进行中，暂时不能改。"
+      : youHold
+        ? ""
+        : previewReason || "现在是预览，不能编辑。";
+
+  function changeEntrustSize(next: EntrustSize) {
+    setEntrustSize(next);
+    rememberEntrustSize(id, next);
+  }
+
+  const refreshVersions = useCallback(async () => {
+    const ver = await api.listVersions(id);
+    setVersions(ver.versions);
+    setUncommitted(ver.uncommitted);
+  }, [id]);
+
+  const refreshTree = useCallback(async () => {
+    const tree = await api.listFiles(id);
+    setFiles(tree.files);
+    return tree.files;
+  }, [id]);
+
+  const openFile = useCallback(
+    async (path: string, force = false) => {
+      if (!force && dirty && !readOnly) {
+        const state = await molanRef.current?.getState();
+        if (state?.dirty) {
+          setGate("先保存当前这篇，再打开另一篇。");
+          return;
+        }
+      }
+      const file = await api.readFile(id, path);
+      setCurrentPath(file.path);
+      setContent(file.content);
+      setEtag(file.etag);
+      setDirty(false);
+      setHistory(null);
+      rememberFile(id, file.path);
+    },
+    [dirty, id, readOnly]
+  );
+
+  const bootstrap = useCallback(async () => {
+    setError("");
+    const data = await api.getRequirement(id, cid);
+    setTitle(data.requirement.title);
+    setMeta(data.requirement);
+    setUncommitted(Boolean(data.uncommitted));
+    if (data.activeRun) setActiveRun(data.activeRun);
+    const claimed = await api.claimLock(id, cid);
+    setLock(claimed.lock);
+    setPreviewReason(claimed.previewReason || "");
+    rememberProject(id);
+    const tree = await api.listFiles(id);
+    setFiles(tree.files);
+    const ver = await api.listVersions(id);
+    setVersions(ver.versions);
+    setUncommitted(ver.uncommitted);
+    const remembered = lastFile(id);
+    const startPath =
+      remembered && tree.files.some((f) => f.path === remembered && !f.isDir)
+        ? remembered
+        : tree.files.some((f) => f.path === "README.md")
+          ? "README.md"
+          : tree.files.find((f) => !f.isDir)?.path || "README.md";
+    const file = await api.readFile(id, startPath);
+    setCurrentPath(file.path);
+    setContent(file.content);
+    setEtag(file.etag);
+    setDirty(false);
+    setHistory(null);
+    setMode(defaultMode(data.requirement, props.hasApprovedCodeDirs));
+    if (data.activeRun && (data.activeRun.status === "queued" || data.activeRun.status === "running")) {
+      followSeq.current = 0;
+    }
+    const savedSize = lastEntrustSize(id);
+    const savedWidth = lastEntrustWidth(id);
+    if (savedWidth) setEntrustWidth(savedWidth);
+    if (!claimed.lock?.youHold) {
+      setEntrustSize(savedSize || "half");
+    } else if (savedSize) {
+      setEntrustSize(savedSize);
+    }
+  }, [cid, id, props.hasApprovedCodeDirs]);
+
+  useEffect(() => {
+    setCid(clientId());
+  }, []);
+
+  useEffect(() => {
+    if (!cid) return;
+    void bootstrap().catch((e) => setError(e instanceof Error ? e.message : "加载失败"));
+  }, [bootstrap, cid]);
+
+  useEffect(() => {
+    if (!cid || !youHold) return;
+    const timer = setInterval(() => {
+      void api
+        .heartbeatLock(id, cid, editingRef.current)
+        .then((res) => setLock(res.lock))
+        .catch(() => undefined);
+    }, 20000);
+    return () => clearInterval(timer);
+  }, [cid, id, youHold]);
+
+  useEffect(() => {
+    if (!cid) return;
+    return () => {
+      if (!activeRunRef.current) {
+        void api.releaseLock(id, cid).catch(() => undefined);
+      }
+    };
+  }, [cid, id]);
+
+  useEffect(() => {
+    if (!readOnly || history) return;
+    const timer = setInterval(() => {
+      void api
+        .readFile(id, currentPath)
+        .then((file) => {
+          if (file.etag !== etag) {
+            setContent(file.content);
+            setEtag(file.etag);
+          }
+        })
+        .catch(() => undefined);
+      void refreshTree().catch(() => undefined);
+      void refreshVersions().catch(() => undefined);
+      void api.currentRun(id).then((res) => setActiveRun(res.run)).catch(() => undefined);
+      void api.getRequirement(id, cid).then((data) => setMeta(data.requirement)).catch(() => undefined);
+    }, 2500);
+    return () => clearInterval(timer);
+  }, [cid, currentPath, etag, history, id, readOnly, refreshTree, refreshVersions]);
+
+  const appendLog = useCallback((item: LogItem) => {
+    setLog((prev) => {
+      if (prev.some((x) => x.seq === item.seq && item.seq > 0)) return prev;
+      return [...prev, item].slice(-80);
+    });
+  }, []);
+
+  const currentPathRef = useRef(currentPath);
+  currentPathRef.current = currentPath;
+
+  const followRun = useCallback(
+    async (runId: string, after = 0) => {
+      followSeq.current = after;
+      const res = await fetch(`/v1/requirements/${id}/runs/${runId}/stream?after=${after}`, {
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (!res.ok || !res.body) throw new Error("无法接上这一轮进度");
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const chunks = buf.split("\n\n");
+        buf = chunks.pop() || "";
+        for (const chunk of chunks) {
+          const eventLine = chunk.split("\n").find((l) => l.startsWith("event:"));
+          const dataLine = chunk.split("\n").find((l) => l.startsWith("data:"));
+          if (!eventLine || !dataLine) continue;
+          const type = eventLine.slice(6).trim();
+          let payload: Record<string, unknown> = {};
+          try {
+            payload = JSON.parse(dataLine.slice(5).trim()) as Record<string, unknown>;
+          } catch {
+            continue;
+          }
+          const seq = Number(payload.seq || 0);
+          if (seq) followSeq.current = seq;
+          if (type === "trust") {
+            appendLog({ seq, kind: "trust", text: String(payload.text || "") });
+          } else if (type === "progress" || type === "text") {
+            appendLog({ seq, kind: type, text: String(payload.text || "") });
+          } else if (type === "tool") {
+            appendLog({ seq, kind: "tool", text: `用了 ${String(payload.name || "工具")}` });
+          } else if (type === "file") {
+            const path = String(payload.path || "");
+            appendLog({ seq, kind: "file", text: `已写入 ${path}` });
+            if (path === currentPathRef.current) {
+              void api.readFile(id, currentPathRef.current).then((file) => {
+                setContent(file.content);
+                setEtag(file.etag);
+              });
+            }
+            void refreshTree();
+          } else if (type === "error") {
+            appendLog({ seq, kind: "error", text: String(payload.message || "失败") });
+            setError(String(payload.message || "失败"));
+          } else if (type === "done") {
+            appendLog({
+              seq,
+              kind: "done",
+              text: payload.ok ? "这一轮结束。" : "这一轮没有成功结束。",
+            });
+            await refreshVersions();
+            await refreshTree();
+            const cur = await api.currentRun(id);
+            setActiveRun(cur.run);
+            const file = await api.readFile(id, currentPathRef.current);
+            setContent(file.content);
+            setEtag(file.etag);
+            const bundle = await api.getRequirement(id, cid);
+            setMeta(bundle.requirement);
+          }
+        }
+      }
+    },
+    [appendLog, cid, id, refreshTree, refreshVersions]
+  );
+
+  useEffect(() => {
+    if (!activeRun || (activeRun.status !== "queued" && activeRun.status !== "running")) return;
+    void followRun(activeRun.id, followSeq.current).catch((e) => {
+      setError(e instanceof Error ? e.message : "进度中断，稍后会自动跟上");
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeRun?.id]);
+
+  async function saveCurrent(value?: string) {
+    const state = value ? { value, dirty: true, isPreview: false } : await molanRef.current?.getState();
+    const next = state?.value ?? content;
+    const file = await api.writeFile(id, currentPath, next, etag, cid);
+    setContent(file.content);
+    setEtag(file.etag);
+    setDirty(false);
+    molanRef.current?.markSaved();
+    await refreshVersions();
+  }
+
+  async function recordVersion() {
+    await api.recordVersion(id, undefined, cid);
+    molanRef.current?.exitEdit();
+    setEditing(false);
+    await api.heartbeatLock(id, cid, false).then((r) => setLock(r.lock)).catch(() => undefined);
+    await refreshVersions();
+  }
+
+  async function saveAndRecord() {
+    setBusy(true);
+    setError("");
+    setGate("");
+    try {
+      const state = await molanRef.current?.getState();
+      if (state?.dirty) await saveCurrent(state.value);
+      if (uncommitted || state?.dirty) await recordVersion();
+      else {
+        molanRef.current?.exitEdit();
+        setEditing(false);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "没能保存一版");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onSend(e: FormEvent) {
+    e.preventDefault();
+    const text = message.trim();
+    if (!text || busy || aiRunning) return;
+    setGate("");
+    setError("");
+    const state = await molanRef.current?.getState();
+    if (state && (!state.isPreview || state.dirty || editing)) {
+      setGate("先保存一版并退出编辑，再发给 AI。");
+      return;
+    }
+    if (uncommitted) {
+      setGate("先记入版本再发给 AI。");
+      return;
+    }
+    setBusy(true);
+    try {
+      const started = await api.startRun(id, { mode, message: text, clientId: cid });
+      setMessage("");
+      setActiveRun(started.run);
+      followSeq.current = 0;
+      appendLog({ seq: 0, kind: "you", text });
+      if (entrustSize === "collapsed") changeEntrustSize("half");
+    } catch (err) {
+      setGate(err instanceof Error ? err.message : "没发出去");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    if (editing) {
+      setEntrustSize("collapsed");
+      rememberEntrustSize(id, "collapsed");
+    }
+  }, [editing, id]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(""), 2800);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  const clarityLabel = meta?.clarityLabel || (meta && isReady(meta) ? "清晰" : "填写中");
+
+  return (
+    <>
+      {error ? <p className="workbench-banner danger">{error}</p> : null}
+      {toast ? (
+        <div className="workbench-toast" role="status">
+          {toast}
+        </div>
+      ) : null}
+      <div className={`workbench-body${leftCollapsed ? " is-left-collapsed" : ""}`}>
+        <Rail
+          collapsed={leftCollapsed}
+          onCollapsed={setLeftCollapsed}
+          user={props.user}
+          projects={props.projects}
+          currentId={id}
+          files={files}
+          currentPath={currentPath}
+          title={title}
+          clarityLabel={clarityLabel}
+          onOpenProject={props.onSwitch}
+          onOpenFile={(path) => void openFile(path)}
+          onCreate={props.onCreate}
+          onSettings={props.onSettings}
+          onUsers={props.onUsers}
+          extra={
+            <>
+              {uncommitted ? <span className="tag warn">未记入版本</span> : null}
+              {aiRunning ? <span className="tag">AI 进行中</span> : null}
+              <button className="side-text" type="button" onClick={() => setShowVersions(true)}>
+                版本
+              </button>
+              <button
+                className="side-text"
+                type="button"
+                disabled={readOnly || busy || (!uncommitted && !dirty)}
+                onClick={() => void saveAndRecord()}
+              >
+                保存一版
+              </button>
+              <button className="side-text" type="button" onClick={() => setShowImport(true)}>
+                导入
+              </button>
+              {props.user.role === "architect" && lock && !lock.youHold ? (
+                <button
+                  className="side-text"
+                  type="button"
+                  onClick={() => void api.forceReleaseLock(id).then(() => bootstrap())}
+                >
+                  解除编辑权
+                </button>
+              ) : null}
+              {props.user.role === "architect" ? (
+                <button
+                  className="side-text"
+                  type="button"
+                  onClick={() => {
+                    if (!window.confirm(`删除「${title}」会删掉这个文件夹。`)) return;
+                    void api.deleteRequirement(id).then(() => props.onDeleted(id));
+                  }}
+                >
+                  删除工程
+                </button>
+              ) : null}
+              {!youHold && !lock ? (
+                <button className="btn primary" type="button" onClick={() => void bootstrap()}>
+                  开始编辑
+                </button>
+              ) : null}
+            </>
+          }
+        />
+        <section className="workbench-col workbench-center">
+          <div className={`molan-stage${entrustSize === "collapsed" ? " has-collapsed-entrust" : ""}`}>
+            <div className="molan-host">
+              <MolanFrame
+                ref={molanRef}
+                fileName={currentPath}
+                content={history ? history.content : content}
+                etag={history ? history.sha : etag}
+                readOnly={readOnly}
+                onSave={(value) => {
+                  void saveCurrent(value).catch((e) =>
+                    setError(e instanceof Error ? e.message : "保存失败")
+                  );
+                }}
+                onDirtyChange={setDirty}
+                onEditingChange={(next) => {
+                  setEditing(next);
+                  if (youHold) {
+                    void api
+                      .heartbeatLock(id, cid, next)
+                      .then((r) => setLock(r.lock))
+                      .catch(() => undefined);
+                  }
+                }}
+                onBlockedEdit={() => {
+                  setToast(editBlockedReason || "现在不能编辑。");
+                }}
+              />
+            </div>
+            <EntrustLayer
+              size={entrustSize}
+              width={entrustWidth}
+              onSizeChange={changeEntrustSize}
+              onWidthChange={(w) => {
+                setEntrustWidth(w);
+                rememberEntrustWidth(id, w);
+              }}
+              mode={mode}
+              onModeChange={setMode}
+              hasCode={props.hasApprovedCodeDirs}
+              allowedModes={allowed}
+              log={log}
+              message={message}
+              onMessageChange={setMessage}
+              onSend={(e) => void onSend(e)}
+              onCancel={() => {
+                if (!activeRun) return;
+                void api.cancelRun(id, activeRun.id, cid).then(() => {
+                  appendLog({ seq: Date.now(), kind: "error", text: "已请求取消。" });
+                });
+              }}
+              youHold={youHold}
+              aiRunning={aiRunning}
+              busy={busy}
+              activeRun={activeRun}
+            />
+          </div>
+        </section>
+      </div>
+
+      {compare ? (
+        <div className="compare-mask" onClick={() => setCompare(null)}>
+          <div className="compare-panel" onClick={(e) => e.stopPropagation()}>
+            <header>
+              <strong>{compare.title}</strong>
+              <button className="btn ghost" type="button" onClick={() => setCompare(null)}>
+                关闭
+              </button>
+            </header>
+            <div className="compare-grid">
+              <pre>{compare.a}</pre>
+              <pre>{compare.b}</pre>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <VersionDrawer
+        open={showVersions}
+        versions={versions}
+        readOnly={readOnly}
+        canRevertAi={versions[0]?.author === "AI" && youHold && !aiRunning}
+        onClose={() => setShowVersions(false)}
+        onOpen={(sha, message) => {
+          void api
+            .readVersionFile(id, sha, currentPath)
+            .then((file) => {
+              setHistory({ sha, content: file.content, message });
+              setShowVersions(false);
+            })
+            .catch((e) => setError(e instanceof Error ? e.message : "打不开这一版"));
+        }}
+        onRestore={(sha) => {
+          void api
+            .restoreFile(id, sha, currentPath, cid)
+            .then(async () => {
+              await openFile(currentPath, true);
+              await refreshVersions();
+              setShowVersions(false);
+            })
+            .catch((e) => setError(e instanceof Error ? e.message : "无法恢复"));
+        }}
+        onCompare={(newer, older) => {
+          void Promise.all([
+            api.readVersionFile(id, newer.id, currentPath),
+            api.readVersionFile(id, older.id, currentPath),
+          ])
+            .then(([a, b]) => {
+              setCompare({
+                a: a.content,
+                b: b.content,
+                title: `${newer.message} ↔ ${older.message}`,
+              });
+              setShowVersions(false);
+            })
+            .catch((e) => setError(e instanceof Error ? e.message : "对比失败"));
+        }}
+        onRevertAi={() => {
+          void api
+            .revertLatestAi(id, cid)
+            .then(async () => {
+              await openFile(currentPath, true);
+              await refreshVersions();
+              setShowVersions(false);
+            })
+            .catch((e) => setError(e instanceof Error ? e.message : "没能撤销"));
+        }}
+      />
+
+      {gate ? (
+        <div className="gate-mask" onClick={() => setGate("")}>
+          <div className="gate-panel" onClick={(e) => e.stopPropagation()}>
+            <p>{gate}</p>
+            <div className="gate-actions">
+              {gate.includes("清晰度") || gate.includes("代码目录") ? (
+                <button className="btn ghost" type="button" onClick={() => setGate("")}>
+                  知道了
+                </button>
+              ) : (
+                <>
+                  <button
+                    className="btn primary"
+                    type="button"
+                    disabled={busy || readOnly}
+                    onClick={() => void saveAndRecord()}
+                  >
+                    保存一版
+                  </button>
+                  <button className="btn ghost" type="button" onClick={() => setGate("")}>
+                    先不发
+                  </button>
+                </>
+              )}
+            </div>
+            {gate.includes("保存一版") || gate.includes("记入版本") ? (
+              <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>
+                「保存一版」只记入并退出编辑，不会把输入框里那句话发出去。
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {showImport ? (
+        <div className="import-mask" onClick={() => setShowImport(false)}>
+          <div className="import-panel" onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ marginTop: 0, fontFamily: "var(--font-display)", fontWeight: 500 }}>
+              导入 Markdown
+            </h2>
+            <p className="muted">原文进 import/original.md，立刻按标准文档包拆写。</p>
+            <div className="field">
+              <textarea
+                value={importText}
+                onChange={(e) => setImportText(e.target.value)}
+                placeholder="粘贴外部文档…"
+                disabled={readOnly}
+              />
+            </div>
+            <div className="gate-actions">
+              <button
+                className="btn primary"
+                type="button"
+                disabled={readOnly || busy || !importText.trim()}
+                onClick={() => {
+                  void api
+                    .importMarkdown(id, importText, cid)
+                    .then(async () => {
+                      setImportText("");
+                      setShowImport(false);
+                      await refreshTree();
+                      await openFile("README.md", true);
+                      await refreshVersions();
+                    })
+                    .catch((e) => setError(e instanceof Error ? e.message : "导入失败"));
+                }}
+              >
+                导入
+              </button>
+              <button className="btn ghost" type="button" onClick={() => setShowImport(false)}>
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}

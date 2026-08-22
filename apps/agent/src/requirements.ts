@@ -1,49 +1,49 @@
 import fs from "node:fs";
 import path from "node:path";
 import { customAlphabet } from "nanoid";
-import { config } from "./config.js";
 import { getDb } from "./db.js";
+import { HttpError } from "./httpError.js";
+import { folderNameFor, uniqueFolderName } from "./folderName.js";
+import { normalizeImportedPrd } from "./importNormalize.js";
+import { copyPrdPack } from "./prdPack.js";
 import {
-  commitAll,
-  ensureDocumentVault,
-  isDirty,
-  listVersions,
-  looksLikeCodeTree,
-} from "./gitVault.js";
+  isReady,
+  readMetaFile,
+  writeMetaFile,
+  type ClarityState,
+  type DiskProjectMeta,
+  type DiskProjectPhase,
+  type ProjectSource,
+} from "./projectMeta.js";
+import { commitAll, ensureDocumentVault, isDirty, listVersions } from "./gitVault.js";
+import {
+  getWorkspaceRoot,
+  isUnderWorkspaceRoot,
+  workspaceRootOrThrow,
+} from "./workspaceSettings.js";
 
 export type RequirementMeta = {
   id: string;
   title: string;
   summary: string;
-  primaryRepo?: string;
-  relatedRepos: string[];
-  phase: "guide" | "document" | "gaps";
+  owner: string;
+  source: ProjectSource;
+  phase: DiskProjectPhase;
+  clarity: ClarityState;
   createdAt: string;
   updatedAt: string;
   vaultPath: string;
+  folderName: string;
+  /** @deprecated 代码目录改为服务级批准，不再写入工程 meta */
+  primaryRepo?: string;
+  /** @deprecated */
+  relatedRepos: string[];
 };
 
 const nanoid = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 10);
 
-function slugify(input: string): string {
-  const s = input
-    .trim()
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 40);
-  return s || "req";
-}
-
 export function inboxRoot(): string {
-  return path.join(config.dataDir, "inbox", "requirements");
-}
-
-export function resolveVaultDir(primaryRepo: string | undefined, folderName: string): string {
-  if (primaryRepo && fs.existsSync(primaryRepo)) {
-    return path.join(primaryRepo, ".designweave", "requirements", folderName);
-  }
-  return path.join(inboxRoot(), folderName);
+  return path.join(process.env.DATA_DIR || "", "inbox", "requirements");
 }
 
 export function ensureRequirementsTable(): void {
@@ -54,7 +54,7 @@ export function ensureRequirementsTable(): void {
       summary TEXT NOT NULL DEFAULT '',
       primary_repo TEXT,
       related_repos TEXT NOT NULL DEFAULT '[]',
-      phase TEXT NOT NULL DEFAULT 'guide',
+      phase TEXT NOT NULL DEFAULT 'filling',
       vault_path TEXT NOT NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -62,389 +62,368 @@ export function ensureRequirementsTable(): void {
   `);
 }
 
-function writeMetaFile(vaultPath: string, meta: RequirementMeta): void {
-  const relatedYaml = meta.relatedRepos.length
-    ? meta.relatedRepos.map((r) => `  - ${JSON.stringify(r)}`).join("\n")
-    : "  []";
-  const body = `---
-id: ${meta.id}
-title: ${JSON.stringify(meta.title)}
-summary: ${JSON.stringify(meta.summary)}
-primaryRepo: ${meta.primaryRepo ? JSON.stringify(meta.primaryRepo) : "null"}
-relatedRepos:
-${relatedYaml}
-phase: ${meta.phase}
-createdAt: ${meta.createdAt}
-updatedAt: ${meta.updatedAt}
----
-
-# ${meta.title}
-
-- 主工程：${meta.primaryRepo || "（未绑定，位于 inbox）"}
-- 关联工程：
-${meta.relatedRepos.length ? meta.relatedRepos.map((r) => `  - \`${r}\``).join("\n") : "  - （无）"}
-`;
-  fs.writeFileSync(path.join(vaultPath, "meta.md"), body, "utf8");
-}
-
-export function defaultPrdMarkdown(title: string, summary: string): string {
-  return `# ${title}
-
-> 状态：草稿 · OEM 内置 App 需求
-
-## 背景与问题
-
-${summary || "（待补充）"}
-
-## 目标用户
-
-（待补充：终端用户 / 运营商 / 内部运维？）
-
-## 目标与成功标准
-
-（待补充）
-
-## 范围
-
-### 范围内
-
-（待补充）
-
-### 范围外
-
-（待补充）
-
-## 机型 / 系统 / 区域
-
-（待补充：机型、Android 版本、区域、品牌差异）
-
-## 入口与交互
-
-（待补充：设置路径、桌面入口等）
-
-## 权限与合规
-
-（待补充）
-
-## 工程拆分
-
-- 主工程：（创建时选择）
-- 关联工程：（创建时选择）
-- 职责切分：（待补充）
-
-## 依赖与风险
-
-（待补充：系统能力、其他内置 App、云端）
-
-## 兼容 / 升级 / 回滚
-
-（待补充）
-
-## 验收标准
-
-（待补充）
-
-## 未决问题
-
-（无）
-`;
-}
-
-export function createRequirement(input: {
-  title: string;
-  summary?: string;
-  primaryRepo?: string;
-  relatedRepos?: string[];
-  importMarkdown?: string;
-  docRoot?: string;
-}): RequirementMeta & { codeTreeWarning?: string } {
+function cacheUpsert(meta: RequirementMeta): void {
   ensureRequirementsTable();
-  const now = new Date().toISOString();
-  const id = nanoid(8);
-  const title = input.title.trim() || "未命名需求";
-  const folderName = `REQ-${id}-${slugify(title)}`;
-  const primaryRepo = input.primaryRepo?.trim() || undefined;
-  const relatedRepos = (input.relatedRepos || [])
-    .map((r) => r.trim())
-    .filter(Boolean)
-    .filter((r) => r !== primaryRepo);
-  const docRoot = input.docRoot?.trim() || undefined;
-
-  if (primaryRepo && !fs.existsSync(primaryRepo)) {
-    throw new Error(`代码仓路径不存在：${primaryRepo}`);
-  }
-  for (const r of relatedRepos) {
-    if (!fs.existsSync(r)) {
-      throw new Error(`代码仓路径不存在：${r}`);
-    }
-  }
-
-  let vaultPath: string;
-  if (docRoot) {
-    vaultPath = path.resolve(docRoot);
-    fs.mkdirSync(vaultPath, { recursive: true });
-  } else {
-    vaultPath = resolveVaultDir(primaryRepo, folderName);
-    fs.mkdirSync(path.join(vaultPath, "import"), { recursive: true });
-  }
-
-  const codeTreeWarning = looksLikeCodeTree(vaultPath)
-    ? "这看起来像代码仓。文档仓应是专门放 PRD / 调研的目录。"
-    : undefined;
-
-  ensureDocumentVault(vaultPath);
-  fs.mkdirSync(path.join(vaultPath, "import"), { recursive: true });
-
-  const meta: RequirementMeta = {
-    id,
-    title,
-    summary: (input.summary || "").trim(),
-    primaryRepo,
-    relatedRepos,
-    phase: input.importMarkdown ? "gaps" : "guide",
-    createdAt: now,
-    updatedAt: now,
-    vaultPath,
-  };
-
-  writeMetaFile(vaultPath, meta);
-
-  if (input.importMarkdown && input.importMarkdown.trim()) {
-    const original = input.importMarkdown.trim();
-    fs.writeFileSync(path.join(vaultPath, "import", "original.md"), original + "\n", "utf8");
-    fs.writeFileSync(path.join(vaultPath, "PRD.md"), original + "\n", "utf8");
-  } else {
-    fs.writeFileSync(
-      path.join(vaultPath, "PRD.md"),
-      defaultPrdMarkdown(title, meta.summary),
-      "utf8"
-    );
-  }
-
-  fs.writeFileSync(
-    path.join(vaultPath, "gaps.md"),
-    `# 缺口与待确认\n\n（引导或导入后由 AI 生成）\n`,
-    "utf8"
-  );
-
   getDb()
     .prepare(
       `INSERT INTO requirements
        (id, title, summary, primary_repo, related_repos, phase, vault_path, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, NULL, '[]', ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         title = excluded.title,
+         phase = excluded.phase,
+         vault_path = excluded.vault_path,
+         updated_at = excluded.updated_at`
     )
     .run(
       meta.id,
       meta.title,
       meta.summary,
-      meta.primaryRepo ?? null,
-      JSON.stringify(meta.relatedRepos),
       meta.phase,
       meta.vaultPath,
       meta.createdAt,
       meta.updatedAt
     );
-
-  commitAll(vaultPath, "系统：初始化文档仓", {
-    name: "系统",
-    email: "system@designweave.local",
-  });
-
-  return { ...meta, codeTreeWarning };
 }
 
-export function listRequirements(): RequirementMeta[] {
+function cacheDelete(id: string): void {
   ensureRequirementsTable();
-  const rows = getDb()
+  getDb().prepare(`DELETE FROM requirements WHERE id = ?`).run(id);
+}
+
+function cacheRow(id: string): { vaultPath: string; title: string; createdAt: string; updatedAt: string; phase: string; summary: string } | null {
+  ensureRequirementsTable();
+  const r = getDb()
     .prepare(
-      `SELECT id, title, summary, primary_repo as primaryRepo, related_repos as relatedRepos,
-              phase, vault_path as vaultPath, created_at as createdAt, updated_at as updatedAt
+      `SELECT title, summary, phase, vault_path as vaultPath, created_at as createdAt, updated_at as updatedAt
+       FROM requirements WHERE id = ?`
+    )
+    .get(id) as
+    | {
+        title: string;
+        summary: string;
+        phase: string;
+        vaultPath: string;
+        createdAt: string;
+        updatedAt: string;
+      }
+    | undefined;
+  return r ?? null;
+}
+
+function listCacheRows(): Array<{
+  id: string;
+  title: string;
+  summary: string;
+  phase: string;
+  vaultPath: string;
+  createdAt: string;
+  updatedAt: string;
+}> {
+  ensureRequirementsTable();
+  return getDb()
+    .prepare(
+      `SELECT id, title, summary, phase, vault_path as vaultPath, created_at as createdAt, updated_at as updatedAt
        FROM requirements ORDER BY updated_at DESC`
     )
     .all() as Array<{
     id: string;
     title: string;
     summary: string;
-    primaryRepo: string | null;
-    relatedRepos: string;
-    phase: RequirementMeta["phase"];
+    phase: string;
     vaultPath: string;
     createdAt: string;
     updatedAt: string;
   }>;
-
-  return rows.map((r) => ({
-    id: r.id,
-    title: r.title,
-    summary: r.summary,
-    primaryRepo: r.primaryRepo ?? undefined,
-    relatedRepos: JSON.parse(r.relatedRepos || "[]") as string[],
-    phase: r.phase,
-    vaultPath: r.vaultPath,
-    createdAt: r.createdAt,
-    updatedAt: r.updatedAt,
-  }));
 }
 
-export function getRequirement(id: string): RequirementMeta | null {
-  ensureRequirementsTable();
-  const r = getDb()
-    .prepare(
-      `SELECT id, title, summary, primary_repo as primaryRepo, related_repos as relatedRepos,
-              phase, vault_path as vaultPath, created_at as createdAt, updated_at as updatedAt
-       FROM requirements WHERE id = ?`
-    )
-    .get(id) as
-    | {
-        id: string;
-        title: string;
-        summary: string;
-        primaryRepo: string | null;
-        relatedRepos: string;
-        phase: RequirementMeta["phase"];
-        vaultPath: string;
-        createdAt: string;
-        updatedAt: string;
-      }
-    | undefined;
-  if (!r) return null;
+function toRequirement(dir: string, disk: DiskProjectMeta): RequirementMeta {
   return {
-    id: r.id,
-    title: r.title,
-    summary: r.summary,
-    primaryRepo: r.primaryRepo ?? undefined,
-    relatedRepos: JSON.parse(r.relatedRepos || "[]") as string[],
-    phase: r.phase,
-    vaultPath: r.vaultPath,
-    createdAt: r.createdAt,
-    updatedAt: r.updatedAt,
+    id: disk.id,
+    title: disk.title,
+    summary: "",
+    owner: disk.owner,
+    source: disk.source,
+    phase: disk.phase,
+    clarity: disk.clarity,
+    createdAt: disk.createdAt,
+    updatedAt: disk.updatedAt,
+    vaultPath: dir,
+    folderName: path.basename(dir),
+    relatedRepos: [],
   };
 }
 
-export function readPrdMarkdown(id: string): string {
-  const meta = getRequirement(id);
-  if (!meta) throw new Error("需求不存在");
-  const p = path.join(meta.vaultPath, "PRD.md");
-  if (!fs.existsSync(p)) return "";
-  return fs.readFileSync(p, "utf8");
-}
-
-export function writePrdMarkdown(id: string, content: string): void {
-  const meta = getRequirement(id);
-  if (!meta) throw new Error("需求不存在");
-  fs.writeFileSync(path.join(meta.vaultPath, "PRD.md"), content, "utf8");
-  touchRequirement(id);
-}
-
-export function readGapsMarkdown(id: string): string {
-  const meta = getRequirement(id);
-  if (!meta) throw new Error("需求不存在");
-  const p = path.join(meta.vaultPath, "gaps.md");
-  if (!fs.existsSync(p)) return "";
-  return fs.readFileSync(p, "utf8");
-}
-
-export function writeGapsMarkdown(id: string, content: string): void {
-  const meta = getRequirement(id);
-  if (!meta) throw new Error("需求不存在");
-  fs.writeFileSync(path.join(meta.vaultPath, "gaps.md"), content, "utf8");
-  touchRequirement(id);
-}
-
-export function readOriginalImport(id: string): string | null {
-  const meta = getRequirement(id);
-  if (!meta) return null;
-  const p = path.join(meta.vaultPath, "import", "original.md");
-  if (!fs.existsSync(p)) return null;
-  return fs.readFileSync(p, "utf8");
-}
-
-export function setRequirementPhase(id: string, phase: RequirementMeta["phase"]): RequirementMeta {
-  const meta = getRequirement(id);
-  if (!meta) throw new Error("需求不存在");
-  meta.phase = phase;
-  meta.updatedAt = new Date().toISOString();
-  getDb()
-    .prepare(`UPDATE requirements SET phase = ?, updated_at = ? WHERE id = ?`)
-    .run(phase, meta.updatedAt, id);
-  writeMetaFile(meta.vaultPath, meta);
-  return meta;
-}
-
-function touchRequirement(id: string): void {
-  const now = new Date().toISOString();
-  getDb().prepare(`UPDATE requirements SET updated_at = ? WHERE id = ?`).run(now, id);
-  const meta = getRequirement(id);
-  if (meta) {
-    meta.updatedAt = now;
-    writeMetaFile(meta.vaultPath, meta);
+export function listDiskProjects(root: string | null | undefined): RequirementMeta[] {
+  if (!root || !fs.existsSync(root)) return [];
+  const out: RequirementMeta[] = [];
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    if (entry.name.startsWith(".")) continue;
+    const dir = path.join(root, entry.name);
+    const disk = readMetaFile(dir);
+    if (!disk) continue;
+    out.push(toRequirement(dir, disk));
   }
+  return out.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
-function isManagedVault(vaultPath: string): boolean {
-  const resolved = path.resolve(vaultPath);
-  const inbox = path.resolve(inboxRoot());
-  if (resolved === inbox || resolved.startsWith(inbox + path.sep)) return true;
-  const marker = `${path.sep}.designweave${path.sep}requirements${path.sep}`;
-  return resolved.includes(marker);
+export function scanWorkspaceProjects(root = getWorkspaceRoot()): RequirementMeta[] {
+  const out = listDiskProjects(root);
+  for (const meta of out) cacheUpsert(meta);
+  return out;
+}
+
+export function listOrphanRequirements(): RequirementMeta[] {
+  const root = getWorkspaceRoot();
+  const scannedIds = new Set(scanWorkspaceProjects(root).map((p) => p.id));
+  return listCacheRows()
+    .filter((r) => !scannedIds.has(r.id))
+    .filter((r) => !root || !isUnderWorkspaceRoot(r.vaultPath, root) || !fs.existsSync(path.join(r.vaultPath, "meta.md")))
+    .map((r) => {
+      const disk = fs.existsSync(r.vaultPath) ? readMetaFile(r.vaultPath) : null;
+      return {
+        id: r.id,
+        title: disk?.title || r.title,
+        summary: r.summary,
+        owner: disk?.owner || "",
+        source: disk?.source || "template",
+        phase: disk?.phase || "filling",
+        clarity: disk?.clarity || "pending",
+        createdAt: disk?.createdAt || r.createdAt,
+        updatedAt: disk?.updatedAt || r.updatedAt,
+        vaultPath: r.vaultPath,
+        folderName: path.basename(r.vaultPath),
+        relatedRepos: [],
+      };
+    });
+}
+
+export function listRequirements(): RequirementMeta[] {
+  return scanWorkspaceProjects();
+}
+
+export function getRequirement(id: string): RequirementMeta | null {
+  const scanned = scanWorkspaceProjects();
+  const hit = scanned.find((p) => p.id === id);
+  if (hit) {
+    const fresh = readMetaFile(hit.vaultPath);
+    return fresh ? toRequirement(hit.vaultPath, fresh) : hit;
+  }
+  const row = cacheRow(id);
+  if (!row || !fs.existsSync(row.vaultPath)) return null;
+  const disk = readMetaFile(row.vaultPath);
+  if (disk) return toRequirement(row.vaultPath, disk);
+  return {
+    id,
+    title: row.title,
+    summary: row.summary,
+    owner: "",
+    source: "template",
+    phase: "filling",
+    clarity: "pending",
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    vaultPath: row.vaultPath,
+    folderName: path.basename(row.vaultPath),
+    relatedRepos: [],
+  };
+}
+
+export function patchProjectMeta(
+  id: string,
+  patch: Partial<Pick<DiskProjectMeta, "phase" | "clarity" | "title" | "owner">>
+): RequirementMeta {
+  const meta = getRequirement(id);
+  if (!meta) throw new HttpError("工程不存在", 404);
+  const next: DiskProjectMeta = {
+    id: meta.id,
+    title: patch.title ?? meta.title,
+    owner: patch.owner ?? meta.owner,
+    source: meta.source,
+    phase: patch.phase ?? meta.phase,
+    clarity: patch.clarity ?? meta.clarity,
+    createdAt: meta.createdAt,
+    updatedAt: new Date().toISOString(),
+  };
+  if (next.clarity === "ready") next.phase = "ready";
+  writeMetaFile(meta.vaultPath, next);
+  const updated = toRequirement(meta.vaultPath, next);
+  cacheUpsert(updated);
+  return updated;
+}
+
+export function createRequirement(input: {
+  title: string;
+  owner: string;
+  source?: ProjectSource;
+  importMarkdown?: string;
+}): RequirementMeta {
+  const root = workspaceRootOrThrow();
+  const title = input.title.trim() || "未命名工程";
+  const existing = fs
+    .readdirSync(root, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name);
+  const folderName = uniqueFolderName(existing, title);
+  const vaultPath = path.join(root, folderName);
+  if (fs.existsSync(vaultPath)) {
+    throw new HttpError("已经有这个名字的工程文件夹了。", 409);
+  }
+
+  const now = new Date().toISOString();
+  const id = nanoid(8);
+  const imported = Boolean(input.importMarkdown && input.importMarkdown.trim());
+  const source: ProjectSource = input.source || (imported ? "import" : "template");
+  const phase: DiskProjectPhase = source === "import" ? "imported" : "filling";
+
+  fs.mkdirSync(vaultPath, { recursive: true });
+  ensureDocumentVault(vaultPath);
+
+  if (source === "import" && imported) {
+    normalizeImportedPrd({
+      dest: vaultPath,
+      title,
+      owner: input.owner,
+      id,
+      original: input.importMarkdown!.trim(),
+      createdAt: now,
+    });
+  } else {
+    copyPrdPack(vaultPath, {
+      id,
+      title,
+      owner: input.owner,
+      source: "template",
+      phase: "filling",
+      clarity: "pending",
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
+  const disk = readMetaFile(vaultPath);
+  if (!disk) throw new HttpError("工程创建后读不到 meta.md", 500);
+  const meta = toRequirement(vaultPath, disk);
+  cacheUpsert(meta);
+  commitAll(vaultPath, "系统：初始化文档仓", {
+    name: "系统",
+    email: "system@designweave.local",
+  });
+  return meta;
 }
 
 export function deleteRequirement(id: string): RequirementMeta {
   const meta = getRequirement(id);
-  if (!meta) throw new Error("工程不存在");
-  getDb().prepare(`DELETE FROM requirements WHERE id = ?`).run(id);
-  if (isManagedVault(meta.vaultPath) && fs.existsSync(meta.vaultPath)) {
+  if (!meta) throw new HttpError("工程不存在", 404);
+  const root = getWorkspaceRoot();
+  if (!root || !isUnderWorkspaceRoot(meta.vaultPath, root)) {
+    throw new HttpError(
+      "这个工程不在运行根目录下。可以从工作台拿掉，但不会自动搬盘或删文件夹。",
+      400
+    );
+  }
+  if (fs.existsSync(meta.vaultPath)) {
     fs.rmSync(meta.vaultPath, { recursive: true, force: true });
   }
+  cacheDelete(id);
   return meta;
+}
+
+/** 丢掉 SQLite 缓存行，不删磁盘。用于根目录外的旧工程。 */
+export function abandonRequirement(id: string): RequirementMeta {
+  const meta = getRequirement(id);
+  if (!meta) throw new HttpError("工程不存在", 404);
+  cacheDelete(id);
+  return meta;
+}
+
+export function setRequirementPhase(id: string, phase: DiskProjectPhase): RequirementMeta {
+  return patchProjectMeta(id, {
+    phase,
+    clarity: phase === "ready" ? "ready" : undefined,
+  });
 }
 
 export function importMarkdownToRequirement(
   id: string,
-  markdown: string,
-  mode: "replace" | "append" = "replace"
-): { prd: string; originalImport: string } {
+  markdown: string
+): { originalImport: string } {
   const meta = getRequirement(id);
-  if (!meta) throw new Error("需求不存在");
+  if (!meta) throw new HttpError("工程不存在", 404);
   const text = markdown.trim();
-  if (!text) throw new Error("导入内容为空");
-
-  const importDir = path.join(meta.vaultPath, "import");
-  fs.mkdirSync(importDir, { recursive: true });
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  fs.writeFileSync(path.join(importDir, `original-${stamp}.md`), text + "\n", "utf8");
-  fs.writeFileSync(path.join(importDir, "original.md"), text + "\n", "utf8");
-
-  const prdPath = path.join(meta.vaultPath, "PRD.md");
-  if (mode === "append" && fs.existsSync(prdPath)) {
-    const prev = fs.readFileSync(prdPath, "utf8");
-    fs.writeFileSync(
-      prdPath,
-      `${prev.trim()}\n\n---\n\n## 导入补充（${new Date().toISOString()}）\n\n${text}\n`,
-      "utf8"
-    );
-  } else {
-    fs.writeFileSync(prdPath, text + "\n", "utf8");
-  }
-
-  setRequirementPhase(id, "gaps");
-  touchRequirement(id);
-  return {
-    prd: readPrdMarkdown(id),
-    originalImport: text,
-  };
+  if (!text) throw new HttpError("导入内容为空", 400);
+  normalizeImportedPrd({
+    dest: meta.vaultPath,
+    title: meta.title,
+    owner: meta.owner,
+    id: meta.id,
+    original: text,
+    createdAt: new Date().toISOString(),
+  });
+  patchProjectMeta(id, { phase: "imported", clarity: "pending" });
+  return { originalImport: text };
 }
 
 export function getRequirementBundle(id: string) {
   const meta = getRequirement(id);
   if (!meta) return null;
   const versions = listVersions(meta.vaultPath, 1);
+  const readme = path.join(meta.vaultPath, "README.md");
+  const gaps = path.join(meta.vaultPath, "gaps.md");
+  const original = path.join(meta.vaultPath, "import", "original.md");
   return {
     requirement: meta,
-    prd: readPrdMarkdown(id),
-    gaps: readGapsMarkdown(id),
-    originalImport: readOriginalImport(id),
+    prd: fs.existsSync(readme) ? fs.readFileSync(readme, "utf8") : "",
+    gaps: fs.existsSync(gaps) ? fs.readFileSync(gaps, "utf8") : "",
+    originalImport: fs.existsSync(original) ? fs.readFileSync(original, "utf8") : null,
     uncommitted: isDirty(meta.vaultPath),
     latestVersion: versions[0] ?? null,
+    ready: isReady(meta),
   };
 }
+
+export function readVaultMarkdown(id: string, rel: string): string {
+  const meta = getRequirement(id);
+  if (!meta) throw new Error("需求不存在");
+  const p = path.join(meta.vaultPath, rel);
+  if (!fs.existsSync(p)) return "";
+  return fs.readFileSync(p, "utf8");
+}
+
+export function writeVaultMarkdown(id: string, rel: string, content: string): void {
+  const meta = getRequirement(id);
+  if (!meta) throw new Error("需求不存在");
+  fs.writeFileSync(path.join(meta.vaultPath, rel), content, "utf8");
+  patchProjectMeta(id, {});
+}
+
+export function readPrdMarkdown(id: string): string {
+  const readme = readVaultMarkdown(id, "README.md");
+  if (readme) return readme;
+  return readVaultMarkdown(id, "PRD.md");
+}
+
+export function writePrdMarkdown(id: string, content: string): void {
+  const meta = getRequirement(id);
+  if (!meta) throw new Error("需求不存在");
+  const target = fs.existsSync(path.join(meta.vaultPath, "README.md"))
+    ? "README.md"
+    : "PRD.md";
+  writeVaultMarkdown(id, target, content);
+}
+
+export function readGapsMarkdown(id: string): string {
+  return readVaultMarkdown(id, "gaps.md");
+}
+
+export function writeGapsMarkdown(id: string, content: string): void {
+  writeVaultMarkdown(id, "gaps.md", content);
+}
+
+export function readOriginalImport(id: string): string | null {
+  const text = readVaultMarkdown(id, path.join("import", "original.md"));
+  return text || null;
+}
+
+export { folderNameFor, isReady };

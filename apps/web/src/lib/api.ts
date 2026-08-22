@@ -16,7 +16,7 @@ export type ClaudeKnownProject = {
   hasClaudeDir: boolean;
 };
 
-export type WorkbenchMode = "coauthor" | "grill" | "feasibility";
+export type WorkbenchMode = "clarify" | "coauthor" | "grill" | "feasibility";
 
 export type ProjectLockInfo = {
   holderId: string;
@@ -44,12 +44,17 @@ export type RequirementMeta = {
   id: string;
   title: string;
   summary: string;
-  primaryRepo?: string;
-  relatedRepos: string[];
-  phase: "guide" | "document" | "gaps";
+  owner?: string;
+  source?: "template" | "import";
+  phase: "filling" | "imported" | "clarifying" | "ready" | "guide" | "document" | "gaps";
+  clarity?: "pending" | "ready";
+  clarityLabel?: string;
   createdAt: string;
   updatedAt: string;
   vaultPath: string;
+  folderName?: string;
+  primaryRepo?: string;
+  relatedRepos: string[];
   lock?: ProjectLockInfo;
   activeRun?: WorkbenchRun | null;
 };
@@ -144,16 +149,62 @@ export const api = {
       language: string | null;
     }>("/v1/claude/config"),
 
+  workspace: () =>
+    request<{
+      workspaceRoot?: string | null;
+      workspaceRootSet: boolean;
+      hasApprovedCodeDirs: boolean;
+      approvedCount?: number;
+    }>("/v1/workspace"),
+
+  setWorkspaceRoot: (workspaceRoot: string) =>
+    request<{ workspaceRoot: string; workspaceRootSet: boolean }>("/v1/workspace", {
+      method: "PUT",
+      body: JSON.stringify({ workspaceRoot }),
+    }),
+
+  listCodeDirs: () =>
+    request<{
+      source: string;
+      found: boolean;
+      error?: string;
+      dirs: Array<{
+        path: string;
+        name: string;
+        exists: boolean;
+        approved: boolean;
+        hasClaudeDir: boolean;
+      }>;
+      newlySeen: string[];
+    }>("/v1/workspace/code-dirs"),
+
+  setApprovedCodeDirs: (approved: string[]) =>
+    request<{
+      dirs: Array<{
+        path: string;
+        name: string;
+        approved: boolean;
+        exists: boolean;
+        hasClaudeDir: boolean;
+      }>;
+      hasApprovedCodeDirs: boolean;
+    }>("/v1/workspace/code-dirs", {
+      method: "PUT",
+      body: JSON.stringify({ approved }),
+    }),
+
   listRequirements: () =>
-    request<{ requirements: RequirementMeta[] }>("/v1/requirements"),
+    request<{
+      requirements: RequirementMeta[];
+      orphans: RequirementMeta[];
+      workspaceRootSet: boolean;
+      hasApprovedCodeDirs: boolean;
+    }>("/v1/requirements"),
 
   createRequirement: (body: {
     title: string;
-    summary?: string;
-    primaryRepo?: string;
-    relatedRepos?: string[];
+    source?: "template" | "import";
     importMarkdown?: string;
-    docRoot?: string;
   }) =>
     request<{ requirement: RequirementMeta; bundle: RequirementBundle }>(
       "/v1/requirements",
@@ -164,6 +215,12 @@ export const api = {
     request<{ ok: boolean; requirement: RequirementMeta }>(`/v1/requirements/${id}`, {
       method: "DELETE",
     }),
+
+  abandonRequirement: (id: string) =>
+    request<{ ok: boolean; requirement: RequirementMeta }>(
+      `/v1/requirements/${id}/abandon`,
+      { method: "POST" }
+    ),
 
   getRequirement: (id: string, clientId?: string) =>
     request<RequirementBundle>(
@@ -182,19 +239,13 @@ export const api = {
       { method: "PATCH", body: JSON.stringify({ phase }) }
     ),
 
-  importMarkdown: (
-    id: string,
-    markdown: string,
-    mode: "replace" | "append" = "replace",
-    clientId?: string
-  ) =>
+  importMarkdown: (id: string, markdown: string, clientId?: string) =>
     request<{
-      prd: string;
       originalImport: string;
       bundle: RequirementBundle;
     }>(`/v1/requirements/${id}/import`, {
       method: "POST",
-      body: JSON.stringify({ markdown, mode, clientId }),
+      body: JSON.stringify({ markdown, clientId }),
     }),
 
   chat: (
@@ -261,12 +312,12 @@ export const api = {
       body: JSON.stringify({ message, clientId }),
     }),
 
-  readVersionFile: (id: string, sha: string, filePath = "PRD.md") =>
+  readVersionFile: (id: string, sha: string, filePath = "README.md") =>
     request<{ path: string; content: string; version: string }>(
       `/v1/requirements/${id}/versions/${sha}/files?path=${encodeURIComponent(filePath)}`
     ),
 
-  restoreFile: (id: string, sha: string, filePath = "PRD.md", clientId?: string) =>
+  restoreFile: (id: string, sha: string, filePath = "README.md", clientId?: string) =>
     request<{ path: string; content: string; uncommitted: boolean; etag?: string }>(
       `/v1/requirements/${id}/versions/${sha}/restore`,
       { method: "POST", body: JSON.stringify({ path: filePath, clientId }) }

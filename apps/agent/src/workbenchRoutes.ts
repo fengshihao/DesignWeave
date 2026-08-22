@@ -22,6 +22,9 @@ import {
   type WorkbenchMode,
 } from "./workbenchRuns.js";
 import { executeWorkbenchRun } from "./workbenchAgent.js";
+import { gateWorkbenchMode } from "./clarifyGate.js";
+import { hasApprovedCodeDirs } from "./workspaceSettings.js";
+import { patchProjectMeta } from "./requirements.js";
 
 function fail(res: Response, err: unknown): void {
   res.status(statusOf(err)).json({
@@ -37,8 +40,10 @@ function requireProject(req: Request) {
 
 function parseMode(raw: unknown): WorkbenchMode {
   const mode = String(raw || "");
-  if (mode === "coauthor" || mode === "grill" || mode === "feasibility") return mode;
-  throw new HttpError("档位必须是 共创 / 拷问 / 可行性", 400);
+  if (mode === "clarify" || mode === "coauthor" || mode === "grill" || mode === "feasibility") {
+    return mode;
+  }
+  throw new HttpError("档位必须是 检查清晰度 / 共创 / 拷问 / 可行性", 400);
 }
 
 export function registerWorkbenchRoutes(app: Express): void {
@@ -115,9 +120,13 @@ export function registerWorkbenchRoutes(app: Express): void {
       const message = String(req.body?.message || "").trim();
       if (!message) throw new HttpError("消息不能为空", 400);
       const mode = parseMode(req.body?.mode);
-      if (mode === "feasibility" && !meta.primaryRepo && meta.relatedRepos.length === 0) {
-        throw new HttpError("这个工程还没有挂代码仓，可行性档位不能用。请让架构师先挂上只读代码仓。", 400);
-      }
+      const gate = gateWorkbenchMode({
+        mode,
+        phase: meta.phase,
+        clarity: meta.clarity,
+        hasApprovedCodeDirs: hasApprovedCodeDirs(),
+      });
+      if (gate) throw new HttpError(gate, 400);
 
       const lock = assertHoldsLock(meta.id, req.user!, clientId || undefined);
       if (lock.editing) {
@@ -125,6 +134,9 @@ export function registerWorkbenchRoutes(app: Express): void {
       }
       if (isDirty(meta.vaultPath)) {
         throw new HttpError("先记入版本再发给 AI。", 409);
+      }
+      if (mode === "clarify" && meta.phase !== "ready") {
+        patchProjectMeta(meta.id, { phase: "clarifying" });
       }
 
       const run = createRun({

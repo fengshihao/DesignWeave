@@ -3,7 +3,7 @@ import type { Response } from "express";
 import { getDb } from "./db.js";
 import { HttpError } from "./httpError.js";
 
-export type WorkbenchMode = "coauthor" | "grill" | "feasibility";
+export type WorkbenchMode = "clarify" | "coauthor" | "grill" | "feasibility";
 export type RunStatus =
   | "queued"
   | "running"

@@ -78,7 +78,7 @@ export function DocTree(props: {
   files: DocNode[];
   currentPath: string;
   onOpen: (path: string) => void;
-  onImport: () => void;
+  onImport?: () => void;
 }) {
   const tree = useMemo(() => toTree(props.files), [props.files]);
   return (
@@ -86,9 +86,11 @@ export function DocTree(props: {
       <div className="file-tree">
         <Branch nodes={tree} currentPath={props.currentPath} onOpen={props.onOpen} />
       </div>
-      <button className="btn ghost" type="button" style={{ marginTop: 12 }} onClick={props.onImport}>
-        导入 Markdown
-      </button>
+      {props.onImport ? (
+        <button className="btn ghost" type="button" style={{ marginTop: 12 }} onClick={props.onImport}>
+          导入 Markdown
+        </button>
+      ) : null}
     </>
   );
 }
