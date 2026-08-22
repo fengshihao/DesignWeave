@@ -1684,6 +1684,51 @@
       display: none;
     }
 
+    .reader-actions .export-prefs {
+      position: relative;
+    }
+
+    .reader-actions .export-prefs:has(#pdfBtn[hidden]) {
+      display: none;
+    }
+
+    .export-menu {
+      display: none;
+      position: absolute;
+      top: calc(100% + 8px);
+      inset-inline-end: 0;
+      z-index: 14;
+      min-width: 148px;
+      padding: 6px;
+      border-radius: 12px;
+      background: var(--paper-lift);
+      border: 1px solid var(--hairline-strong);
+      box-shadow: var(--shadow);
+      color: var(--ink);
+    }
+
+    .export-menu:not([hidden]) {
+      display: block;
+    }
+
+    .export-menu button {
+      display: block;
+      width: 100%;
+      text-align: start;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      padding: 8px 10px;
+      border-radius: 8px;
+      font: 0.88rem/1.3 var(--font-ui);
+      cursor: pointer;
+    }
+
+    .export-menu button:hover,
+    .export-menu button:focus-visible {
+      background: var(--surface-hover);
+    }
+
     .type-menu {
       display: none;
       position: absolute;
@@ -4299,4 +4344,210 @@
     }
     .molan-format-bar__link input.is-invalid {
       color: color-mix(in srgb, #ffb4a8 80%, var(--paper));
+    }
+
+    @page {
+      size: A4;
+      margin: 16mm 14mm 18mm;
+    }
+
+    @media print {
+      html {
+        color-scheme: light;
+        --ink: #1c1914;
+        --ink-soft: #4a453c;
+        --ink-muted: #8a8276;
+        --paper: #f4efe6;
+        --paper-deep: #ebe4d6;
+        --paper-lift: #faf7f1;
+        --accent: #d4773b;
+        --link: #a85a24;
+        --strong: #15120e;
+        --inline-code: #7a3d1e;
+        --hairline: rgba(28, 25, 20, 0.08);
+        --hairline-strong: rgba(28, 25, 20, 0.12);
+        --code-bg: #f3eee4;
+        --code-fg: #2a211c;
+        --code-border: rgba(28, 25, 20, 0.2);
+        --table-bg: #f6f0e6;
+        --table-line: rgba(28, 25, 20, 0.16);
+        --table-stripe: rgba(28, 25, 20, 0.05);
+        --blockquote-tint: rgba(212, 119, 59, 0.07);
+        --diagram-card: #f6f0e6;
+        --font-display: "Cormorant Garamond", "Instrument Serif", Georgia, "Times New Roman", "Songti SC", SimSun, serif;
+        --font-ui: "DM Sans", "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+        --reader-heading: var(--font-display);
+        --reader-font: var(--font-ui);
+      }
+
+      html,
+      body {
+        height: auto !important;
+        overflow: visible !important;
+        background: #f4efe6 !important;
+        color: #1c1914 !important;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+
+      html.is-printing body > *:not(#molanPreview) {
+        display: none !important;
+      }
+
+      body::before,
+      body::after,
+      .sidebar,
+      .reader-header,
+      .status-bar,
+      .welcome,
+      .toast,
+      .lightbox,
+      .molan-find-bar,
+      .molan-format-bar,
+      .molan-block-insert,
+      .molan-insert-menu,
+      .molan-diagram-toolbar,
+      .molan-table-toolbar,
+      .molan-table-picker,
+      .molan-outline-dock,
+      .molan-outline-panel,
+      .editor-wrap > .vditor-outline,
+      .molan-source-view,
+      .molan-mermaid-editor-mask,
+      .molan-image-url-mask,
+      .prefs-menu,
+      .theme-menu,
+      .type-menu,
+      .export-menu,
+      #vditor,
+      .hidden-input {
+        display: none !important;
+      }
+
+      .app,
+      .main,
+      .reader-body,
+      .editor-wrap,
+      .editor-wrap.visible,
+      .molan-preview,
+      .editor-wrap.is-lite-preview .molan-preview,
+      .molan-preview > .vditor-reset,
+      #molanPreviewBody {
+        display: block !important;
+        position: static !important;
+        height: auto !important;
+        max-height: none !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+        flex: none !important;
+        background: transparent !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+      }
+
+      .app {
+        grid-template-columns: none !important;
+        grid-template-rows: none !important;
+        gap: 0 !important;
+      }
+
+      .vditor-reset,
+      .molan-preview,
+      #molanPreviewBody,
+      pre,
+      table {
+        overflow: visible !important;
+        contain: none !important;
+      }
+
+      .vditor-preview .vditor-reset,
+      .molan-preview > .vditor-reset,
+      #molanPreviewBody {
+        padding: 0 !important;
+      }
+
+      body {
+        max-width: none !important;
+        margin: 0 !important;
+      }
+
+      .vditor-reset h1,
+      .vditor-reset h2,
+      .vditor-reset h3,
+      .vditor-reset h4,
+      .vditor-reset h5,
+      .vditor-reset h6 {
+        break-after: avoid;
+        page-break-after: avoid;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+
+      .vditor-reset p,
+      .vditor-reset li {
+        orphans: 3;
+        widows: 3;
+      }
+
+      /* 代码/表格经常高于一页，禁止整块避让，否则会留下整页空白或被裁切 */
+      pre,
+      table,
+      blockquote {
+        break-inside: auto;
+        page-break-inside: auto;
+      }
+
+      pre,
+      pre code {
+        white-space: pre-wrap !important;
+        word-break: break-word !important;
+        overflow: visible !important;
+      }
+
+      .vditor-reset table {
+        width: 100% !important;
+        max-width: 100% !important;
+        table-layout: auto !important;
+        border-collapse: collapse !important;
+        border-radius: 0 !important;
+        overflow: visible !important;
+        box-shadow: none !important;
+      }
+
+      .vditor-reset table thead {
+        display: table-header-group;
+      }
+
+      .vditor-reset table tr,
+      .vditor-reset table th,
+      .vditor-reset table td {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+
+      .molan-table--wide {
+        font-size: 0.85em;
+      }
+
+      /* 图和流程图缩进单页，避免拦腰切断 */
+      img,
+      .katex-display,
+      .molan-mermaid-shell,
+      .molan-mermaid-shell svg,
+      .language-mermaid svg {
+        break-inside: avoid;
+        page-break-inside: avoid;
+        max-width: 100% !important;
+        max-height: 220mm !important;
+        width: auto !important;
+        height: auto !important;
+        object-fit: contain;
+        box-shadow: none !important;
+      }
+
+      a[href]::after {
+        content: none !important;
+      }
     }

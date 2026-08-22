@@ -10,6 +10,17 @@ test("molan-editor.js 导出 MolanEditor.create", () => {
   const src = readFileSync(join(root, "src", "molan-editor.js"), "utf8");
   assert.match(src, /MolanEditor\.create|global\.MolanEditor\s*=/);
   assert.match(src, /function create\(/);
+  assert.match(src, /function exportPdf\(/);
+  assert.match(src, /function exportPng\(/);
+  assert.match(src, /function rasterizePreviewPng\(/);
+  assert.match(src, /function isUnsafePrintHost\(/);
+  assert.match(src, /function downloadPrintableHtml\(/);
+  assert.match(src, /molan-print-doc/);
+  assert.match(src, /function isolatePreviewForPrint\(/);
+  assert.match(src, /M9 7\.5 4\.5 12 9 16\.5/);
+  assert.doesNotMatch(src, /rect x="5\.5" y="3\.5" width="13" height="17"/);
+  assert.match(src, /exportPdfUseBrowser/);
+  assert.match(src, /if \(unsafePrint\) \{[\s\S]*?downloadPrintableHtml[\s\S]*?return;[\s\S]*?window\.print\(\)/);
   assert.match(src, /sourceViewBtn/);
   assert.match(src, /function openSourceView/);
   assert.match(src, /TYPE_FONTS/);
@@ -25,6 +36,10 @@ test("molan.css 含四主题变量", () => {
   for (const theme of ["night", "hack", "rose", "xuan"]) {
     assert.match(css, new RegExp(`data-theme="${theme}"|\\[data-theme=${theme}\\]`));
   }
+  assert.match(css, /@media print/);
+  assert.match(css, /break-inside:\s*auto/);
+  assert.match(css, /max-height:\s*220mm/);
+  assert.match(css, /\.export-menu/);
   assert.match(css, /molan-source-view/);
   assert.match(css, /molan-mermaid-editor-zoom/);
   assert.match(css, /--reader-font/);
@@ -46,6 +61,9 @@ test("编辑态能修好并删除空任务列表", () => {
   assert.match(src, /listIsHusk/);
   assert.match(src, /vditor-task/);
   assert.match(src, /\\\[\[ xX\]\?\\\]/);
+  assert.match(src, /function sweepOrphanIrNodes/);
+  assert.match(src, /irNodeIsOrphanPreview/);
+  assert.match(src, /blockIsHusk/);
   assert.match(src, /event\.key === "Enter"/);
 });
 

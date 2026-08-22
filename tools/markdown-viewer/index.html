@@ -52,7 +52,7 @@
   <link rel="preload" href="./vendor/vditor/dist/js/lute/lute.min.js" as="script" />
   <link rel="preload" href="./vendor/vditor/dist/method.min.js" as="script" />
   <link rel="stylesheet" href="./vendor/vditor/dist/index.css" />
-  <link rel="stylesheet" href="./molan.css?v=20260820sample" />
+  <link rel="stylesheet" href="./molan.css?v=20260822pg" />
 </head>
 <body>
   <div class="app">
@@ -140,6 +140,15 @@
           <button class="icon-btn" id="copyBtn" type="button" hidden title="复制原文" aria-label="复制原文" data-i18n-title="copySource" data-i18n-aria="copySource">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2"/><rect x="4" y="8" width="12" height="12" rx="2"/></svg>
           </button>
+          <div class="export-prefs" id="exportPrefs">
+            <button class="icon-btn" id="pdfBtn" type="button" hidden title="导出" aria-label="导出" aria-expanded="false" aria-haspopup="menu" aria-controls="exportMenu" data-i18n-title="exportAria" data-i18n-aria="exportAria">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 8H6.8A1.8 1.8 0 0 0 5 9.8v7.4A1.8 1.8 0 0 0 6.8 19h10.4a1.8 1.8 0 0 0 1.8-1.8V9.8A1.8 1.8 0 0 0 17.2 8H15"/><path d="M12 15V4"/><path d="M8.7 7.2 12 4l3.3 3.2"/></svg>
+            </button>
+            <div class="export-menu" id="exportMenu" hidden role="menu" aria-label="导出">
+              <button type="button" role="menuitem" data-export="pdf" data-i18n="exportPdf">导出 PDF</button>
+              <button type="button" role="menuitem" data-export="png" data-i18n="exportPng">导出图片</button>
+            </div>
+          </div>
           <button class="icon-btn" id="reloadBtn" type="button" hidden title="从磁盘重新加载" aria-label="从磁盘重新加载" data-i18n-title="reloadAria" data-i18n-aria="reloadAria">
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M20 12a8 8 0 1 1-2.34-5.66"/>
@@ -225,9 +234,9 @@
   </div>
 
   <script src="./vendor/vditor/dist/method.min.js"></script>
-  <script src="./molan-i18n.js?v=20260820sample"></script>
+  <script src="./molan-i18n.js?v=20260822pg"></script>
   <script src="./molan-aphorisms.js?v=20260815n"></script>
-  <script src="./molan-editor.js?v=20260820sample"></script>
-  <script src="./molan-app.js?v=20260820sample"></script>
+  <script src="./molan-editor.js?v=20260822pg"></script>
+  <script src="./molan-app.js?v=20260822pg"></script>
 </body>
 </html>

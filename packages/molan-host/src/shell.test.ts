@@ -9,5 +9,8 @@ test("renderInlineShell 含 reader-header 与 vditor 容器", () => {
   assert.match(html, /id="vditor"/);
   assert.match(html, /id="lightbox"/);
   assert.match(html, /id="lightboxEdit"/);
+  assert.match(html, /id="pdfBtn"/);
+  assert.match(html, /id="exportMenu"/);
+  assert.match(html, /data-export="png"/);
   assert.match(html, /theme-switch/);
 });

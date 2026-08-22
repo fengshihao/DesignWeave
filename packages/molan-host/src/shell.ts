@@ -25,6 +25,15 @@ export function renderInlineShell(options: InlineShellOptions = {}): string {
           <button class="icon-btn" id="copyBtn" type="button" title="复制原文" aria-label="复制原文">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2"/><rect x="4" y="8" width="12" height="12" rx="2"/></svg>
           </button>
+          <div class="export-prefs" id="exportPrefs">
+            <button class="icon-btn" id="pdfBtn" type="button" title="导出" aria-label="导出" aria-expanded="false" aria-haspopup="menu" aria-controls="exportMenu">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 8H6.8A1.8 1.8 0 0 0 5 9.8v7.4A1.8 1.8 0 0 0 6.8 19h10.4a1.8 1.8 0 0 0 1.8-1.8V9.8A1.8 1.8 0 0 0 17.2 8H15"/><path d="M12 15V4"/><path d="M8.7 7.2 12 4l3.3 3.2"/></svg>
+            </button>
+            <div class="export-menu" id="exportMenu" hidden role="menu" aria-label="导出">
+              <button type="button" role="menuitem" data-export="pdf">导出 PDF</button>
+              <button type="button" role="menuitem" data-export="png">导出图片</button>
+            </div>
+          </div>
           <button class="icon-btn is-preview" id="modeBtn" type="button" title="编辑" aria-label="编辑">
             <svg class="icon-edit" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg>
             <svg class="icon-preview" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.8-7 9.5-7 9.5 7 9.5 7-3.8 7-9.5 7-9.5-7-9.5-7z"/><circle cx="12" cy="12" r="3"/></svg>

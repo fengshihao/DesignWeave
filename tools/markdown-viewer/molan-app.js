@@ -17,6 +17,7 @@
   const statusRight = document.getElementById("statusRight");
   const saveBtn = document.getElementById("saveBtn");
   const copyBtn = document.getElementById("copyBtn");
+  const pdfBtn = document.getElementById("pdfBtn");
   const modeBtn = document.getElementById("modeBtn");
   const findBtn = document.getElementById("molanFindBtn");
   const typeBtn = document.getElementById("typeBtn");
@@ -565,6 +566,7 @@
     if (!activePath) {
       saveBtn.hidden = true;
       copyBtn.hidden = true;
+      if (pdfBtn) pdfBtn.hidden = true;
       if (findBtn) findBtn.hidden = true;
       if (typeBtn) typeBtn.hidden = true;
       if (reloadBtn) reloadBtn.hidden = true;
@@ -574,6 +576,7 @@
       return;
     }
     copyBtn.hidden = false;
+    if (pdfBtn) pdfBtn.hidden = false;
     if (findBtn) findBtn.hidden = false;
     if (typeBtn) typeBtn.hidden = false;
     if (reloadBtn) reloadBtn.hidden = false;
@@ -1022,6 +1025,7 @@
     editorWrap.classList.remove("visible");
     saveBtn.hidden = true;
     copyBtn.hidden = true;
+    if (pdfBtn) pdfBtn.hidden = true;
     if (modeBtn) modeBtn.hidden = true;
     if (findBtn) findBtn.hidden = true;
     if (typeBtn) typeBtn.hidden = true;
@@ -1397,6 +1401,7 @@
     editorWrap.classList.add("visible");
     saveBtn.hidden = true;
     copyBtn.hidden = false;
+    if (pdfBtn) pdfBtn.hidden = false;
     if (modeBtn) modeBtn.hidden = false;
     if (findBtn) findBtn.hidden = false;
     if (typeBtn) typeBtn.hidden = false;
