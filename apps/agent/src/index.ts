@@ -20,7 +20,7 @@ import {
   signUpFirstUser,
 } from "./auth.js";
 import { publicUser, requireArchitect, requireSession } from "./acl.js";
-import { ROLES } from "./roles.js";
+import { ROLES, isArchitect } from "./roles.js";
 import {
   createProject,
   getProject,
@@ -47,17 +47,29 @@ import {
   summarizeClaudeReuse,
 } from "./claudeRuntime.js";
 import {
+  abandonRequirement,
   createRequirement,
   deleteRequirement,
   ensureRequirementsTable,
   getRequirement,
   getRequirementBundle,
+  listOrphanRequirements,
   listRequirements,
-  readPrdMarkdown,
   setRequirementPhase,
-  writePrdMarkdown,
   importMarkdownToRequirement,
 } from "./requirements.js";
+import {
+  ensureWorkspaceTables,
+  getWorkspaceRoot,
+  hasApprovedCodeDirs,
+  listApprovedCodeDirs,
+  refreshClaudeCodeDirs,
+  setApprovedCodeDirs,
+  setWorkspaceRoot,
+} from "./workspaceSettings.js";
+import { defaultOpenPath } from "./prdPack.js";
+import { clarityStatusLabel } from "./clarifyGate.js";
+import type { DiskProjectPhase } from "./projectMeta.js";
 import { runRequirementChat } from "./requirementChat.js";
 import { browseDir, mkdirUnder } from "./fsBrowse.js";
 import { listDocTree, readDocFile, writeDocFile } from "./files.js";
@@ -84,6 +96,7 @@ import { statusOf } from "./httpError.js";
 fs.mkdirSync(workspacesRoot(), { recursive: true });
 getDb();
 ensureRequirementsTable();
+ensureWorkspaceTables();
 ensureLockTable();
 ensureRunTables();
 
@@ -251,52 +264,116 @@ app.get("/v1/claude/projects", requireArchitect, (_req, res) => {
   res.json(scanClaudeKnownProjects());
 });
 
+app.get("/v1/workspace", (req, res) => {
+  const root = getWorkspaceRoot();
+  const architect = isArchitect(req.user!.role);
+  const approved = listApprovedCodeDirs();
+  if (!architect) {
+    res.json({
+      workspaceRootSet: Boolean(root),
+      hasApprovedCodeDirs: approved.length > 0,
+    });
+    return;
+  }
+  res.json({
+    workspaceRoot: root,
+    workspaceRootSet: Boolean(root),
+    hasApprovedCodeDirs: approved.length > 0,
+    approvedCount: approved.length,
+  });
+});
+
+app.put("/v1/workspace", requireArchitect, (req, res) => {
+  try {
+    const raw = String(req.body?.workspaceRoot || "").trim();
+    if (!raw) {
+      res.status(400).json({ error: "请选择运行根目录" });
+      return;
+    }
+    const workspaceRoot = setWorkspaceRoot(raw);
+    res.json({ workspaceRoot, workspaceRootSet: true });
+  } catch (err) {
+    res.status(statusOf(err)).json({
+      error: err instanceof Error ? err.message : "没法设定运行根目录",
+    });
+  }
+});
+
+app.get("/v1/workspace/code-dirs", requireArchitect, (_req, res) => {
+  try {
+    const scan = refreshClaudeCodeDirs();
+    res.json(scan);
+  } catch (err) {
+    res.status(statusOf(err)).json({
+      error: err instanceof Error ? err.message : "扫不了代码目录",
+    });
+  }
+});
+
+app.put("/v1/workspace/code-dirs", requireArchitect, (req, res) => {
+  try {
+    const approved = Array.isArray(req.body?.approved)
+      ? req.body.approved.map((x: unknown) => String(x))
+      : [];
+    const dirs = setApprovedCodeDirs(approved);
+    res.json({ dirs, hasApprovedCodeDirs: dirs.some((d) => d.approved) });
+  } catch (err) {
+    res.status(statusOf(err)).json({
+      error: err instanceof Error ? err.message : "没法保存批准名单",
+    });
+  }
+});
+
+
 app.get("/v1/requirements", (req, res) => {
   const requirements = listRequirements().map((r) => ({
     ...r,
     lock: publicLock(getLock(r.id), req.user!.id),
     activeRun: getActiveRun(r.id),
+    clarityLabel: clarityStatusLabel(r),
   }));
-  res.json({ requirements });
+  const architect = isArchitect(req.user!.role);
+  res.json({
+    requirements,
+    orphans: architect ? listOrphanRequirements() : [],
+    workspaceRootSet: Boolean(getWorkspaceRoot()),
+    hasApprovedCodeDirs: hasApprovedCodeDirs(),
+  });
 });
 
-app.post("/v1/requirements", requireArchitect, (req, res) => {
+app.post("/v1/requirements", (req, res) => {
   try {
     const title = String(req.body?.title || "").trim();
-    const summary = String(req.body?.summary || req.body?.idea || "").trim();
-    const primaryRepo =
-      typeof req.body?.primaryRepo === "string"
-        ? req.body.primaryRepo.trim()
-        : undefined;
-    const relatedRepos = Array.isArray(req.body?.relatedRepos)
-      ? req.body.relatedRepos.map((x: unknown) => String(x))
-      : [];
     const importMarkdown =
       typeof req.body?.importMarkdown === "string"
         ? req.body.importMarkdown
         : undefined;
-
-    const docRoot =
-      typeof req.body?.docRoot === "string" ? req.body.docRoot.trim() : undefined;
-    if (!title && !summary && !importMarkdown) {
-      res.status(400).json({ error: "请提供标题、一句话目标或导入的 Markdown" });
+    const sourceRaw = String(req.body?.source || "");
+    const source =
+      sourceRaw === "import" || importMarkdown?.trim()
+        ? ("import" as const)
+        : ("template" as const);
+    if (!title) {
+      res.status(400).json({ error: "请填写工程名称" });
+      return;
+    }
+    if (source === "import" && !importMarkdown?.trim()) {
+      res.status(400).json({ error: "导入请粘贴或上传 Markdown" });
       return;
     }
 
     const requirement = createRequirement({
-      title: title || summary.slice(0, 40) || "导入的需求",
-      summary,
-      primaryRepo,
-      relatedRepos,
+      title,
+      owner: req.user!.name,
+      source,
       importMarkdown,
-      docRoot,
     });
     res.status(201).json({
       requirement,
       bundle: getRequirementBundle(requirement.id),
     });
   } catch (err) {
-    res.status(400).json({
+    res.status(statusOf(err)).json({
       error: err instanceof Error ? err.message : String(err),
     });
   }
@@ -314,7 +391,18 @@ app.delete("/v1/requirements/:id", requireArchitect, (req, res) => {
     const requirement = deleteRequirement(id);
     res.json({ ok: true, requirement });
   } catch (err) {
-    res.status(400).json({
+    res.status(statusOf(err)).json({
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+app.post("/v1/requirements/:id/abandon", requireArchitect, (req, res) => {
+  try {
+    const requirement = abandonRequirement(req.params.id);
+    res.json({ ok: true, requirement });
+  } catch (err) {
+    res.status(statusOf(err)).json({
       error: err instanceof Error ? err.message : String(err),
     });
   }
@@ -339,8 +427,8 @@ app.put("/v1/requirements/:id/prd", (req, res) => {
   try {
     assertWritable(req.params.id, req.user!, String(req.body?.clientId || "") || undefined);
     const content = String(req.body?.content ?? "");
-    writePrdMarkdown(req.params.id, content);
-    res.json({ prd: readPrdMarkdown(req.params.id) });
+    const file = writeDocFile(req.params.id, "README.md", content);
+    res.json({ prd: file.content });
   } catch (err) {
     res.status(statusOf(err, 404)).json({
       error: err instanceof Error ? err.message : String(err),
@@ -352,8 +440,7 @@ app.post("/v1/requirements/:id/import", (req, res) => {
   try {
     assertWritable(req.params.id, req.user!, String(req.body?.clientId || "") || undefined);
     const markdown = String(req.body?.markdown || "");
-    const mode = req.body?.mode === "append" ? "append" : "replace";
-    const result = importMarkdownToRequirement(req.params.id, markdown, mode);
+    const result = importMarkdownToRequirement(req.params.id, markdown);
     res.json({
       ...result,
       bundle: getRequirementBundle(req.params.id),
@@ -394,17 +481,14 @@ app.post("/v1/requirements/:id/chat", async (req, res) => {
 app.patch("/v1/requirements/:id/phase", (req, res) => {
   try {
     const phase = String(req.body?.phase || "");
-    if (!["guide", "document", "gaps"].includes(phase)) {
-      res.status(400).json({ error: "phase 必须是 guide | document | gaps" });
+    if (!["filling", "imported", "clarifying", "ready"].includes(phase)) {
+      res.status(400).json({ error: "phase 必须是 filling | imported | clarifying | ready" });
       return;
     }
-    const requirement = setRequirementPhase(
-      req.params.id,
-      phase as "guide" | "document" | "gaps"
-    );
+    const requirement = setRequirementPhase(req.params.id, phase as DiskProjectPhase);
     res.json({ requirement });
   } catch (err) {
-    res.status(404).json({
+    res.status(statusOf(err, 404)).json({
       error: err instanceof Error ? err.message : String(err),
     });
   }
@@ -450,7 +534,9 @@ app.get("/v1/requirements/:id/tree", (req, res) => {
 
 app.get("/v1/requirements/:id/files", (req, res) => {
   try {
-    const rel = typeof req.query.path === "string" ? req.query.path : "PRD.md";
+    const tree = listDocTree(req.params.id);
+    const rel =
+      typeof req.query.path === "string" ? req.query.path : defaultOpenPath(tree);
     const file = readDocFile(req.params.id, rel);
     res.setHeader("ETag", file.etag);
     res.json(file);
@@ -468,7 +554,7 @@ app.put("/v1/requirements/:id/files", (req, res) => {
       req.user!,
       String(req.body?.clientId || req.query.clientId || "") || undefined
     );
-    const rel = typeof req.query.path === "string" ? req.query.path : "PRD.md";
+    const rel = typeof req.query.path === "string" ? req.query.path : "README.md";
     const content = String(req.body?.content ?? "");
     const ifMatch = req.header("if-match") || undefined;
     const file = writeDocFile(req.params.id, rel, content, ifMatch);
@@ -509,6 +595,7 @@ app.post("/v1/requirements/:id/versions", (req, res) => {
     const custom = String(req.body?.message || "").trim();
     const files = changedFiles(meta.vaultPath);
     const named =
+      files.find((f) => /(^|\/)README\.md$/i.test(f)) ||
       files.find((f) => /(^|\/)PRD\.md$/i.test(f)) ||
       files.find((f) => /(^|\/)调研\.md$/.test(f)) ||
       files.find((f) => f.endsWith(".md") && !f.endsWith("meta.md")) ||
@@ -537,7 +624,7 @@ app.get("/v1/requirements/:id/versions/:sha/files", (req, res) => {
     res.status(404).json({ error: "工程不存在" });
     return;
   }
-  const rel = typeof req.query.path === "string" ? req.query.path : "PRD.md";
+  const rel = typeof req.query.path === "string" ? req.query.path : "README.md";
   const content = readFileAt(meta.vaultPath, req.params.sha, rel);
   if (content === null) {
     res.status(404).json({ error: "这一版里还没有这篇" });
@@ -558,7 +645,7 @@ app.post("/v1/requirements/:id/versions/:sha/restore", (req, res) => {
       req.user!,
       String(req.body?.clientId || "") || undefined
     );
-    const rel = typeof req.body?.path === "string" ? req.body.path : "PRD.md";
+    const rel = typeof req.body?.path === "string" ? req.body.path : "README.md";
     restoreFile(meta.vaultPath, req.params.sha, rel);
     const file = readDocFile(req.params.id, rel);
     res.json({

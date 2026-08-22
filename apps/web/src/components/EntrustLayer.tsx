@@ -7,6 +7,7 @@ import type { EntrustSize } from "@/lib/remember";
 export type LogItem = { seq: number; kind: string; text: string };
 
 const MODES: Array<{ id: WorkbenchMode; label: string }> = [
+  { id: "clarify", label: "检查清晰度" },
   { id: "coauthor", label: "共创" },
   { id: "grill", label: "拷问" },
   { id: "feasibility", label: "可行性" },
@@ -48,6 +49,7 @@ export function EntrustLayer(props: {
   mode: WorkbenchMode;
   onModeChange: (mode: WorkbenchMode) => void;
   hasCode: boolean;
+  allowedModes?: WorkbenchMode[];
   log: LogItem[];
   message: string;
   onMessageChange: (value: string) => void;
@@ -127,23 +129,33 @@ export function EntrustLayer(props: {
         />
       ) : null}
       <div className={floating ? "entrust-head" : "entrust-bar"}>
-        <div className="mode-switch" role="tablist">
-          {MODES.map((m) => {
-            const locked = m.id === "feasibility" && !props.hasCode;
-            return (
-              <button
-                key={m.id}
-                type="button"
-                role="tab"
-                aria-selected={props.mode === m.id}
-                disabled={locked}
-                onClick={() => props.onModeChange(m.id)}
-              >
-                {m.label}
-              </button>
-            );
-          })}
-        </div>
+        {floating ? (
+          <div className="mode-switch" role="tablist">
+            {MODES.map((m) => {
+              const allowed = props.allowedModes
+                ? props.allowedModes.includes(m.id)
+                : m.id === "feasibility"
+                  ? props.hasCode
+                  : true;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={props.mode === m.id}
+                  disabled={!allowed}
+                  onClick={() => props.onModeChange(m.id)}
+                >
+                  {m.label}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <span className="muted" style={{ fontSize: 12 }}>
+            {MODES.find((m) => m.id === props.mode)?.label || "托付"}
+          </span>
+        )}
         <button
           className="btn ghost"
           type="button"
