@@ -12,6 +12,11 @@ test("molan-editor.js 导出 MolanEditor.create", () => {
   assert.match(src, /function create\(/);
   assert.match(src, /sourceViewBtn/);
   assert.match(src, /function openSourceView/);
+  assert.match(src, /TYPE_FONTS/);
+  assert.match(src, /notoSerif/);
+  assert.match(src, /--reader-font/);
+  assert.match(src, /data-type-font/);
+  assert.match(src, /type-row-fonts/);
   assert.doesNotMatch(src, /editModeBtn/);
 });
 
@@ -22,6 +27,10 @@ test("molan.css 含四主题变量", () => {
   }
   assert.match(css, /molan-source-view/);
   assert.match(css, /molan-mermaid-editor-zoom/);
+  assert.match(css, /--reader-font/);
+  assert.match(css, /--reader-heading/);
+  assert.match(css, /\.type-fonts/);
+  assert.match(css, /\.type-row-fonts/);
   assert.match(css, /\.molan-mermaid-editor \{[\s\S]*width:\s*min\(96vw,\s*1400px\)/);
   assert.match(css, /\.molan-mermaid-editor \{[\s\S]*height:\s*min\(90vh,\s*900px\)/);
   assert.doesNotMatch(css, /#editModeBtn/);

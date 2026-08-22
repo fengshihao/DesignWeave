@@ -67,6 +67,8 @@
       --reader-leading: 1.58;
       --reader-gap: 0.65em;
       --reader-tracking: 0em;
+      --reader-font: var(--font-ui);
+      --reader-heading: var(--font-display);
     }
 
     /* 墨夜：暖黑夜读，油灯金 */
@@ -1688,7 +1690,7 @@
       top: calc(100% + 8px);
       right: 0;
       z-index: 14;
-      width: 228px;
+      width: 248px;
       padding: 14px 14px 12px;
       border-radius: 14px;
       background: var(--paper-lift);
@@ -1802,6 +1804,55 @@
       font-weight: 650;
       letter-spacing: 0.02em;
       color: var(--accent);
+    }
+
+    .type-fonts {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-height: 12.4rem;
+      overflow-y: auto;
+      padding: 2px;
+      margin: 0 -2px;
+    }
+
+    .type-row-fonts {
+      margin-top: 2px;
+      padding-top: 10px;
+      border-top: 1px solid var(--hairline);
+    }
+
+    .type-fonts button {
+      appearance: none;
+      margin: 0;
+      padding: 7px 10px;
+      border: 1px solid var(--hairline);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--ink-soft);
+      font-size: 0.82rem;
+      font-weight: 500;
+      letter-spacing: 0.01em;
+      text-align: left;
+      cursor: pointer;
+      transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+    }
+
+    .type-fonts button:hover {
+      color: var(--ink);
+      border-color: var(--hairline-strong);
+      background: var(--surface-hover);
+    }
+
+    .type-fonts button[aria-checked="true"] {
+      color: var(--accent);
+      border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+      background: var(--surface-solid);
+    }
+
+    .type-fonts button:focus-visible {
+      outline: 2px solid var(--accent-glow);
+      outline-offset: 1px;
     }
 
     .type-menu input[type="range"] {
@@ -2708,7 +2759,7 @@
       margin: 0 auto !important;
       padding: 22px 40px 56px 52px !important;
       overflow-x: auto;
-      font-family: var(--font-ui) !important;
+      font-family: var(--reader-font) !important;
       font-size: var(--reader-size) !important;
       line-height: var(--reader-leading) !important;
       letter-spacing: var(--reader-tracking);
@@ -2721,7 +2772,7 @@
     .vditor-reset h2,
     .vditor-reset h3,
     .vditor-reset h4 {
-      font-family: var(--font-display) !important;
+      font-family: var(--reader-heading) !important;
       font-weight: 400 !important;
       line-height: 1.22 !important;
       color: var(--ink) !important;
@@ -2741,13 +2792,13 @@
     .vditor-reset h3 { font-size: 1.24em !important; }
     .vditor-reset h4 {
       font-size: 1.07em !important;
-      font-family: var(--font-ui) !important;
+      font-family: var(--reader-font) !important;
       font-weight: 650 !important;
     }
 
     .vditor-reset h5,
     .vditor-reset h6 {
-      font-family: var(--font-ui) !important;
+      font-family: var(--reader-font) !important;
       font-weight: 650 !important;
       color: var(--ink-soft) !important;
       margin: 1.1em 0 0.35em !important;
@@ -2998,7 +3049,7 @@
       text-align: center;
       padding: 18px 16px !important;
       position: relative;
-      font-family: var(--font-ui) !important;
+      font-family: var(--reader-font) !important;
       font-size: var(--reader-size) !important;
       line-height: 1.55 !important;
       box-sizing: border-box !important;
@@ -3167,7 +3218,7 @@
     .vditor-reset .language-mermaid svg {
       max-width: 100%;
       height: auto;
-      font-family: var(--font-ui) !important;
+      font-family: var(--reader-font) !important;
     }
 
     /* 预览态：点击图进入观看，不要出现 text caret */

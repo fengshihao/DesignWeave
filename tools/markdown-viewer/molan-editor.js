@@ -113,12 +113,25 @@
       findMatchCount: "{current}/{total}",
       findAria: "在文档中查找",
       typeAria: "排版",
-      typeTitle: "调节字号与行距",
+      typeTitle: "调节字号、行距与字体",
       typeLabel: "排版",
       typeSize: "字号",
       typeLeading: "行距",
       typeGap: "段距",
       typeTracking: "字距",
+      typeFont: "字体",
+      typeFontTheme: "跟随主题",
+      typeFontSans: "黑体",
+      typeFontSerif: "宋体",
+      typeFontFang: "仿宋",
+      typeFontKai: "楷体",
+      typeFontNotoSans: "思源黑体",
+      typeFontNotoSerif: "思源宋体",
+      typeFontXiaowei: "站酷小薇",
+      typeFontMashan: "马善政楷",
+      typeFontCormorant: "Cormorant",
+      typeFontPlex: "IBM Plex",
+      typeFontMono: "等宽",
       typeReset: "恢复默认",
       prefsTheme: "纸面",
       themeAria: "界面样式",
@@ -192,7 +205,8 @@
   }
 
   function getMermaidOpts() {
-    const font = cssVar("--font-ui", '"DM Sans", sans-serif').replace(/"/g, "");
+    const inlineReader = document.documentElement.style.getPropertyValue("--reader-font").trim();
+    const font = (inlineReader || cssVar("--font-ui", '"DM Sans", sans-serif')).replace(/"/g, "");
     const themeName = document.documentElement.getAttribute("data-theme") || "night";
     const dark = themeName === "night" || themeName === "hack";
     return {
@@ -2873,12 +2887,85 @@
     leading: 1.58,
     gap: 0.65,
     tracking: 0,
+    font: "theme",
   };
   const TYPE_RANGES = {
     size: { min: 0.85, max: 1.5, step: 0.01 },
     leading: { min: 1.3, max: 2.2, step: 0.02 },
     gap: { min: 0.25, max: 1.4, step: 0.05 },
     tracking: { min: -0.03, max: 0.12, step: 0.005 },
+  };
+  const TYPE_FONTS = {
+    theme: null,
+    sans: {
+      ui: '"PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif',
+      display: '"PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif',
+    },
+    serif: {
+      ui: '"Songti SC", "STSong", SimSun, Georgia, "Times New Roman", serif',
+      display: '"Songti SC", "STSong", SimSun, Georgia, "Times New Roman", serif',
+    },
+    fang: {
+      ui: '"STFangsong", FangSong, "FangSong_GB2312", "Songti SC", SimSun, serif',
+      display: '"STFangsong", FangSong, "FangSong_GB2312", "Songti SC", SimSun, serif',
+    },
+    kai: {
+      ui: '"Kaiti SC", "STKaiti", KaiTi, "KaiTi_GB2312", serif',
+      display: '"Kaiti SC", "STKaiti", KaiTi, "KaiTi_GB2312", serif',
+    },
+    notoSans: {
+      ui: '"Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif',
+      display: '"Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif',
+      google: "family=Noto+Sans+SC:wght@400;500;700",
+    },
+    notoSerif: {
+      ui: '"Noto Serif SC", "Songti SC", SimSun, Georgia, serif',
+      display: '"Noto Serif SC", "Songti SC", SimSun, Georgia, serif',
+      google: "family=Noto+Serif+SC:wght@400;600;700",
+    },
+    xiaowei: {
+      ui: '"ZCOOL XiaoWei", "Noto Serif SC", "Songti SC", SimSun, serif',
+      display: '"ZCOOL XiaoWei", "Noto Serif SC", "Songti SC", SimSun, serif',
+      google: "family=ZCOOL+XiaoWei&family=Noto+Serif+SC:wght@400;600",
+    },
+    mashan: {
+      ui: '"Ma Shan Zheng", "Kaiti SC", KaiTi, serif',
+      display: '"Ma Shan Zheng", "Kaiti SC", KaiTi, serif',
+      google: "family=Ma+Shan+Zheng",
+    },
+    cormorant: {
+      ui: '"Cormorant Garamond", "Songti SC", SimSun, Georgia, serif',
+      display: '"Cormorant Garamond", "Songti SC", SimSun, Georgia, serif',
+      google: "family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600",
+    },
+    plex: {
+      ui: '"IBM Plex Sans", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif',
+      display: '"IBM Plex Sans", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif',
+      google: "family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400",
+    },
+    mono: {
+      ui: '"JetBrains Mono", "Cascadia Code", "IBM Plex Mono", Menlo, Consolas, ui-monospace, monospace, "PingFang SC", "Microsoft YaHei"',
+      display: '"JetBrains Mono", "Cascadia Code", "IBM Plex Mono", Menlo, Consolas, ui-monospace, monospace, "PingFang SC", "Microsoft YaHei"',
+    },
+  };
+  const TYPE_FONT_ORDER = [
+    "theme", "sans", "serif", "fang", "kai",
+    "notoSans", "notoSerif", "xiaowei", "mashan",
+    "cormorant", "plex", "mono",
+  ];
+  const TYPE_FONT_I18N = {
+    theme: "typeFontTheme",
+    sans: "typeFontSans",
+    serif: "typeFontSerif",
+    fang: "typeFontFang",
+    kai: "typeFontKai",
+    notoSans: "typeFontNotoSans",
+    notoSerif: "typeFontNotoSerif",
+    xiaowei: "typeFontXiaowei",
+    mashan: "typeFontMashan",
+    cormorant: "typeFontCormorant",
+    plex: "typeFontPlex",
+    mono: "typeFontMono",
   };
   const TYPE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.6 19L8.2 5.5h1.7L14.5 19"/><path d="M5.4 13.6h7.2"/><path d="M16.4 19l2.6-8h1.1L22.6 19"/><path d="M17.5 15.6h4.1"/></svg>';
 
@@ -2896,6 +2983,10 @@
     return Math.min(range.max, Math.max(range.min, snapped));
   }
 
+  function normalizeTypeFont(id) {
+    return Object.prototype.hasOwnProperty.call(TYPE_FONTS, id) ? id : TYPE_DEFAULTS.font;
+  }
+
   function readStoredType() {
     try {
       const raw = JSON.parse(localStorage.getItem(TYPE_KEY) || "null");
@@ -2905,6 +2996,7 @@
         leading: clampType("leading", raw.leading ?? TYPE_DEFAULTS.leading),
         gap: clampType("gap", raw.gap ?? TYPE_DEFAULTS.gap),
         tracking: clampType("tracking", raw.tracking ?? TYPE_DEFAULTS.tracking),
+        font: normalizeTypeFont(raw.font ?? TYPE_DEFAULTS.font),
       };
     } catch (_) {
       return { ...TYPE_DEFAULTS };
@@ -2917,12 +3009,34 @@
     } catch (_) { /* ignore */ }
   }
 
+  function loadReaderFont(id) {
+    const preset = TYPE_FONTS[id];
+    if (!preset?.google) return;
+    if (isVscodeHost()) return;
+    const linkId = "molan-reader-font-" + id;
+    if (document.getElementById(linkId) || !document.head) return;
+    const link = document.createElement("link");
+    link.id = linkId;
+    link.rel = "stylesheet";
+    link.href = "https://fonts.googleapis.com/css2?" + preset.google + "&display=swap";
+    document.head.appendChild(link);
+  }
+
   function applyTypeVars(values) {
+    loadReaderFont(values.font);
     const root = document.documentElement.style;
     root.setProperty("--reader-size", `${values.size}rem`);
     root.setProperty("--reader-leading", String(values.leading));
     root.setProperty("--reader-gap", `${values.gap}em`);
     root.setProperty("--reader-tracking", `${values.tracking}em`);
+    const preset = TYPE_FONTS[values.font];
+    if (preset) {
+      root.setProperty("--reader-font", preset.ui);
+      root.setProperty("--reader-heading", preset.display);
+    } else {
+      root.removeProperty("--reader-font");
+      root.removeProperty("--reader-heading");
+    }
   }
 
   function applyStoredType() {
@@ -2949,9 +3063,33 @@
     input.style.setProperty("--pct", `${pct}%`);
   }
 
+  function paintTypeFontFaces(box) {
+    if (!box) return;
+    box.querySelectorAll("[data-type-font]").forEach((btn) => {
+      const preset = TYPE_FONTS[btn.getAttribute("data-type-font")];
+      btn.style.fontFamily = preset?.ui || "";
+    });
+  }
+
+  function ensureTypeFontButtons(menu) {
+    const box = menu?.querySelector(".type-fonts");
+    if (!box) return;
+    const ids = TYPE_FONT_ORDER.filter((id) => Object.prototype.hasOwnProperty.call(TYPE_FONTS, id));
+    const existing = Array.from(box.querySelectorAll("[data-type-font]"), (el) => el.getAttribute("data-type-font"));
+    if (existing.join() !== ids.join()) {
+      box.innerHTML = ids.map((id) => {
+        const key = TYPE_FONT_I18N[id];
+        const label = key ? t(key) : id;
+        return `<button type="button" role="radio" data-type-font="${id}" aria-checked="false">${label}</button>`;
+      }).join("");
+    }
+    paintTypeFontFaces(box);
+  }
+
   function paintTypeControls() {
     const menu = document.getElementById("typeMenu");
     if (!menu) return;
+    ensureTypeFontButtons(menu);
     Object.keys(TYPE_RANGES).forEach((key) => {
       const input = menu.querySelector(`[data-type-key="${key}"]`);
       const label = menu.querySelector(`[data-type-val="${key}"]`);
@@ -2961,6 +3099,9 @@
         setRangeFill(input);
       }
       if (label) label.textContent = formatTypeValue(key, value);
+    });
+    menu.querySelectorAll("[data-type-font]").forEach((btn) => {
+      btn.setAttribute("aria-checked", btn.getAttribute("data-type-font") === typeState.values.font ? "true" : "false");
     });
   }
 
@@ -2972,11 +3113,27 @@
     if (persist !== false) persistType();
   }
 
+  function setTypeFont(id, persist) {
+    const next = normalizeTypeFont(id);
+    const changed = typeState.values.font !== next;
+    typeState.values.font = next;
+    applyTypeVars(typeState.values);
+    paintTypeControls();
+    if (persist !== false) persistType();
+    if (changed) {
+      try { scheduleMermaidThemeRefresh(); } catch (_) { /* ignore */ }
+    }
+  }
+
   function resetType() {
+    const fontChanged = typeState.values.font !== TYPE_DEFAULTS.font;
     typeState.values = { ...TYPE_DEFAULTS };
     applyTypeVars(typeState.values);
     paintTypeControls();
     persistType();
+    if (fontChanged) {
+      try { scheduleMermaidThemeRefresh(); } catch (_) { /* ignore */ }
+    }
   }
 
   function typeIsOpen() {
@@ -3039,11 +3196,18 @@
       leading: "typeLeading",
       gap: "typeGap",
       tracking: "typeTracking",
+      font: "typeFont",
     };
     Object.keys(map).forEach((key) => {
       const el = menu.querySelector(`[data-type-name="${key}"]`);
       if (el) el.textContent = t(map[key]);
     });
+    menu.querySelectorAll("[data-type-font]").forEach((btn) => {
+      const key = TYPE_FONT_I18N[btn.getAttribute("data-type-font")];
+      if (key) btn.textContent = t(key);
+    });
+    const fonts = menu.querySelector(".type-fonts");
+    if (fonts) fonts.setAttribute("aria-label", t("typeFont"));
     const reset = menu.querySelector("#typeReset");
     if (reset) reset.textContent = t("typeReset");
   }
@@ -3060,6 +3224,7 @@
     menu.hidden = false;
     btn.setAttribute("aria-expanded", "true");
     btn.classList.add("is-on");
+    TYPE_FONT_ORDER.forEach(loadReaderFont);
     paintTypeControls();
     if (!already) {
       menu.classList.remove("is-out", "is-open");
@@ -3150,6 +3315,12 @@
           </span>
           <input type="range" data-type-key="tracking" min="${TYPE_RANGES.tracking.min}" max="${TYPE_RANGES.tracking.max}" step="${TYPE_RANGES.tracking.step}" />
         </label>
+        <div class="type-row type-row-fonts">
+          <span class="type-row-head">
+            <span data-type-name="font" data-i18n="typeFont">字体</span>
+          </span>
+          <div class="type-fonts" role="radiogroup" aria-label="字体"></div>
+        </div>
         <button type="button" class="type-reset" id="typeReset" data-i18n="typeReset">恢复默认</button>
       `;
       wrap.appendChild(menu);
@@ -3159,6 +3330,11 @@
           setTypeValue(input.getAttribute("data-type-key"), input.value, false);
         });
         input.addEventListener("change", () => persistType());
+      });
+      menu.querySelector(".type-fonts")?.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-type-font]");
+        if (!btn) return;
+        setTypeFont(btn.getAttribute("data-type-font"));
       });
       menu.querySelector("#typeReset")?.addEventListener("click", () => resetType());
     }

@@ -53,7 +53,7 @@ const HEADER_ACTIONS = `
 
 const TYPE_PREFS = `
           <div class="type-prefs" id="typePrefs">
-            <button class="icon-btn" id="typeBtn" type="button" title="调节字号与行距" aria-label="排版" aria-expanded="false" aria-haspopup="dialog" aria-controls="typeMenu">
+            <button class="icon-btn" id="typeBtn" type="button" title="调节字号、行距与字体" aria-label="排版" aria-expanded="false" aria-haspopup="dialog" aria-controls="typeMenu">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.6 19L8.2 5.5h1.7L14.5 19"/><path d="M5.4 13.6h7.2"/><path d="M16.4 19l2.6-8h1.1L22.6 19"/><path d="M17.5 15.6h4.1"/></svg>
             </button>
           </div>`;
