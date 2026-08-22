@@ -546,8 +546,9 @@
   }
 
   function syncHeaderDocButtons(show) {
-    const edit = document.getElementById("editModePrefs");
-    if (edit) edit.hidden = !show;
+    const source = document.getElementById("sourceViewPrefs");
+    if (source) source.hidden = !show;
+    if (!show) window.MolanEditor?.source?.close?.();
     const outline = document.getElementById("outlinePrefs");
     if (!outline) return;
     if (!show) window.MolanEditor?.outline?.close?.(true);
@@ -785,7 +786,7 @@
     return false;
   }
 
-  const SAMPLE_DOC = "软件架构.md";
+  const SAMPLE_DOC = "实例演示.md";
 
   async function fetchSampleFiles() {
     const folder = t("demoFolder");

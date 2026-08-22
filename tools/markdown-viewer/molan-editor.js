@@ -153,9 +153,10 @@
       formatItalic: "斜体",
       formatLink: "链接",
       formatLinkPlaceholder: "https:// 或相对路径",
-      editModeAria: "切换编辑方式",
-      editModeWysiwyg: "所见即所得",
-      editModeIr: "即时渲染",
+      viewSource: "查看原文",
+      sourceTitle: "原文",
+      sourceReadonly: "只读",
+      sourceClose: "关闭原文",
       outlineAria: "大纲",
       outlineCloseAria: "收起大纲",
       outlineEmpty: "没有标题",
@@ -1402,7 +1403,7 @@
     return path;
   }
 
-  const EDIT_MODE_ICON = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="7.5" y="3.5" width="13" height="15" rx="2" stroke="currentColor" stroke-width="1.7"/><rect x="3.5" y="6.5" width="13" height="15" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M6.5 11.5h7M6.5 15h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+  const SOURCE_ICON = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5.5" y="3.5" width="13" height="17" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M8.5 8.5h7M8.5 12h7M8.5 15.5h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
   const OUTLINE_ICON = '<svg class="icon-outline" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 6h16M8 12h12M8 18h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="4" cy="12" r="1.15" fill="currentColor"/><circle cx="4" cy="18" r="1.15" fill="currentColor"/></svg>';
   const OUTLINE_CLOSE_ICON = '<svg class="icon-outline-close" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
 
@@ -1416,16 +1417,164 @@
     el?.scrollIntoView({ block: "start", behavior: "smooth" });
   }
 
+  function markdownHeadings(md) {
+    const lines = String(md || "").split("\n");
+    const heads = [];
+    let fence = "";
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (fence) {
+        if (line.startsWith(fence)) fence = "";
+        continue;
+      }
+      const open = line.match(/^(`{3,}|~{3,})/);
+      if (open) {
+        fence = open[1][0].repeat(open[1].length);
+        continue;
+      }
+      const atx = line.match(/^(#{1,6})\s+(.+?)\s*$/);
+      if (atx) heads.push({ line: i, text: atx[2].replace(/\s+#+\s*$/, "").trim() });
+    }
+    return heads;
+  }
+
+  function headingKey(text) {
+    return String(text || "").replace(/[`*_~]/g, "").replace(/\s+/g, " ").trim();
+  }
+
+  function jumpTextareaToLine(textarea, lineIndex) {
+    if (!textarea || lineIndex == null || lineIndex < 0) return;
+    const value = textarea.value;
+    const lines = value.split("\n");
+    let pos = 0;
+    for (let i = 0; i < lineIndex && i < lines.length; i++) pos += lines[i].length + 1;
+    const end = pos + (lines[lineIndex]?.length ?? 0);
+    const cs = getComputedStyle(textarea);
+    const lh = parseFloat(cs.lineHeight);
+    const lineHeight = Number.isFinite(lh) && lh > 0 ? lh : (parseFloat(cs.fontSize) || 14) * 1.65;
+    const pad = parseFloat(cs.paddingTop) || 0;
+    textarea.focus({ preventScroll: true });
+    textarea.setSelectionRange(pos, end);
+    textarea.scrollTop = Math.max(0, pad + lineIndex * lineHeight - textarea.clientHeight * 0.28);
+  }
+
+  function scrollSourceToHeading(index, title) {
+    const { text } = sourceEls();
+    if (!text) return;
+    const heads = markdownHeadings(text.value);
+    const want = headingKey(title);
+    let hit = index >= 0 ? heads[index] : null;
+    if (want) {
+      const named = heads.find((h) => headingKey(h.text) === want);
+      if (named) hit = named;
+    }
+    if (!hit) return;
+    jumpTextareaToLine(text, hit.line);
+  }
+
   let outlineAnimToken = 0;
   let outlineCtx = null;
+  let sourceCtx = null;
+  let sourceOpen = false;
 
-  function closeEditModeMenu() {
-    const menu = document.getElementById("editModeMenu");
-    const btn = document.getElementById("editModeBtn");
-    if (menu) menu.hidden = true;
-    if (!btn) return;
-    btn.classList.remove("is-on");
-    btn.setAttribute("aria-expanded", "false");
+  function sourceEls() {
+    return {
+      wrap: document.getElementById("sourceViewPrefs"),
+      btn: document.getElementById("sourceViewBtn"),
+      panel: document.getElementById("molanSourceView"),
+      text: document.getElementById("molanSourceText"),
+      title: document.getElementById("molanSourceTitle"),
+      hint: document.getElementById("molanSourceHint"),
+      close: document.getElementById("molanSourceClose"),
+    };
+  }
+
+  function applySourceViewI18n() {
+    const { btn, title, hint, close, panel } = sourceEls();
+    const label = t("viewSource");
+    if (btn) {
+      btn.title = label;
+      btn.setAttribute("aria-label", label);
+    }
+    if (title) title.textContent = t("sourceTitle");
+    if (hint) hint.textContent = t("sourceReadonly");
+    if (close) {
+      close.title = t("sourceClose");
+      close.setAttribute("aria-label", t("sourceClose"));
+    }
+    if (panel) panel.setAttribute("aria-label", t("sourceTitle"));
+  }
+
+  function paintSourceBtn(open) {
+    const { btn } = sourceEls();
+    btn?.classList.toggle("is-on", !!open);
+    btn?.setAttribute("aria-pressed", open ? "true" : "false");
+  }
+
+  function fillSourceText() {
+    const { text } = sourceEls();
+    if (!text) return;
+    const md = sourceCtx?.getMarkdown?.() ?? "";
+    if (text.value !== md) text.value = md;
+  }
+
+  function ensureSourcePanel() {
+    const editorWrap = document.getElementById("editorWrap") || document.querySelector(".editor-wrap");
+    if (!editorWrap) return null;
+    let panel = document.getElementById("molanSourceView");
+    if (!panel) {
+      panel = document.createElement("div");
+      panel.id = "molanSourceView";
+      panel.className = "molan-source-view";
+      panel.hidden = true;
+      panel.setAttribute("role", "region");
+      panel.innerHTML = `
+        <div class="molan-source-view__bar">
+          <span class="molan-source-view__title" id="molanSourceTitle"></span>
+          <span class="molan-source-view__hint" id="molanSourceHint"></span>
+          <button type="button" class="icon-btn" id="molanSourceClose">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+        <textarea id="molanSourceText" readonly spellcheck="false" autocomplete="off"></textarea>
+      `;
+      editorWrap.appendChild(panel);
+      panel.querySelector("#molanSourceClose")?.addEventListener("click", () => closeSourceView());
+    }
+    return panel;
+  }
+
+  function openSourceView() {
+    closeFind();
+    hideFormatBar();
+    hideTableToolbar(document.getElementById("molanTableToolbar"));
+    const panel = ensureSourcePanel();
+    const editorWrap = document.getElementById("editorWrap") || document.querySelector(".editor-wrap");
+    if (!panel) return;
+    fillSourceText();
+    applySourceViewI18n();
+    panel.hidden = false;
+    sourceOpen = true;
+    editorWrap?.classList.add("is-source-open");
+    paintSourceBtn(true);
+    const { text } = sourceEls();
+    requestAnimationFrame(() => {
+      try { text?.focus({ preventScroll: true }); } catch (_) { /* ignore */ }
+    });
+  }
+
+  function closeSourceView() {
+    const { panel } = sourceEls();
+    const editorWrap = document.getElementById("editorWrap") || document.querySelector(".editor-wrap");
+    sourceOpen = false;
+    if (panel) panel.hidden = true;
+    editorWrap?.classList.remove("is-source-open");
+    paintSourceBtn(false);
+  }
+
+  function toggleSourceView() {
+    if (sourceOpen) closeSourceView();
+    else openSourceView();
   }
 
   function innerVditor(vditor) {
@@ -1443,22 +1592,13 @@
   }
 
   function applyEditorChromeI18n() {
-    const editBtn = document.getElementById("editModeBtn");
-    if (editBtn) {
-      const label = t("editModeAria");
-      editBtn.title = label;
-      editBtn.setAttribute("aria-label", label);
-    }
+    applySourceViewI18n();
     const outlineBtn = document.getElementById("outlineBtn");
     if (outlineBtn) {
       const label = t(outlineBtn.classList.contains("is-on") ? "outlineCloseAria" : "outlineAria");
       outlineBtn.title = label;
       outlineBtn.setAttribute("aria-label", label);
     }
-    const wysiwyg = document.querySelector('#editModeMenu [data-mode="wysiwyg"]');
-    if (wysiwyg) wysiwyg.textContent = t("editModeWysiwyg");
-    const ir = document.querySelector('#editModeMenu [data-mode="ir"]');
-    if (ir) ir.textContent = t("editModeIr");
   }
 
   function pinOutlineDock() {
@@ -1620,23 +1760,24 @@
       ? modeBtn.nextSibling
       : (document.getElementById("typePrefs") || document.getElementById("headerPrefs") || null);
 
+    document.getElementById("editModePrefs")?.remove();
+
     if (actions) {
-      let editWrap = document.getElementById("editModePrefs");
-      if (!editWrap) {
-        editWrap = document.createElement("div");
-        editWrap.id = "editModePrefs";
-        editWrap.className = "molan-chrome-prefs";
-        editWrap.innerHTML = `
-          <button type="button" class="icon-btn" id="editModeBtn" aria-haspopup="menu" aria-expanded="false">${EDIT_MODE_ICON}</button>
-          <div class="molan-chrome-menu" id="editModeMenu" hidden role="menu">
-            <button type="button" role="menuitem" data-mode="wysiwyg"></button>
-            <button type="button" role="menuitem" data-mode="ir"></button>
-          </div>
+      let sourceWrap = document.getElementById("sourceViewPrefs");
+      if (!sourceWrap) {
+        sourceWrap = document.createElement("div");
+        sourceWrap.id = "sourceViewPrefs";
+        sourceWrap.className = "molan-chrome-prefs";
+        sourceWrap.innerHTML = `
+          <button type="button" class="icon-btn" id="sourceViewBtn" aria-pressed="false">${SOURCE_ICON}</button>
         `;
       }
-      if (editWrap.parentElement !== actions) {
-        if (anchor) actions.insertBefore(editWrap, anchor);
-        else actions.appendChild(editWrap);
+      const copyBtn = document.getElementById("copyBtn");
+      const afterCopy = copyBtn && copyBtn.parentElement === actions ? copyBtn.nextSibling : null;
+      if (sourceWrap.parentElement !== actions) {
+        if (afterCopy) actions.insertBefore(sourceWrap, afterCopy);
+        else if (anchor) actions.insertBefore(sourceWrap, anchor);
+        else actions.appendChild(sourceWrap);
       }
     }
 
@@ -1664,45 +1805,18 @@
     }
 
     outlineCtx = ctx;
-    const editBtn = document.getElementById("editModeBtn");
-    const editMenu = document.getElementById("editModeMenu");
+    sourceCtx = ctx;
+    ensureSourcePanel();
+    const sourceBtn = document.getElementById("sourceViewBtn");
     const outlineBtn = document.getElementById("outlineBtn");
     applyEditorChromeI18n();
+    if (sourceOpen) fillSourceText();
 
-    const paintEditMode = () => {
-      const mode = currentEditorMode(ctx.getVditor?.()) || "ir";
-      editMenu?.querySelectorAll("[data-mode]").forEach((btn) => {
-        btn.classList.toggle("is-on", btn.getAttribute("data-mode") === mode);
-      });
-    };
-
-    if (editBtn && editMenu && !editBtn.dataset.bound) {
-      editBtn.dataset.bound = "1";
-      editBtn.addEventListener("click", (e) => {
+    if (sourceBtn && !sourceBtn.dataset.bound) {
+      sourceBtn.dataset.bound = "1";
+      sourceBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        const willOpen = editMenu.hidden;
-        closeEditModeMenu();
-        if (!willOpen) return;
-        paintEditMode();
-        editMenu.hidden = false;
-        editBtn.classList.add("is-on");
-        editBtn.setAttribute("aria-expanded", "true");
-      });
-      editMenu.addEventListener("click", async (e) => {
-        const item = e.target.closest("[data-mode]");
-        if (!item) return;
-        const mode = item.getAttribute("data-mode");
-        closeEditModeMenu();
-        if (ctx.getPreviewing?.()) await ctx.enterEdit?.();
-        const native = ctx.getVditorRoot?.()?.querySelector(`.vditor-toolbar [data-mode="${mode}"]`);
-        if (native) native.click();
-        else {
-          const vditor = ctx.getVditor?.();
-          if (vditor && typeof vditor.getCurrentMode === "function" && vditor.getCurrentMode() !== mode) {
-            ctx.getVditorRoot?.()?.querySelector('[data-type="edit-mode"]')?.click();
-            ctx.getVditorRoot?.()?.querySelector(`.vditor-toolbar [data-mode="${mode}"]`)?.click();
-          }
-        }
+        toggleSourceView();
       });
     }
 
@@ -1720,24 +1834,32 @@
     if (editorWrap && !editorWrap.dataset.previewJump) {
       editorWrap.dataset.previewJump = "1";
       editorWrap.addEventListener("click", (e) => {
-        if (!outlineCtx?.getPreviewing?.()) return;
         const span = e.target.closest(".vditor-outline [data-target-id]");
         if (!span) return;
+        const items = [...(span.closest(".vditor-outline")?.querySelectorAll("[data-target-id]") || [])];
+        const index = items.indexOf(span);
+        if (sourceOpen) {
+          e.preventDefault();
+          e.stopPropagation();
+          scrollSourceToHeading(index, span.textContent);
+          return;
+        }
+        if (!outlineCtx?.getPreviewing?.()) return;
         e.preventDefault();
         e.stopPropagation();
-        const items = [...(span.closest(".vditor-outline")?.querySelectorAll("[data-target-id]") || [])];
-        scrollToHeading(items.indexOf(span));
+        scrollToHeading(index);
       }, true);
     }
 
     if (!ensureEditorChrome._bound) {
       ensureEditorChrome._bound = true;
-      document.addEventListener("click", (e) => {
-        if (!e.target.closest("#editModePrefs")) closeEditModeMenu();
-      });
       document.addEventListener("keydown", (e) => {
         if (e.key !== "Escape") return;
-        closeEditModeMenu();
+        if (sourceOpen) {
+          e.preventDefault();
+          closeSourceView();
+          return;
+        }
         closeOutline();
       });
     }
@@ -2557,6 +2679,7 @@
 
   function openFind() {
     closeType();
+    closeSourceView();
     initFind();
     const bar = document.getElementById("molanFindBar");
     const input = document.getElementById("molanFindInput");
@@ -4802,11 +4925,13 @@
         markdown = text ?? "";
         if (previewing) {
           renderLitePreview(markdown);
+          if (sourceOpen) fillSourceText();
           return;
         }
         muteInput = true;
         await bootEditor();
         vditor.setValue(markdown, clearStack);
+        if (sourceOpen) fillSourceText();
         applyMermaidTheme();
         setTimeout(() => {
           muteInput = false;
@@ -4851,6 +4976,7 @@
           previewing = true;
           blockInsert.hide();
           renderLitePreview(markdown, spot);
+          if (sourceOpen) fillSourceText();
           notifyPreview();
           return true;
         }
@@ -4973,6 +5099,12 @@
     outline: {
       close: closeOutline,
       pin: pinOutlineDock,
+    },
+    source: {
+      open: openSourceView,
+      close: closeSourceView,
+      toggle: toggleSourceView,
+      isOpen: () => sourceOpen,
     },
   };
 
