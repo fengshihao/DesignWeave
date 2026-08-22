@@ -4345,7 +4345,8 @@
 
   function activateInsertedBlock(el) {
     if (!el) return;
-    expandInsertedIr(el);
+    const isTask = !!el.querySelector?.('input[type="checkbox"]');
+    if (!isTask) expandInsertedIr(el);
     const editable = el.closest("[contenteditable='true']") || el;
     try { editable.focus({ preventScroll: true }); } catch (_) { /* ignore */ }
     const table = el.tagName === "TABLE" ? el : el.querySelector("table");
@@ -4422,31 +4423,49 @@
     }
   }
 
-  function repairInsertedList(el, kind) {
+  function sanitizeTaskMarker(marker, fallback = "-") {
+    const raw = String(marker == null || marker === "" ? fallback : marker).replace(/"/g, "");
+    return raw || fallback;
+  }
+
+  function taskMarkerOf(el, fallback = "-") {
+    return sanitizeTaskMarker(el?.getAttribute?.("data-marker"), fallback);
+  }
+
+  function taskListIrHtml(marker = "-") {
+    const m = sanitizeTaskMarker(marker);
+    return `<ul data-tight="true" data-marker="${m}" data-block="0">${taskItemIrHtml(m)}</ul>`;
+  }
+
+  function taskItemIrHtml(marker = "-") {
+    const m = sanitizeTaskMarker(marker);
+    return `<li data-marker="${m}" class="vditor-task"><input type="checkbox">${IR_ZWSP}</li>`;
+  }
+
+  function normalizeInsertedTaskList(el) {
     if (!el || (el.tagName !== "UL" && el.tagName !== "OL")) return el;
-    const marker = el.getAttribute("data-marker") || (el.tagName === "OL" ? "1." : "-");
+    const marker = taskMarkerOf(el, el.tagName === "OL" ? "1." : "-");
+    el.setAttribute("data-tight", el.getAttribute("data-tight") || "true");
+    el.setAttribute("data-block", "0");
+    el.setAttribute("data-marker", marker);
     let li = el.querySelector(":scope > li");
-    const wantTask = kind === "task";
     if (!li) {
-      li = document.createElement("li");
-      li.setAttribute("data-marker", marker);
-      if (wantTask) {
-        li.className = "vditor-task";
-        li.innerHTML = `<input type="checkbox">${IR_ZWSP}`;
-      } else {
-        li.textContent = IR_ZWSP;
-      }
-      el.appendChild(li);
+      el.insertAdjacentHTML("beforeend", taskItemIrHtml(marker));
       return el;
     }
-    if (wantTask) {
-      li.classList.add("vditor-task");
-      if (!li.querySelector('input[type="checkbox"]')) {
-        li.insertAdjacentHTML("afterbegin", '<input type="checkbox">');
-      }
-    }
-    const hasText = [...li.childNodes].some((n) => n.nodeType === 3);
-    if (!hasText) li.appendChild(document.createTextNode(IR_ZWSP));
+    const checked = !!li.querySelector("input[type='checkbox'][checked], input[type='checkbox']:checked");
+    const text = String(li.textContent || "")
+      .replace(/^\s*\[[ xX]?\]\s*/, "")
+      .replace(/[\u200b]/g, "")
+      .trim();
+    li.className = "vditor-task";
+    li.setAttribute("data-marker", marker);
+    li.replaceChildren();
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    if (checked) input.setAttribute("checked", "checked");
+    li.appendChild(input);
+    li.appendChild(document.createTextNode(text || IR_ZWSP));
     return el;
   }
 
@@ -4504,12 +4523,18 @@
     notifyTableEdit(vditor, ir?.closest("#vditor") || ir);
   }
 
+  function closestTaskItem(node, root) {
+    const el = node?.nodeType === 1 ? node : node?.parentElement;
+    const li = el?.closest?.("li.vditor-task");
+    if (!li || (root && !root.contains(li))) return null;
+    return li;
+  }
+
   function bindIrListGuards(vditorRoot, getVditor, isPreviewing) {
     if (!vditorRoot || vditorRoot.dataset.molanListGuard === "1") return;
     vditorRoot.dataset.molanListGuard = "1";
     vditorRoot.addEventListener("keydown", (event) => {
       if (isPreviewing?.()) return;
-      if (event.key !== "Backspace" && event.key !== "Delete") return;
       if (event.ctrlKey || event.metaKey || event.altKey) return;
       const vditor = getVditor?.();
       const ir = irRootOf(vditor);
@@ -4518,6 +4543,24 @@
       if (!sel || sel.rangeCount === 0) return;
       const range = sel.getRangeAt(0);
       if (!ir.contains(range.commonAncestorContainer)) return;
+      const from = event.target?.nodeType === 1 ? event.target : event.target?.parentElement;
+      if (from?.closest?.("textarea, input:not([type='checkbox']), .vditor-ir__preview, .molan-find-bar")) return;
+
+      if (event.key === "Enter" && !event.shiftKey) {
+        const li = closestTaskItem(range.startContainer, ir);
+        if (!li) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const marker = taskMarkerOf(li, taskMarkerOf(li.parentElement));
+        withMutedIrInput(vditor, () => {
+          li.insertAdjacentHTML("afterend", taskItemIrHtml(marker));
+        });
+        setCaretRange(li.nextElementSibling, true);
+        notifyTableEdit(vditor, ir.closest("#vditor") || ir);
+        return;
+      }
+
+      if (event.key !== "Backspace" && event.key !== "Delete") return;
       const block = closestTopBlock(range.commonAncestorContainer, ir);
       if (listIsHusk(block)) {
         event.preventDefault();
@@ -4561,10 +4604,11 @@
     }
     let inserted = null;
     const kind = snippetKind(piece);
-    if (lute && typeof lute.Md2VditorIRDOM === "function") {
-      const html = lute.Md2VditorIRDOM(`${piece}\n`);
-      // insertAdjacentHTML 会触发 IR 的 input → SpinVditorIRDOM。
-      // 空任务 `- [ ] ` 会被收成没有 <li> 的 <ul>，此后 Backspace 删不掉。
+    const canInsertHtml = kind === "task" || (lute && typeof lute.Md2VditorIRDOM === "function");
+    if (canInsertHtml) {
+      // 空任务 `- [ ] ` 经 Lute 常变成普通 li 文本 `[ ]`；再 spin 又会收成没有 li 的 ul。
+      // 任务项改走 Vditor IR 结构，并静音这次 input，避免 spin 拆掉刚插入的列表。
+      const html = kind === "task" ? taskListIrHtml() : lute.Md2VditorIRDOM(`${piece}\n`);
       withMutedIrInput(vditor, () => {
         if (replace && ref && ir.contains(ref)) {
           ref.insertAdjacentHTML("afterend", html);
@@ -4589,7 +4633,7 @@
           break;
         }
       }
-      inserted = repairInsertedList(inserted, kind);
+      if (kind === "task") inserted = normalizeInsertedTaskList(inserted);
     } else {
       if (replace && ref) placeCaretAfter(ref);
       else if (ref && ir.contains(ref)) placeCaretAfter(ref);

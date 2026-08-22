@@ -39,11 +39,14 @@ test("molan.css 含四主题变量", () => {
 test("编辑态能修好并删除空任务列表", () => {
   const src = readFileSync(join(root, "src", "molan-editor.js"), "utf8");
   assert.match(src, /function withMutedIrInput/);
-  assert.match(src, /function repairInsertedList/);
+  assert.match(src, /function normalizeInsertedTaskList/);
+  assert.match(src, /function taskListIrHtml/);
   assert.match(src, /function bindIrListGuards/);
   assert.match(src, /ir\.preventInput = true/);
   assert.match(src, /listIsHusk/);
   assert.match(src, /vditor-task/);
+  assert.match(src, /\\\[\[ xX\]\?\\\]/);
+  assert.match(src, /event\.key === "Enter"/);
 });
 
 test("流程图编辑器预览只缩放不打开灯箱", () => {
