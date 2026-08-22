@@ -2584,6 +2584,18 @@
       display: none !important;
     }
 
+    .editor-wrap.is-preparing-edit .molan-preview {
+      display: flex !important;
+      position: absolute;
+      inset: 0;
+      z-index: 8;
+      pointer-events: none;
+    }
+
+    .editor-wrap.is-preparing-edit #vditor {
+      visibility: hidden;
+    }
+
     .editor-wrap.is-mode {
       animation: molan-mode-in 0.96s var(--ease) both;
     }
@@ -3796,43 +3808,48 @@
       top: 0;
       left: 0;
       z-index: 22;
-      min-width: 198px;
-      max-height: min(70vh, 420px);
-      overflow: auto;
-      padding: 8px 0;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 2px;
+      padding: 4px;
       border: 1px solid var(--hairline-strong);
       border-radius: 12px;
       background: var(--paper-lift);
       box-shadow: var(--shadow);
       color: var(--ink);
-      font-family: var(--font-ui);
     }
-    .molan-insert-group {
-      padding: 8px 14px 4px;
-      font-size: 0.72rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--ink-muted);
+    .molan-insert-menu[hidden] {
+      display: none !important;
     }
     .molan-insert-item {
-      display: flex;
-      width: 100%;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
       border: 0;
+      border-radius: 8px;
       background: transparent;
-      color: inherit;
-      font: inherit;
-      text-align: start;
-      padding: 7px 14px;
+      color: var(--ink-soft);
       cursor: pointer;
+    }
+    .molan-insert-item svg {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      stroke-width: 1.7;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
     .molan-insert-item:hover,
     .molan-insert-item.is-active,
     .molan-insert-item:focus-visible {
       background: var(--row-hover);
+      color: var(--ink);
       outline: none;
-    }
-    .molan-insert-item-label {
-      font-size: 0.92rem;
     }
     .molan-image-url-mask {
       position: fixed;

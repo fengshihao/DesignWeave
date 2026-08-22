@@ -3255,27 +3255,22 @@
     return { wrap, host, body };
   }
 
-  const INSERT_ITEMS = [
-    { id: "h1", group: "text", key: "insertH1", md: "# 标题" },
-    { id: "h2", group: "text", key: "insertH2", md: "## 标题" },
-    { id: "h3", group: "text", key: "insertH3", md: "### 标题" },
-    { id: "quote", group: "text", key: "insertQuote", md: "> " },
-    { id: "hr", group: "text", key: "insertHr", md: "---" },
-    { id: "ul", group: "list", key: "insertUl", md: "- " },
-    { id: "ol", group: "list", key: "insertOl", md: "1. " },
-    { id: "task", group: "list", key: "insertTask", md: "- [ ] " },
-    { id: "code", group: "insert", key: "insertCode", md: "```\n\n```" },
-    { id: "table", group: "insert", key: "insertTable", md: "| 列 1 | 列 2 |\n| --- | --- |\n|  |  |" },
-    { id: "math", group: "insert", key: "insertMath", md: "$$\n\n$$" },
-    { id: "mermaid", group: "insert", key: "insertMermaid", md: "```mermaid\nflowchart TD\n  A[开始] --> B[结束]\n```" },
-    { id: "image", group: "insert", key: "insertImage", pick: "image" },
-    { id: "link", group: "insert", key: "insertLink", md: "[]()" },
-  ];
+  const INSERT_ICON = {
+    table: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="1.5"/><path d="M4 10h16M4 15h16M10 5v14"/></svg>',
+    code: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 8 5 12l4 4M15 8l4 4-4 4"/></svg>',
+    math: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10L9 12l8 5H7"/></svg>',
+    mermaid: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4.5" width="7" height="5.5" rx="1.2"/><rect x="13" y="14" width="7" height="5.5" rx="1.2"/><path d="M7.5 10v3.2h9V14"/></svg>',
+    image: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="6" width="16" height="12" rx="2"/><circle cx="9" cy="10.5" r="1.4"/><path d="m5 16 4-3.2 3.2 2.6 2.6-2 4.2 3.4"/></svg>',
+    task: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5.5" width="6" height="6" rx="1.2"/><path d="m5.6 8.6 1.5 1.5 2.6-2.8M13 8h7M4 17h6M13 17h7"/></svg>',
+  };
 
-  const INSERT_GROUPS = [
-    { id: "text", key: "insertGroupText" },
-    { id: "list", key: "insertGroupList" },
-    { id: "insert", key: "insertGroupInsert" },
+  const INSERT_ITEMS = [
+    { id: "table", key: "insertTable", md: "| 列 1 | 列 2 |\n| --- | --- |\n|  |  |", icon: INSERT_ICON.table },
+    { id: "code", key: "insertCode", md: "```\n\n```", icon: INSERT_ICON.code },
+    { id: "math", key: "insertMath", md: "$$\n\n$$", icon: INSERT_ICON.math },
+    { id: "mermaid", key: "insertMermaid", md: "```mermaid\nflowchart TD\n  A[开始] --> B[结束]\n```", icon: INSERT_ICON.mermaid },
+    { id: "image", key: "insertImage", pick: "image", icon: INSERT_ICON.image },
+    { id: "task", key: "insertTask", md: "- [ ] ", icon: INSERT_ICON.task },
   ];
 
   function escapeMdAlt(name) {
@@ -3689,6 +3684,9 @@
     const piece = String(snippet || "").replace(/^\n+/, "").replace(/\n+$/, "");
     const blocks = splitMdBlocks(md);
     if (!blocks.length) return piece + "\n";
+    if (blockIndex < 0) {
+      return `${piece}\n\n${blocks.map((b) => b.text).join("\n\n")}`.replace(/\n{3,}/g, "\n\n") + "\n";
+    }
     const idx = Math.max(0, Math.min(blockIndex, blocks.length - 1));
     if (replaceEmpty && isEmptyMdBlock(blocks[idx].text)) {
       blocks[idx] = { ...blocks[idx], text: piece };
@@ -3843,6 +3841,244 @@
     }
   }
 
+  function irRootOf(vditor) {
+    const iv = vditor?.vditor || vditor;
+    return iv?.ir?.element
+      || document.querySelector(".vditor-ir pre.vditor-reset")
+      || document.querySelector(".vditor-ir .vditor-reset");
+  }
+
+  function snippetKind(snippet) {
+    const s = String(snippet || "").trim();
+    if (/^```mermaid\b/i.test(s)) return "mermaid";
+    if (/^```/.test(s)) return "code";
+    if (/^\$\$/.test(s)) return "math";
+    if (/^\|/.test(s) && s.includes("---")) return "table";
+    if (/^- \[[ x]\]/i.test(s)) return "task";
+    if (/^!\[[^\]]*\]\(/.test(s)) return "image";
+    return "block";
+  }
+
+  function blockMatchesKind(el, kind) {
+    if (!el || !kind) return false;
+    if (kind === "table") return el.tagName === "TABLE" || !!el.querySelector("table");
+    if (kind === "task") return !!el.querySelector('input[type="checkbox"]');
+    if (kind === "image") return !!el.querySelector("img");
+    if (kind === "mermaid") return !!el.querySelector(".language-mermaid, .molan-mermaid-shell");
+    if (kind === "math") {
+      return el.getAttribute("data-type") === "math-block"
+        || !!el.querySelector(".language-math, .katex, [data-type='math-block']");
+    }
+    if (kind === "code") {
+      return el.getAttribute("data-type") === "code-block"
+        || (!!el.querySelector("pre, code") && !el.querySelector(".language-mermaid"));
+    }
+    return false;
+  }
+
+  function locateInsertedBlock(root, opts = {}) {
+    const blocks = topLevelBlocks(root);
+    if (!blocks.length) return null;
+    const expected = Number.isInteger(opts.focusIndex) ? opts.focusIndex : -1;
+    const kind = opts.kind || snippetKind(opts.focusText || opts.snippet);
+    const pickClosest = (indices) => {
+      if (!indices.length) return null;
+      indices.sort((a, b) => {
+        const da = expected >= 0 ? Math.abs(a - expected) : a;
+        const db = expected >= 0 ? Math.abs(b - expected) : b;
+        return da - db;
+      });
+      return blocks[indices[0]];
+    };
+    if (kind && kind !== "block") {
+      const hits = [];
+      blocks.forEach((el, i) => {
+        if (blockMatchesKind(el, kind)) hits.push(i);
+      });
+      const matched = pickClosest(hits);
+      if (matched) return matched;
+    }
+    const byText = findBlockByText(blocks, opts.focusText);
+    if (byText) return byText;
+    if (expected >= 0 && blocks[expected]) return blocks[expected];
+    return null;
+  }
+
+  function pinBlockToViewport(el, viewportY) {
+    const scroller = readingScroller(false);
+    if (!el || !scroller) return;
+    const pageX = window.scrollX;
+    const pageY = window.scrollY;
+    const box = scroller.getBoundingClientRect();
+    if (box.height < 8) return;
+    const rect = el.getBoundingClientRect();
+    const desired = typeof viewportY === "number"
+      ? viewportY - box.top
+      : Math.min(Math.max(56, box.height * 0.28), box.height * 0.42);
+    scroller.scrollTop = Math.max(0, scroller.scrollTop + (rect.top - box.top) - desired);
+    if (window.scrollX !== pageX || window.scrollY !== pageY) {
+      window.scrollTo(pageX, pageY);
+    }
+  }
+
+  function setCaretRange(node, atEnd = false) {
+    if (!node) return;
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    range.collapse(!atEnd);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  function expandInsertedIr(el) {
+    if (!el || el.querySelector?.(".language-mermaid")) return;
+    const nodes = [];
+    if (el.classList?.contains("vditor-ir__node")) nodes.push(el);
+    el.querySelectorAll?.(".vditor-ir__node").forEach((n) => {
+      if (!n.querySelector(".language-mermaid")) nodes.push(n);
+    });
+    nodes.forEach((n) => n.classList.add("vditor-ir__node--expand"));
+  }
+
+  function activateInsertedBlock(el) {
+    if (!el) return;
+    expandInsertedIr(el);
+    const editable = el.closest("[contenteditable='true']") || el;
+    try { editable.focus({ preventScroll: true }); } catch (_) { /* ignore */ }
+    const table = el.tagName === "TABLE" ? el : el.querySelector("table");
+    if (table) {
+      const cells = [...table.querySelectorAll("tbody td, td")];
+      const cell = cells.find((c) => !String(c.textContent || "").replace(/\s|\u200b/g, "")) || cells[0];
+      if (cell) {
+        focusTableCell(cell);
+        return;
+      }
+    }
+    if (el.querySelector('input[type="checkbox"]')) {
+      const li = el.matches("li") ? el : el.querySelector("li");
+      if (li) {
+        setCaretRange(li, true);
+        return;
+      }
+    }
+    if (!el.querySelector(".language-mermaid")) {
+      const code = el.querySelector(":scope > .vditor-ir__marker--pre code")
+        || el.querySelector(".vditor-ir__marker--pre code")
+        || [...el.querySelectorAll("pre, code")].find((n) => !n.closest(".vditor-ir__preview"));
+      if (code) {
+        setCaretRange(code, false);
+        return;
+      }
+    }
+    const img = el.querySelector("img");
+    if (img) {
+      const range = document.createRange();
+      range.setStartAfter(img);
+      range.collapse(true);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      return;
+    }
+    try {
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
+        acceptNode(node) {
+          const parent = node.parentElement;
+          if (!parent) return NodeFilter.FILTER_REJECT;
+          if (parent.closest(".vditor-ir__preview, .molan-diagram-toolbar, [contenteditable='false']")) {
+            return NodeFilter.FILTER_REJECT;
+          }
+          return String(node.nodeValue || "").replace(/[\u200b\s]/g, "")
+            ? NodeFilter.FILTER_ACCEPT
+            : NodeFilter.FILTER_SKIP;
+        },
+      });
+      const text = walker.nextNode();
+      if (text) {
+        const range = document.createRange();
+        range.setStart(text, 0);
+        range.collapse(true);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        return;
+      }
+      setCaretRange(el, false);
+    } catch (_) { /* ignore */ }
+  }
+
+  function insertIrSnippet(vditor, snippet, hover) {
+    const piece = String(snippet || "").replace(/^\n+/, "").replace(/\n+$/, "");
+    if (!piece) return null;
+    const ir = irRootOf(vditor);
+    const lute = (vditor?.vditor || vditor)?.lute;
+    if (!ir) return null;
+    const blocks = topLevelBlocks(ir);
+    let ref = null;
+    let replace = false;
+    if (hover?.emptyDoc || hover?.index < 0) {
+      ref = null;
+    } else if (hover?.empty && Number.isInteger(hover.index)) {
+      ref = blocks[hover.index] || null;
+      replace = !!ref;
+    } else if (hover?.el && ir.contains(hover.el)) {
+      ref = hover.el;
+    } else if (Number.isInteger(hover?.index) && hover.index >= 0) {
+      ref = blocks[hover.index] || null;
+    }
+    let inserted = null;
+    const kind = snippetKind(piece);
+    if (lute && typeof lute.Md2VditorIRDOM === "function") {
+      const html = lute.Md2VditorIRDOM(`${piece}\n`);
+      if (replace && ref && ir.contains(ref)) {
+        ref.insertAdjacentHTML("afterend", html);
+        inserted = ref.nextElementSibling;
+        if (blockLooksEmpty(ref)) ref.remove();
+      } else if (ref && ir.contains(ref)) {
+        ref.insertAdjacentHTML("afterend", html);
+        inserted = ref.nextElementSibling;
+      } else {
+        ir.insertAdjacentHTML("afterbegin", html);
+        inserted = ir.firstElementChild;
+      }
+      let node = inserted;
+      for (let i = 0; i < 6 && node; i += 1, node = node.nextElementSibling) {
+        if (kind !== "block" && blockMatchesKind(node, kind)) {
+          inserted = node;
+          break;
+        }
+        if (kind === "block" && !blockLooksEmpty(node)) {
+          inserted = node;
+          break;
+        }
+      }
+    } else {
+      if (replace && ref) placeCaretAfter(ref);
+      else if (ref && ir.contains(ref)) placeCaretAfter(ref);
+      else placeCaretAtStart(ir);
+      if (typeof vditor.insertMD === "function") vditor.insertMD(piece);
+      else if (typeof vditor.insertValue === "function") vditor.insertValue(`\n${piece}\n`, true);
+      inserted = locateInsertedBlock(ir, {
+        focusIndex: replace ? (hover?.index ?? 0) : (hover?.index ?? -1) + 1,
+        focusText: piece.replace(/\s+/g, " ").trim().slice(0, 80),
+        snippet: piece,
+        kind: snippetKind(piece),
+      });
+    }
+    if (inserted) {
+      notifyTableEdit(vditor, ir.closest("#vditor") || ir);
+      scheduleFitTables(ir.closest("#vditor") || ir);
+    }
+    return inserted;
+  }
+
+  function settleInsertedBlock(el, viewportY) {
+    if (!el || !el.isConnected) return;
+    pinBlockToViewport(el, viewportY);
+    activateInsertedBlock(el);
+  }
+
   function keepReadingSpot(previewing, spot) {
     if (!spot) return;
     const run = (caret) => restoreReadingSpot(previewing, spot, { caret });
@@ -3866,7 +4102,7 @@
   function placeCaretAfter(el) {
     const editable = el?.closest?.("[contenteditable='true']");
     if (!editable) return false;
-    try { editable.focus(); } catch (_) { /* ignore */ }
+    try { editable.focus({ preventScroll: true }); } catch (_) { /* ignore */ }
     const range = document.createRange();
     if (blockLooksEmpty(el)) {
       range.selectNodeContents(el);
@@ -3875,6 +4111,21 @@
       range.setStartAfter(el);
       range.collapse(true);
     }
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    return true;
+  }
+
+  function placeCaretAtStart(root) {
+    const editable = root?.closest?.("[contenteditable='true']") || root;
+    if (!editable) return false;
+    try { editable.focus({ preventScroll: true }); } catch (_) { /* ignore */ }
+    const range = document.createRange();
+    const first = root.firstChild;
+    if (first) range.setStart(first, 0);
+    else range.selectNodeContents(root);
+    range.collapse(true);
     const sel = window.getSelection();
     sel.removeAllRanges();
     sel.addRange(range);
@@ -3915,18 +4166,12 @@
     const items = () => INSERT_ITEMS;
 
     function paintMenu() {
-      const parts = [];
-      INSERT_GROUPS.forEach((group) => {
-        const rows = INSERT_ITEMS.filter((item) => item.group === group.id);
-        if (!rows.length) return;
-        parts.push(`<div class="molan-insert-group" role="none">${t(group.key)}</div>`);
-        rows.forEach((item) => {
-          parts.push(`<button type="button" class="molan-insert-item" role="menuitem" data-insert-id="${item.id}">
-            <span class="molan-insert-item-label">${t(item.key)}</span>
-          </button>`);
-        });
-      });
-      menu.innerHTML = parts.join("");
+      menu.innerHTML = INSERT_ITEMS.map((item) => {
+        const label = t(item.key);
+        return `<button type="button" class="molan-insert-item" role="menuitem" data-insert-id="${item.id}" title="${label}" aria-label="${label}">
+            ${item.icon}
+          </button>`;
+      }).join("");
       plusBtn.setAttribute("aria-label", t("insertBlock"));
       plusBtn.setAttribute("title", t("insertBlock"));
       menu.setAttribute("aria-label", t("insertBlock"));
@@ -3958,18 +4203,27 @@
     }
 
     function hideMenu() {
+      if (document.activeElement && menu.contains(document.activeElement)) {
+        try { document.activeElement.blur(); } catch (_) { /* ignore */ }
+      }
       menuOpen = false;
       menu.hidden = true;
       plusBtn.setAttribute("aria-expanded", "false");
     }
 
-    function positionHandle(el) {
-      if (!el) {
+    function handleRect(target) {
+      if (!target) return null;
+      if (target.gapRect) return target.gapRect;
+      return target.el?.getBoundingClientRect?.() || null;
+    }
+
+    function positionHandle(target) {
+      const rect = handleRect(target);
+      if (!rect) {
         hideHandle();
         return;
       }
       const wrapRect = wrap.getBoundingClientRect();
-      const rect = el.getBoundingClientRect();
       if (rect.bottom < wrapRect.top + 8 || rect.top > wrapRect.bottom - 8) {
         handle.hidden = true;
         return;
@@ -3991,58 +4245,86 @@
       const btnRect = plusBtn.getBoundingClientRect();
       menu.hidden = false;
       const menuRect = menu.getBoundingClientRect();
-      let left = btnRect.left - wrapRect.left;
-      let top = btnRect.bottom - wrapRect.top + 6;
+      const rtl = document.documentElement.dir === "rtl";
+      let left = rtl
+        ? btnRect.left - wrapRect.left - menuRect.width - 8
+        : btnRect.right - wrapRect.left + 8;
+      let top = btnRect.top - wrapRect.top + (btnRect.height - menuRect.height) / 2;
       if (left + menuRect.width > wrapRect.width - 8) {
         left = Math.max(8, wrapRect.width - menuRect.width - 8);
       }
+      if (left < 8) left = 8;
+      if (top < 8) top = 8;
       if (top + menuRect.height > wrapRect.height - 8) {
-        top = Math.max(8, btnRect.top - wrapRect.top - menuRect.height - 6);
+        top = Math.max(8, wrapRect.height - menuRect.height - 8);
       }
       menu.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
     }
 
     function setHover(next) {
       hover = next;
-      if (!next || !next.el) {
+      if (!next) {
         hideHandle();
         return;
       }
-      positionHandle(next.el);
+      positionHandle(next);
+    }
+
+    function makeGapTarget(index, top, bottom, left) {
+      const size = 26;
+      const mid = (top + bottom) / 2;
+      const gapTop = mid - size / 2;
+      return {
+        el: null,
+        index,
+        empty: false,
+        gapRect: {
+          top: gapTop,
+          left,
+          width: size,
+          height: size,
+          right: left + size,
+          bottom: gapTop + size,
+        },
+      };
     }
 
     function hitFromPoint(clientX, clientY) {
       const root = contentRoot();
       if (!root) return null;
-      const blocks = topLevelBlocks(root);
-      const rootRect = root.getBoundingClientRect();
-      const x = Math.min(rootRect.right - 8, Math.max(rootRect.left + 12, rootRect.left + 36));
-      const hitNode = document.elementFromPoint(x, clientY);
+      const hitNode = document.elementFromPoint(clientX, clientY);
       if (hitNode && (hitNode.closest(".molan-block-insert") || hitNode.closest(".molan-insert-menu"))) {
         return hover;
       }
-      let el = closestTopBlock(hitNode, root);
-      if (!el && blocks.length) {
-        for (let i = 0; i < blocks.length; i++) {
-          const r = blocks[i].getBoundingClientRect();
-          if (clientY >= r.top && clientY <= r.bottom) {
-            el = blocks[i];
-            break;
+      const blocks = topLevelBlocks(root);
+      const rootRect = root.getBoundingClientRect();
+      const rtl = document.documentElement.dir === "rtl";
+      const left = rtl ? rootRect.right - 26 : rootRect.left;
+      if (!blocks.length) {
+        return { el: root, index: 0, emptyDoc: true, empty: true };
+      }
+
+      for (let i = 0; i < blocks.length; i++) {
+        const r = blocks[i].getBoundingClientRect();
+        const prevBottom = i === 0 ? rootRect.top : blocks[i - 1].getBoundingClientRect().bottom;
+        if (clientY >= prevBottom && clientY < r.top) {
+          return makeGapTarget(i - 1, prevBottom, r.top, left);
+        }
+        if (clientY >= r.top && clientY <= r.bottom) {
+          if (blockLooksEmpty(blocks[i])) {
+            return { el: blocks[i], index: i, empty: true };
           }
-        }
-        if (!el) {
-          const last = blocks[blocks.length - 1];
-          const first = blocks[0];
-          if (clientY > last.getBoundingClientRect().bottom) el = last;
-          else if (clientY < first.getBoundingClientRect().top) el = first;
+          return null;
         }
       }
-      if (!el && !blocks.length) {
-        return { el: root, index: 0, emptyDoc: true };
+
+      const last = blocks[blocks.length - 1];
+      const lastBottom = last.getBoundingClientRect().bottom;
+      const after = Math.min(rootRect.bottom, lastBottom + 28);
+      if (clientY > lastBottom && clientY <= after) {
+        return makeGapTarget(blocks.length - 1, lastBottom, after, left);
       }
-      if (!el) return null;
-      const index = Math.max(0, blocks.indexOf(el));
-      return { el, index, empty: blockLooksEmpty(el) };
+      return null;
     }
 
     function onMove(event) {
@@ -4079,7 +4361,7 @@
       menuOpen = true;
       activeIndex = 0;
       plusBtn.setAttribute("aria-expanded", "true");
-      positionHandle(hover.el);
+      positionHandle(hover);
       positionMenu();
       paintActive();
       const first = visibleItems()[0];
@@ -4103,8 +4385,8 @@
           }
           if (!md) return;
         }
-        ctx.insertSnippet(md, target);
         hideHandle();
+        await ctx.insertSnippet?.(md, target);
       };
       void run();
     }
@@ -4154,9 +4436,9 @@
       if (!menuOpen) return;
       const rows = visibleItems();
       if (!rows.length) return;
-      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === "ArrowRight" || event.key === "ArrowLeft") {
         event.preventDefault();
-        const delta = event.key === "ArrowDown" ? 1 : -1;
+        const delta = (event.key === "ArrowDown" || event.key === "ArrowRight") ? 1 : -1;
         activeIndex = (activeIndex + delta + rows.length) % rows.length;
         paintActive();
         rows[activeIndex]?.focus();
@@ -4170,7 +4452,7 @@
     wrap.addEventListener("mousemove", onMove);
     wrap.addEventListener("mouseleave", onLeave);
     const onScroll = () => {
-      if (hover?.el) positionHandle(hover.el);
+      if (hover) positionHandle(hover);
       if (menuOpen) positionMenu();
     };
     wrap.addEventListener("scroll", onScroll, true);
@@ -4188,8 +4470,8 @@
       sync() {
         watchScroller(ctx.getPreviewBody());
         watchScroller(ctx.getVditorRoot()?.querySelector(".vditor-ir"));
-        if (menuOpen && hover?.el) {
-          positionHandle(hover.el);
+        if (menuOpen && hover) {
+          positionHandle(hover);
           positionMenu();
         } else if (!menuOpen) {
           hideHandle();
@@ -4443,45 +4725,66 @@
 
     const pickImage = () => promptImageUrl();
 
-    const applySnippet = (snippet, hover) => {
+    let pendingInsert = null;
+
+    const releasePreviewOverlay = () => {
+      wrap?.classList.remove("is-preparing-edit");
+    };
+
+    const applySnippet = async (snippet, hover) => {
       const piece = String(snippet || "").replace(/^\n+/, "").replace(/\n+$/, "");
       if (!piece) return;
       maybePreloadMermaid(cdn, piece);
-      if (previewing || !vditor) {
-        const next = insertSnippetInMarkdown(
-          markdown,
-          hover?.emptyDoc ? 0 : (hover?.index ?? 0),
-          piece,
-          !!(hover?.empty || hover?.emptyDoc),
-        );
-        markdown = next;
-        renderLitePreview(markdown);
+      const anchor = hover?.gapRect || hover?.el?.getBoundingClientRect?.();
+      const viewportY = anchor ? anchor.top + Math.min(anchor.height || 26, 28) / 2 : null;
+      const previewScrollTop = previewBody?.scrollTop;
+      const finish = (el) => {
+        let node = el;
+        if (!node?.isConnected && vditor) {
+          node = locateInsertedBlock(irRootOf(vditor), {
+            kind: snippetKind(piece),
+            snippet: piece,
+            focusText: piece.replace(/\s+/g, " ").trim().slice(0, 80),
+            focusIndex: hover?.emptyDoc || hover?.index < 0
+              ? 0
+              : hover?.empty ? (hover.index ?? 0) : (hover?.index ?? 0) + 1,
+          });
+        }
+        pendingInsert = {
+          el: node,
+          viewportY,
+          kind: snippetKind(piece),
+          snippet: piece,
+          focusText: piece.replace(/\s+/g, " ").trim().slice(0, 80),
+          focusIndex: hover?.emptyDoc || hover?.index < 0
+            ? 0
+            : hover?.empty ? (hover.index ?? 0) : (hover?.index ?? 0) + 1,
+        };
+        settleInsertedBlock(node, viewportY);
+        requestAnimationFrame(() => {
+          const root = readingContentRoot(false);
+          const live = pendingInsert?.el?.isConnected
+            ? pendingInsert.el
+            : locateInsertedBlock(root, pendingInsert);
+          settleInsertedBlock(live, viewportY);
+          if (vditor) {
+            try { markdown = vditor.getValue(); } catch (_) { /* ignore */ }
+          }
+          releasePreviewOverlay();
+        });
         try { options.onInput?.(); } catch (_) { /* ignore */ }
+      };
+      if (previewing || !vditor) {
+        try {
+          await api.setPreview(false, { holdPreview: true, previewScrollTop });
+          finish(insertIrSnippet(vditor, piece, hover));
+        } catch (err) {
+          releasePreviewOverlay();
+          throw err;
+        }
         return;
       }
-      const irRoot = vditorRoot.querySelector(".vditor-ir pre.vditor-reset")
-        || vditorRoot.querySelector(".vditor-ir .vditor-reset");
-      if (hover?.el && irRoot && irRoot.contains(hover.el)) {
-        placeCaretAfter(hover.el);
-      }
-      try { vditor.focus(); } catch (_) { /* ignore */ }
-      const md = (hover?.empty || hover?.emptyDoc) ? piece : `\n\n${piece}\n`;
-      if (typeof vditor.insertMD === "function") {
-        vditor.insertMD(md);
-      } else if (typeof vditor.insertValue === "function") {
-        vditor.insertValue(md, true);
-      } else {
-        const next = insertSnippetInMarkdown(
-          vditor.getValue(),
-          hover?.index ?? 0,
-          piece,
-          !!(hover?.empty || hover?.emptyDoc),
-        );
-        muteInput = true;
-        vditor.setValue(next, false);
-        setTimeout(() => { muteInput = false; }, 200);
-        try { options.onInput?.(); } catch (_) { /* ignore */ }
-      }
+      finish(insertIrSnippet(vditor, piece, hover));
     };
 
     blockInsert = bindBlockInsert({
@@ -4533,11 +4836,12 @@
       isPreview() {
         return previewing;
       },
-      async setPreview(on) {
+      async setPreview(on, opts = {}) {
         const want = Boolean(on);
         if (want === previewing) return previewing;
-        const spot = captureReadingSpot(previewing);
+        const spot = opts.spot || captureReadingSpot(previewing);
         if (want) {
+          wrap?.classList.remove("is-preparing-edit");
           hideTablePicker();
           hideTableToolbar(document.getElementById("molanTableToolbar"));
           hideFormatBar();
@@ -4550,14 +4854,25 @@
           notifyPreview();
           return true;
         }
+        const hold = Boolean(opts.holdPreview);
+        const previewY = typeof opts.previewScrollTop === "number"
+          ? opts.previewScrollTop
+          : previewBody?.scrollTop;
         previewing = false;
         muteInput = true;
         blockInsert.hide();
+        if (hold) wrap?.classList.add("is-preparing-edit");
         syncLiteClass();
+        if (hold && previewBody && typeof previewY === "number") previewBody.scrollTop = previewY;
         await bootEditor();
         vditor.setValue(markdown, true);
         applyMermaidTheme();
-        keepReadingSpot(false, spot);
+        if (hold && typeof previewY === "number") {
+          const scroller = readingScroller(false);
+          if (scroller) scroller.scrollTop = previewY;
+        } else if (!hold) {
+          keepReadingSpot(false, spot);
+        }
         setTimeout(() => {
           muteInput = false;
           refreshMermaidDiagrams(vditorRoot).finally(() => {
@@ -4565,7 +4880,16 @@
             if (findState.open) runFind({ keepIndex: true, reveal: false });
             blockInsert.sync();
             scheduleOutlineRefresh();
-            restoreReadingSpot(false, spot);
+            if (pendingInsert) {
+              const root = readingContentRoot(false);
+              const el = pendingInsert.el?.isConnected
+                ? pendingInsert.el
+                : locateInsertedBlock(root, pendingInsert);
+              settleInsertedBlock(el, pendingInsert.viewportY);
+              pendingInsert = null;
+            } else if (!hold) {
+              restoreReadingSpot(false, spot);
+            }
           });
         }, 400);
         notifyPreview();
