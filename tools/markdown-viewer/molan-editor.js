@@ -1410,8 +1410,10 @@
     if (ir && lute && typeof lute.Md2VditorIRDOM === "function") {
       const html = lute.Md2VditorIRDOM(`\n${md}\n`);
       const block = currentIrBlock(ir);
-      if (block) block.insertAdjacentHTML("afterend", html);
-      else ir.insertAdjacentHTML("beforeend", html);
+      withMutedIrInput(vditor, () => {
+        if (block) block.insertAdjacentHTML("afterend", html);
+        else ir.insertAdjacentHTML("beforeend", html);
+      });
       const inserted = (block?.nextElementSibling) || ir.lastElementChild;
       const table = inserted?.tagName === "TABLE" ? inserted : inserted?.querySelector?.("table");
       const firstCell = table?.querySelector?.("th, td");
@@ -4408,6 +4410,136 @@
     } catch (_) { /* ignore */ }
   }
 
+  const IR_ZWSP = "\u200b";
+
+  function withMutedIrInput(vditor, fn) {
+    const ir = (vditor?.vditor || vditor)?.ir;
+    if (ir) ir.preventInput = true;
+    try {
+      return fn();
+    } finally {
+      if (ir && ir.preventInput) ir.preventInput = false;
+    }
+  }
+
+  function repairInsertedList(el, kind) {
+    if (!el || (el.tagName !== "UL" && el.tagName !== "OL")) return el;
+    const marker = el.getAttribute("data-marker") || (el.tagName === "OL" ? "1." : "-");
+    let li = el.querySelector(":scope > li");
+    const wantTask = kind === "task";
+    if (!li) {
+      li = document.createElement("li");
+      li.setAttribute("data-marker", marker);
+      if (wantTask) {
+        li.className = "vditor-task";
+        li.innerHTML = `<input type="checkbox">${IR_ZWSP}`;
+      } else {
+        li.textContent = IR_ZWSP;
+      }
+      el.appendChild(li);
+      return el;
+    }
+    if (wantTask) {
+      li.classList.add("vditor-task");
+      if (!li.querySelector('input[type="checkbox"]')) {
+        li.insertAdjacentHTML("afterbegin", '<input type="checkbox">');
+      }
+    }
+    const hasText = [...li.childNodes].some((n) => n.nodeType === 3);
+    if (!hasText) li.appendChild(document.createTextNode(IR_ZWSP));
+    return el;
+  }
+
+  function listIsHusk(el) {
+    if (!el || (el.tagName !== "UL" && el.tagName !== "OL")) return false;
+    const items = [...el.children].filter((c) => c.tagName === "LI");
+    if (!items.length) return true;
+    return items.every((li) => {
+      const clone = li.cloneNode(true);
+      clone.querySelectorAll("input, .vditor-ir__preview, .vditor-ir__marker").forEach((n) => n.remove());
+      return !String(clone.textContent || "").replace(/[\u200b\s]/g, "");
+    });
+  }
+
+  function caretAtVisualStart(block, range) {
+    if (!range?.collapsed || !block) return false;
+    const node = range.startContainer;
+    if (node !== block && !block.contains(node)) return false;
+    try {
+      const pre = document.createRange();
+      pre.selectNodeContents(block);
+      pre.setEnd(node, range.startOffset);
+      return !String(pre.toString() || "").replace(/[\u200b\s]/g, "");
+    } catch (_) {
+      return range.startOffset === 0;
+    }
+  }
+
+  function caretAtVisualEnd(block, range) {
+    if (!range?.collapsed || !block) return false;
+    const node = range.startContainer;
+    if (node !== block && !block.contains(node)) return false;
+    try {
+      const post = document.createRange();
+      post.selectNodeContents(block);
+      post.setStart(node, range.startOffset);
+      return !String(post.toString() || "").replace(/[\u200b\s]/g, "");
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function removeListHusk(list, vditor) {
+    if (!list || !list.isConnected) return;
+    const ir = list.parentElement;
+    const next = list.nextElementSibling;
+    const prev = list.previousElementSibling;
+    list.remove();
+    if (next) placeCaretAtStart(next);
+    else if (prev) setCaretRange(prev, true);
+    else if (ir) {
+      ir.insertAdjacentHTML("afterbegin", `<p data-block="0">${IR_ZWSP}</p>`);
+      placeCaretAtStart(ir.firstElementChild);
+    }
+    notifyTableEdit(vditor, ir?.closest("#vditor") || ir);
+  }
+
+  function bindIrListGuards(vditorRoot, getVditor, isPreviewing) {
+    if (!vditorRoot || vditorRoot.dataset.molanListGuard === "1") return;
+    vditorRoot.dataset.molanListGuard = "1";
+    vditorRoot.addEventListener("keydown", (event) => {
+      if (isPreviewing?.()) return;
+      if (event.key !== "Backspace" && event.key !== "Delete") return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      const vditor = getVditor?.();
+      const ir = irRootOf(vditor);
+      if (!ir) return;
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      const range = sel.getRangeAt(0);
+      if (!ir.contains(range.commonAncestorContainer)) return;
+      const block = closestTopBlock(range.commonAncestorContainer, ir);
+      if (listIsHusk(block)) {
+        event.preventDefault();
+        event.stopPropagation();
+        removeListHusk(block, vditor);
+        return;
+      }
+      if (!range.collapsed || !block) return;
+      if (event.key === "Backspace" && caretAtVisualStart(block, range) && listIsHusk(block.previousElementSibling)) {
+        event.preventDefault();
+        event.stopPropagation();
+        removeListHusk(block.previousElementSibling, vditor);
+        return;
+      }
+      if (event.key === "Delete" && caretAtVisualEnd(block, range) && listIsHusk(block.nextElementSibling)) {
+        event.preventDefault();
+        event.stopPropagation();
+        removeListHusk(block.nextElementSibling, vditor);
+      }
+    }, true);
+  }
+
   function insertIrSnippet(vditor, snippet, hover) {
     const piece = String(snippet || "").replace(/^\n+/, "").replace(/\n+$/, "");
     if (!piece) return null;
@@ -4431,17 +4563,21 @@
     const kind = snippetKind(piece);
     if (lute && typeof lute.Md2VditorIRDOM === "function") {
       const html = lute.Md2VditorIRDOM(`${piece}\n`);
-      if (replace && ref && ir.contains(ref)) {
-        ref.insertAdjacentHTML("afterend", html);
-        inserted = ref.nextElementSibling;
-        if (blockLooksEmpty(ref)) ref.remove();
-      } else if (ref && ir.contains(ref)) {
-        ref.insertAdjacentHTML("afterend", html);
-        inserted = ref.nextElementSibling;
-      } else {
-        ir.insertAdjacentHTML("afterbegin", html);
-        inserted = ir.firstElementChild;
-      }
+      // insertAdjacentHTML 会触发 IR 的 input → SpinVditorIRDOM。
+      // 空任务 `- [ ] ` 会被收成没有 <li> 的 <ul>，此后 Backspace 删不掉。
+      withMutedIrInput(vditor, () => {
+        if (replace && ref && ir.contains(ref)) {
+          ref.insertAdjacentHTML("afterend", html);
+          inserted = ref.nextElementSibling;
+          if (blockLooksEmpty(ref)) ref.remove();
+        } else if (ref && ir.contains(ref)) {
+          ref.insertAdjacentHTML("afterend", html);
+          inserted = ref.nextElementSibling;
+        } else {
+          ir.insertAdjacentHTML("afterbegin", html);
+          inserted = ir.firstElementChild;
+        }
+      });
       let node = inserted;
       for (let i = 0; i < 6 && node; i += 1, node = node.nextElementSibling) {
         if (kind !== "block" && blockMatchesKind(node, kind)) {
@@ -4453,6 +4589,7 @@
           break;
         }
       }
+      inserted = repairInsertedList(inserted, kind);
     } else {
       if (replace && ref) placeCaretAfter(ref);
       else if (ref && ir.contains(ref)) placeCaretAfter(ref);
@@ -5109,6 +5246,7 @@
             bindTableInsertPicker(vditorRoot, () => vditor);
             bindTableControls(vditorRoot, () => vditor);
             bindFormatBar(vditorRoot, () => vditor, () => previewing);
+            bindIrListGuards(vditorRoot, () => vditor, () => previewing);
             relocateVditorOutline();
             revealVditorIcons();
             blockInsert.sync();

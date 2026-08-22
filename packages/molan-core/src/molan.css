@@ -3329,6 +3329,10 @@
       background: transparent !important;
     }
 
+    .vditor-reset .vditor-task {
+      list-style: none !important;
+    }
+
     .vditor-reset input[type="checkbox"] {
       margin-right: 0.45em;
       accent-color: var(--accent);
