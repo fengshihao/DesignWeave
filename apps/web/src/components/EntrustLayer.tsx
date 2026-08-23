@@ -3,11 +3,12 @@
 import {
   KeyboardEvent,
   PointerEvent as ReactPointerEvent,
+  type ReactNode,
   useEffect,
   useRef,
   useState,
 } from "react";
-import type { ChatTurn } from "@designweave/molan-protocol";
+import type { ChatBlock, ChatTurn } from "@designweave/molan-protocol";
 import type { WorkbenchMode, WorkbenchRun } from "@/lib/api";
 import type { EntrustSize } from "@/lib/remember";
 
@@ -309,67 +310,117 @@ export function EntrustLayer(props: {
   );
 }
 
+function isBusyHint(text: string): boolean {
+  return /^正在(读文件|写文档仓|用 )/.test(text);
+}
+
 function TurnBubble(props: { turn: ChatTurn; onOpenFile?: (path: string) => void }) {
   const { turn } = props;
   return (
     <article className="turn">
       {turn.you ? <div className="bubble bubble-you">{turn.you}</div> : null}
-      <div className="bubble-ai">
-        {turn.blocks.map((block) => {
-          if (block.kind === "trust") {
-            return (
-              <p key={block.id} className="log-trust">
-                {block.text}
-              </p>
-            );
-          }
-          if (block.kind === "hint") {
-            return (
-              <p key={block.id} className="log-hint">
-                {block.text}
-              </p>
-            );
-          }
-          if (block.kind === "text") {
-            return (
-              <div key={block.id} className="log-text">
-                {block.text}
-              </div>
-            );
-          }
-          if (block.kind === "tool") {
-            return (
-              <span key={block.id} className="chip chip-tool">
-                {toolLabel(block.name)}
-              </span>
-            );
-          }
-          if (block.kind === "file") {
-            return (
+      <div className="bubble-ai">{renderTurnBlocks(turn.blocks, props.onOpenFile)}</div>
+    </article>
+  );
+}
+
+function renderTurnBlocks(blocks: ChatBlock[], onOpenFile?: (path: string) => void) {
+  const nodes: ReactNode[] = [];
+  let i = 0;
+  while (i < blocks.length) {
+    const block = blocks[i];
+    if (block.kind === "hint" && isBusyHint(block.text)) {
+      i += 1;
+      continue;
+    }
+    if (block.kind === "tool" || block.kind === "file") {
+      const group: ChatBlock[] = [];
+      while (i < blocks.length && (blocks[i].kind === "tool" || blocks[i].kind === "file")) {
+        group.push(blocks[i]);
+        i += 1;
+      }
+      nodes.push(<ToolTrace key={group[0].id} items={group} onOpenFile={onOpenFile} />);
+      continue;
+    }
+    if (block.kind === "trust") {
+      nodes.push(
+        <p key={block.id} className="log-trust">
+          {block.text}
+        </p>
+      );
+    } else if (block.kind === "hint") {
+      nodes.push(
+        <p key={block.id} className="log-hint">
+          {block.text}
+        </p>
+      );
+    } else if (block.kind === "text") {
+      nodes.push(
+        <div key={block.id} className="log-text">
+          {block.text}
+        </div>
+      );
+    } else if (block.kind === "error") {
+      nodes.push(
+        <p key={block.id} className="log-error">
+          {block.text}
+        </p>
+      );
+    } else if (block.kind === "status") {
+      nodes.push(
+        <p key={block.id} className={`log-status is-${block.result || "success"}`}>
+          {block.text}
+        </p>
+      );
+    }
+    i += 1;
+  }
+  return nodes;
+}
+
+function ToolTrace(props: { items: ChatBlock[]; onOpenFile?: (path: string) => void }) {
+  return (
+    <ul className="tool-trace">
+      {props.items.map((block) => {
+        if (block.kind === "tool") {
+          const target = block.detail || "";
+          return (
+            <li key={block.id}>
+              <span className="tool-verb">{toolLabel(block.name)}</span>
+              {block.path ? (
+                <button
+                  type="button"
+                  className="tool-target is-link"
+                  title={target}
+                  onClick={() => props.onOpenFile?.(block.path!)}
+                >
+                  {target}
+                </button>
+              ) : target ? (
+                <span className="tool-target" title={target}>
+                  {target}
+                </span>
+              ) : null}
+            </li>
+          );
+        }
+        if (block.kind === "file") {
+          return (
+            <li key={block.id}>
+              <span className="tool-verb">写回</span>
               <button
-                key={block.id}
                 type="button"
-                className="chip chip-file"
+                className="tool-target is-link"
+                title={block.path}
                 onClick={() => props.onOpenFile?.(block.path)}
               >
                 {block.path}
               </button>
-            );
-          }
-          if (block.kind === "error") {
-            return (
-              <p key={block.id} className="log-error">
-                {block.text}
-              </p>
-            );
-          }
-          return (
-            <p key={block.id} className={`log-status is-${block.result || "success"}`}>
-              {block.text}
-            </p>
+            </li>
           );
-        })}
-      </div>
-    </article>
+        }
+        return null;
+      })}
+    </ul>
   );
 }

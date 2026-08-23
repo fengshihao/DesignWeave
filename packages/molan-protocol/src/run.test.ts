@@ -142,6 +142,53 @@ test("reduceAguiEvents 折成用户气泡 + 助手块", () => {
   assert.equal(text && text.kind === "text" ? text.text : "", "先读 README。");
 });
 
+test("reduceAguiEvents 把工具参数收成 path/detail，同路径 file 不重复", () => {
+  const frames = [
+    agui.toolStart("t1", "Read", { file_path: "01-背景与目标.md", content: "不要进事件" }),
+    agui.toolStart("t2", "Grep", { pattern: "登录", path: "docs" }),
+    agui.custom("file", { path: "01-背景与目标.md" }),
+    agui.custom("file", { path: "01-背景与目标.md" }),
+    agui.custom("file", { path: "02-方案.md" }),
+  ];
+  const events = frames.map((frame, i) =>
+    toAguiEvent({ seq: i + 1, type: frame.type, payload: { runId: "r3", ...frame.payload }, runId: "r3" })
+  );
+  const turns = reduceAguiEvents(events);
+  const tools = turns[0].blocks.filter((b) => b.kind === "tool");
+  const files = turns[0].blocks.filter((b) => b.kind === "file");
+  assert.equal(tools.length, 2);
+  assert.equal(tools[0].kind === "tool" ? tools[0].detail : "", "01-背景与目标.md");
+  assert.equal(tools[1].kind === "tool" ? tools[1].detail : "", "登录 · docs");
+  assert.deepEqual(
+    files.map((b) => (b.kind === "file" ? b.path : "")),
+    ["02-方案.md"]
+  );
+});
+
+test("reduceAguiEvents 丢掉与已有正文完全相同的重复 delta", () => {
+  const turns = reduceAguiEvents([
+    { seq: 1, type: "TEXT_MESSAGE_START", runId: "r4", messageId: "assistant-r4", role: "assistant" },
+    {
+      seq: 2,
+      type: "TEXT_MESSAGE_CONTENT",
+      runId: "r4",
+      messageId: "assistant-r4",
+      role: "assistant",
+      delta: "先改登录。",
+    },
+    {
+      seq: 3,
+      type: "TEXT_MESSAGE_CONTENT",
+      runId: "r4",
+      messageId: "assistant-r4",
+      role: "assistant",
+      delta: "先改登录。",
+    },
+  ]);
+  const text = turns[0].blocks.find((b) => b.kind === "text");
+  assert.equal(text && text.kind === "text" ? text.text : "", "先改登录。");
+});
+
 test("mergeAguiEvents 按 runId+seq 去重", () => {
   const a = [{ seq: 1, type: "RUN_STARTED" as const, runId: "r1" }];
   const b = [

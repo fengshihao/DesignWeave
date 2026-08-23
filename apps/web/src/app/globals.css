@@ -1464,9 +1464,9 @@ body.is-col-resizing iframe {
 
 .bubble-ai {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px 8px;
-  align-items: flex-start;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
 }
 
 .log-trust {
@@ -1493,28 +1493,54 @@ body.is-col-resizing iframe {
   color: var(--ink);
 }
 
-.chip {
-  border: 1px solid var(--hairline);
-  background: var(--surface);
+.tool-trace {
+  margin: 0;
+  padding: 4px 0 2px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.tool-trace li {
+  display: grid;
+  grid-template-columns: 4.5em minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+
+.tool-verb {
   color: var(--ink-soft);
-  border-radius: 999px;
-  padding: 3px 9px;
   font-size: 11px;
-  line-height: 1.4;
+  letter-spacing: 0.02em;
 }
 
-.chip-tool {
+.tool-target {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-muted);
 }
 
-.chip-file {
-  cursor: pointer;
+.tool-target.is-link {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: left;
   color: var(--accent-deep);
-  border-color: var(--accent-glow);
+  cursor: pointer;
 }
 
-.chip-file:hover {
-  background: var(--accent-glow);
+.tool-target.is-link:hover {
+  text-decoration: underline;
 }
 
 .log-error {

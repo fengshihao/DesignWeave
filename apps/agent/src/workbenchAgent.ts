@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { agui, assistantMessageId } from "@designweave/molan-protocol";
+import { agui, assistantMessageId, pickToolInput } from "@designweave/molan-protocol";
 import { config } from "./config.js";
 import { buildClaudeQueryOptions } from "./claudeRuntime.js";
 import { commitAll, isDirty } from "./gitVault.js";
@@ -396,19 +396,12 @@ async function runClaude(
         if (block.type === "tool_use" && block.name) {
           toolSeq += 1;
           const toolCallId = `${runId}-tool-${toolSeq}`;
-          appendAgui(runId, agui.toolStart(toolCallId, block.name));
-          const pretty =
-            block.name === "Write" || block.name === "Edit"
-              ? "正在写文档仓…"
-              : block.name === "Read"
-                ? "正在读文件…"
-                : `正在用 ${block.name}…`;
-          hint(runId, pretty);
+          appendAgui(runId, agui.toolStart(toolCallId, block.name, pickToolInput(block.input)));
           appendAgui(runId, agui.toolEnd(toolCallId, block.name));
         }
       }
     }
-    if (msg.type === "result" && typeof msg.result === "string" && msg.result.trim()) {
+    if (msg.type === "result" && typeof msg.result === "string" && msg.result.trim() && !started.value) {
       assistantDelta(runId, started, msg.result);
     }
   }

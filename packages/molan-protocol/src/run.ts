@@ -160,11 +160,39 @@ export function parseSseData(type: string, data: unknown, fallbackRunId?: string
 export type ChatBlock =
   | { id: string; kind: "text"; text: string }
   | { id: string; kind: "hint"; text: string }
-  | { id: string; kind: "tool"; name: string }
+  | { id: string; kind: "tool"; name: string; path?: string; detail?: string }
   | { id: string; kind: "file"; path: string }
   | { id: string; kind: "trust"; text: string }
   | { id: string; kind: "error"; text: string }
   | { id: string; kind: "status"; text: string; result?: AguiRunResult };
+
+const TOOL_INPUT_KEYS = ["file_path", "path", "file", "target_file", "pattern", "glob", "query"] as const;
+
+/** 只留路径/检索词，丢掉 Write 的整篇 content。 */
+export function pickToolInput(input: unknown): Record<string, string> {
+  const rec = asRecord(input);
+  const out: Record<string, string> = {};
+  for (const key of TOOL_INPUT_KEYS) {
+    const value = rec[key];
+    if (typeof value === "string" && value.trim()) out[key] = value.trim();
+  }
+  return out;
+}
+
+export function summarizeToolInput(
+  name: string,
+  value?: Record<string, unknown>
+): { path?: string; detail?: string } {
+  const picked = pickToolInput(value);
+  const path = picked.file_path || picked.path || picked.file || picked.target_file;
+  const pattern = picked.pattern || picked.glob || picked.query;
+  if (path && pattern && (name === "Grep" || name === "Glob")) {
+    return { path, detail: `${pattern} · ${path}` };
+  }
+  if (path) return { path, detail: path };
+  if (pattern) return { detail: pattern };
+  return {};
+}
 
 export type ChatTurn = {
   runId: string;
@@ -223,8 +251,11 @@ export function reduceAguiEvents(events: AguiEvent[]): ChatTurn[] {
         const role = ev.role || "assistant";
         const messageId = ev.messageId || `${runId}-${role}`;
         const prev = buffers.get(messageId) || { runId, role, text: "" };
+        const incoming = ev.delta || "";
         prev.role = role;
-        prev.text += ev.delta || "";
+        if (!(role !== "user" && prev.text && incoming === prev.text)) {
+          prev.text += incoming;
+        }
         buffers.set(messageId, prev);
         if (role === "user") turn.you = prev.text;
         else upsertText(turn, messageId, prev.text);
@@ -235,7 +266,13 @@ export function reduceAguiEvents(events: AguiEvent[]): ChatTurn[] {
       case "TOOL_CALL_START": {
         const id = ev.toolCallId || `tool-${ev.seq}`;
         if (!turn.blocks.some((b) => b.kind === "tool" && b.id === id)) {
-          turn.blocks.push({ id, kind: "tool", name: ev.toolCallName || "工具" });
+          const summary = summarizeToolInput(ev.toolCallName || "", ev.value);
+          turn.blocks.push({
+            id,
+            kind: "tool",
+            name: ev.toolCallName || "工具",
+            ...summary,
+          });
         }
         break;
       }
@@ -256,7 +293,14 @@ export function reduceAguiEvents(events: AguiEvent[]): ChatTurn[] {
           }
         } else if (ev.name === "file") {
           const path = str(value.path);
-          if (path) {
+          const already =
+            !path ||
+            turn.blocks.some(
+              (b) =>
+                (b.kind === "file" && b.path === path) ||
+                (b.kind === "tool" && b.path === path)
+            );
+          if (!already) {
             turn.blocks.push({ id: `file-${ev.seq}`, kind: "file", path });
           }
         }
@@ -335,8 +379,20 @@ export const agui = {
   textEnd(messageId: string, role: AguiRole): AguiEmit {
     return { type: "TEXT_MESSAGE_END", payload: { messageId, role } };
   },
-  toolStart(toolCallId: string, toolCallName: string): AguiEmit {
-    return { type: "TOOL_CALL_START", payload: { toolCallId, toolCallName } };
+  toolStart(
+    toolCallId: string,
+    toolCallName: string,
+    input?: Record<string, unknown>
+  ): AguiEmit {
+    const value = pickToolInput(input);
+    return {
+      type: "TOOL_CALL_START",
+      payload: {
+        toolCallId,
+        toolCallName,
+        ...(Object.keys(value).length ? { value } : {}),
+      },
+    };
   },
   toolEnd(toolCallId: string, toolCallName: string): AguiEmit {
     return { type: "TOOL_CALL_END", payload: { toolCallId, toolCallName } };
