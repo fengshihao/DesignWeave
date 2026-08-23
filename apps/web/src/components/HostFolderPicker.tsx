@@ -7,28 +7,38 @@ export type FolderListing = {
   path: string;
   parent: string | null;
   home: string;
+  crumbs?: Array<{ label: string; path: string }>;
   entries: Array<{ name: string; path: string; isDir: boolean }>;
 };
 
 function crumbs(listing: FolderListing): Array<{ label: string; path: string }> {
-  const home = listing.home.replace(/\/$/, "");
+  if (listing.crumbs && listing.crumbs.length > 0) return listing.crumbs;
+  const sep = listing.path.includes("\\") ? "\\" : "/";
+  const home = listing.home.replace(/[\\/]+$/, "");
   const current = listing.path;
   const out: Array<{ label: string; path: string }> = [];
-  if (current === home || current.startsWith(home + "/")) {
+  if (
+    current === home ||
+    current.startsWith(home + "/") ||
+    current.startsWith(home + "\\")
+  ) {
     out.push({ label: "家目录", path: home });
-    const rest = current.slice(home.length).split("/").filter(Boolean);
+    const rest = current.slice(home.length).split(/[\\/]/).filter(Boolean);
     let acc = home;
     for (const part of rest) {
-      acc = `${acc}/${part}`;
+      acc = `${acc}${sep}${part}`;
       out.push({ label: part, path: acc });
     }
     return out;
   }
-  const parts = current.split("/").filter(Boolean);
-  let acc = "";
-  out.push({ label: "/", path: "/" });
+  const parts = current.split(/[\\/]/).filter(Boolean);
+  let acc = /^[A-Za-z]:/.test(current) ? `${parts.shift()}${sep}` : sep;
+  out.push({
+    label: /^[A-Za-z]:/.test(current) ? acc.replace(/[\\/]+$/, "") : "/",
+    path: /^[A-Za-z]:/.test(current) ? acc : "/",
+  });
   for (const part of parts) {
-    acc = `${acc}/${part}`;
+    acc = acc.endsWith("/") || acc.endsWith("\\") ? `${acc}${part}` : `${acc}${sep}${part}`;
     out.push({ label: part, path: acc });
   }
   return out;

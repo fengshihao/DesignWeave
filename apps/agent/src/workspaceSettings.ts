@@ -3,6 +3,7 @@ import path from "node:path";
 import { getDb } from "./db.js";
 import { HttpError } from "./httpError.js";
 import { scanClaudeKnownProjects } from "./claudeProjects.js";
+import { canonicalPath, isFsRoot, isPathInside, resolveHostPath } from "./hostPath.js";
 
 export type ApprovedCodeDir = {
   path: string;
@@ -49,8 +50,8 @@ export function workspaceRootOrThrow(): string {
 
 export function setWorkspaceRoot(raw: string): string {
   ensureWorkspaceTables();
-  const abs = path.resolve(raw.trim());
-  if (!abs || abs === path.sep) {
+  const abs = resolveHostPath(raw.trim());
+  if (!abs || isFsRoot(abs)) {
     throw new HttpError("运行根目录不合适。", 400);
   }
   if (!fs.existsSync(abs) || !fs.statSync(abs).isDirectory()) {
@@ -67,9 +68,7 @@ export function setWorkspaceRoot(raw: string): string {
 
 export function isUnderWorkspaceRoot(dir: string, root = getWorkspaceRoot()): boolean {
   if (!root) return false;
-  const abs = path.resolve(dir);
-  const base = path.resolve(root);
-  return abs === base || abs.startsWith(base + path.sep);
+  return isPathInside(dir, root);
 }
 
 function mapScanRow(r: {
@@ -160,7 +159,7 @@ export function setApprovedCodeDirs(paths: string[]): ApprovedCodeDir[] {
   const scan = refreshClaudeCodeDirs();
   const allowed = new Set(scan.dirs.map((d) => d.path));
   const wanted = [
-    ...new Set(paths.map((p) => path.resolve(p.trim())).filter(Boolean)),
+    ...new Set(paths.map((p) => resolveHostPath(p.trim())).filter(Boolean)),
   ];
   for (const p of wanted) {
     if (!allowed.has(p)) {
@@ -186,11 +185,12 @@ export function mergeApprovalSelection(
   scanned: string[],
   requested: string[]
 ): { approved: string[]; rejected: string[] } {
-  const allow = new Set(scanned);
+  const allow = new Set(scanned.map((p) => canonicalPath(p)));
   const approved: string[] = [];
   const rejected: string[] = [];
   for (const p of requested) {
-    if (allow.has(p)) approved.push(p);
+    const key = canonicalPath(p);
+    if (allow.has(key)) approved.push(key);
     else rejected.push(p);
   }
   return { approved, rejected };

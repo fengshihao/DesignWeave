@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -20,16 +20,68 @@ const IGNORE = `# DesignWeave — 可重建的运行态不要进时间线
 Thumbs.db
 `;
 
-function runGit(cwd: string, args: string[], input?: string): string {
-  const result = spawnSync("git", args, {
+const GIT_MISSING =
+  "未找到 git。请安装 Git for Windows，并确保 git 在 PATH 里（安装包自带 Git Bash）。";
+
+let cachedGitBin: string | undefined;
+
+function gitBin(): string {
+  if (cachedGitBin) return cachedGitBin;
+  if (process.platform === "win32") {
+    const candidates = [
+      "C:\\Program Files\\Git\\cmd\\git.exe",
+      "C:\\Program Files\\Git\\bin\\git.exe",
+      "C:\\Program Files (x86)\\Git\\cmd\\git.exe",
+    ];
+    const where = spawnSync("where", ["git"], {
+      encoding: "utf8",
+      windowsHide: true,
+    });
+    const fromPath = (where.stdout || "")
+      .split(/\r?\n/)
+      .map((s) => s.trim())
+      .find((s) => s && !/Windows\\System32\\bash/i.test(s));
+    if (fromPath && fs.existsSync(fromPath)) {
+      cachedGitBin = fromPath;
+      return cachedGitBin;
+    }
+    const hit = candidates.find((c) => fs.existsSync(c));
+    if (hit) {
+      cachedGitBin = hit;
+      return cachedGitBin;
+    }
+  }
+  cachedGitBin = "git";
+  return cachedGitBin;
+}
+
+function spawnGit(
+  cwd: string,
+  args: string[],
+  input?: string
+): SpawnSyncReturns<string> {
+  return spawnSync(gitBin(), args, {
     cwd,
     encoding: "utf8",
     input,
+    windowsHide: true,
     env: {
       ...process.env,
       GIT_TERMINAL_PROMPT: "0",
     },
-  });
+  }) as SpawnSyncReturns<string>;
+}
+
+function throwIfGitMissing(result: SpawnSyncReturns<string>): void {
+  const err = result.error as NodeJS.ErrnoException | undefined;
+  if (err?.code === "ENOENT") {
+    throw new Error(GIT_MISSING);
+  }
+}
+
+function runGit(cwd: string, args: string[], input?: string): string {
+  const result = spawnGit(cwd, args, input);
+  throwIfGitMissing(result);
   if (result.status !== 0) {
     const err = (result.stderr || result.stdout || "git 失败").trim();
     throw new Error(err);
@@ -88,6 +140,14 @@ export function changedFiles(dir: string): string[] {
     .filter(Boolean);
 }
 
+function initMainlineRepo(dir: string): void {
+  const withBranch = spawnGit(dir, ["init", "-b", "main"]);
+  throwIfGitMissing(withBranch);
+  if (withBranch.status === 0) return;
+  runGit(dir, ["init"]);
+  runGit(dir, ["symbolic-ref", "HEAD", "refs/heads/main"]);
+}
+
 export function ensureDocumentVault(dir: string): {
   initialized: boolean;
   branch: string;
@@ -100,7 +160,7 @@ export function ensureDocumentVault(dir: string): {
   }
 
   if (!gitDir(abs)) {
-    runGit(abs, ["init", "-b", "main"]);
+    initMainlineRepo(abs);
     runGit(abs, ["config", "user.name", "DesignWeave"]);
     runGit(abs, ["config", "user.email", "system@designweave.local"]);
     return { initialized: true, branch: "main" };
@@ -141,10 +201,7 @@ export function commitAll(
 }
 
 function hasHead(dir: string): boolean {
-  const result = spawnSync("git", ["rev-parse", "--verify", "HEAD"], {
-    cwd: dir,
-    encoding: "utf8",
-  });
+  const result = spawnGit(dir, ["rev-parse", "--verify", "HEAD"]);
   return result.status === 0;
 }
 
@@ -169,10 +226,7 @@ export function listVersions(dir: string, limit = 50): VaultVersion[] {
 
 export function readFileAt(dir: string, rev: string, relPath: string): string | null {
   const safe = relPath.replace(/\\/g, "/").replace(/^\/+/, "");
-  const result = spawnSync("git", ["show", `${rev}:${safe}`], {
-    cwd: dir,
-    encoding: "utf8",
-  });
+  const result = spawnGit(dir, ["show", `${rev}:${safe}`]);
   if (result.status !== 0) return null;
   return result.stdout ?? "";
 }

@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { isPathInside } from "./hostPath.js";
 import { getRequirement } from "./requirements.js";
 
 const ALLOWED = new Set([".md", ".markdown", ".txt"]);
@@ -23,7 +24,7 @@ export function resolveDocFile(projectId: string, relPath: string): string {
   }
   const abs = path.resolve(meta.vaultPath, safe);
   const root = path.resolve(meta.vaultPath);
-  if (abs !== root && !abs.startsWith(root + path.sep)) {
+  if (!isPathInside(abs, root)) {
     throw new Error("路径不合法");
   }
   const ext = path.extname(abs).toLowerCase();

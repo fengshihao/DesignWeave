@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { toHostPath } from "./hostPath.js";
 
 export type ClaudeKnownProject = {
   path: string;
@@ -12,6 +13,36 @@ export type ClaudeKnownProject = {
 
 function claudeJsonPath(): string {
   return process.env.CLAUDE_JSON_PATH || path.join(os.homedir(), ".claude.json");
+}
+
+export function collectClaudeProjectPaths(
+  raw: {
+    projects?: Record<string, unknown>;
+    githubRepoPaths?: Record<string, string[]>;
+  },
+  platform: string = process.platform
+): string[] {
+  const pathSet = new Set<string>();
+  const add = (p: string) => {
+    const host = toHostPath(p, platform);
+    if (host) pathSet.add(host);
+  };
+
+  if (raw.projects && typeof raw.projects === "object") {
+    for (const p of Object.keys(raw.projects)) {
+      if (p) add(p);
+    }
+  }
+  if (raw.githubRepoPaths && typeof raw.githubRepoPaths === "object") {
+    for (const list of Object.values(raw.githubRepoPaths)) {
+      if (Array.isArray(list)) {
+        for (const p of list) {
+          if (typeof p === "string") add(p);
+        }
+      }
+    }
+  }
+  return [...pathSet];
 }
 
 export function scanClaudeKnownProjects(): {
@@ -36,25 +67,7 @@ export function scanClaudeKnownProjects(): {
       githubRepoPaths?: Record<string, string[]>;
     };
 
-    const pathSet = new Set<string>();
-    if (raw.projects && typeof raw.projects === "object") {
-      for (const p of Object.keys(raw.projects)) {
-        if (p && p.startsWith("/")) pathSet.add(path.resolve(p));
-      }
-    }
-    if (raw.githubRepoPaths && typeof raw.githubRepoPaths === "object") {
-      for (const list of Object.values(raw.githubRepoPaths)) {
-        if (Array.isArray(list)) {
-          for (const p of list) {
-            if (typeof p === "string" && p.startsWith("/")) {
-              pathSet.add(path.resolve(p));
-            }
-          }
-        }
-      }
-    }
-
-    const projects: ClaudeKnownProject[] = [...pathSet]
+    const projects: ClaudeKnownProject[] = collectClaudeProjectPaths(raw)
       .map((repoPath) => {
         const exists = fs.existsSync(repoPath) && fs.statSync(repoPath).isDirectory();
         return {

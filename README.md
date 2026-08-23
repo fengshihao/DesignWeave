@@ -73,4 +73,12 @@ apps/vscode-molan/       VS Code / Cursor 扩展（编译时拷入上述核心�
 - 现行产品设计：[doc/18-工程目录与标准PRD.md](doc/18-工程目录与标准PRD.md)
 - 文档入口：[doc/README.md](doc/README.md)
 
-相关代码在 `apps/web`、`apps/agent` 与 `packages/`。未按 18 改代码之前，Web 仍是旧探针壳。
+需要 Node.js 20+、pnpm 8+。Windows 请安装 [Git for Windows](https://git-scm.com/download/win)（自带 Git Bash）；`pnpm dev` 会自动找 bash，不必先开 Git Bash。
+
+```bash
+pnpm install
+pnpm dev              # Web :3100 · Agent :8787
+pnpm stop
+```
+
+相关代码在 `apps/web`、`apps/agent` 与 `packages/`。

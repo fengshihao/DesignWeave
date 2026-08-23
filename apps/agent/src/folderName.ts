@@ -1,8 +1,20 @@
 const FORBIDDEN = /[/\\:*?"<>|]/g;
+const RESERVED = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i;
 
 export function folderNameFor(title: string): string {
-  const name = title.replace(FORBIDDEN, "").replace(/\s+/g, " ").trim();
-  return (name || "未命名工程").slice(0, 80);
+  let name = title.replace(FORBIDDEN, "").replace(/\s+/g, " ").trim();
+  name = name.replace(/[. ]+$/g, "");
+  if (!name) name = "未命名工程";
+  if (RESERVED.test(name)) name = `工程-${name}`;
+  return name.slice(0, 80);
+}
+
+export function isUsableFolderName(name: string): boolean {
+  if (!name || name.startsWith(".") || name.includes("..")) return false;
+  if (/[/\\:*?"<>|]/.test(name)) return false;
+  if (/[. ]$/.test(name)) return false;
+  if (RESERVED.test(name)) return false;
+  return true;
 }
 
 export function uniqueFolderName(existing: Iterable<string>, title: string): string {

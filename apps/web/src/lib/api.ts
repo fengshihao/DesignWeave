@@ -269,6 +269,7 @@ export const api = {
       path: string;
       parent: string | null;
       home: string;
+      crumbs?: Array<{ label: string; path: string }>;
       entries: Array<{ name: string; path: string; isDir: boolean }>;
     }>(`/v1/fs/browse${dir ? `?path=${encodeURIComponent(dir)}` : ""}`),
 
@@ -279,6 +280,7 @@ export const api = {
         path: string;
         parent: string | null;
         home: string;
+        crumbs?: Array<{ label: string; path: string }>;
         entries: Array<{ name: string; path: string; isDir: boolean }>;
       };
     }>("/v1/fs/mkdir", {

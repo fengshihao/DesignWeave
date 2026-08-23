@@ -32,6 +32,9 @@ test("文件夹名去掉非法字符，重名加 -2", () => {
     uniqueFolderName(["设置页夜间模式", "设置页夜间模式-2"], "设置页夜间模式"),
     "设置页夜间模式-3"
   );
+  assert.equal(folderNameFor("CON"), "工程-CON");
+  assert.equal(folderNameFor("aux.txt"), "工程-aux.txt");
+  assert.equal(folderNameFor("夜间模式."), "夜间模式");
 });
 
 test("meta.md 读写稳定 id，不含代码仓勾选", () => {
