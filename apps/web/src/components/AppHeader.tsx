@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { authClient } from "@/lib/auth-client";
+import { logoutAndLeave } from "@/lib/auth-client";
 import type { SessionUser } from "@/lib/api";
 
 export function AppHeader(props: {
@@ -9,8 +9,7 @@ export function AppHeader(props: {
   title?: string;
 }) {
   async function logout() {
-    await authClient.signOut();
-    window.location.href = "/";
+    await logoutAndLeave();
   }
 
   return (

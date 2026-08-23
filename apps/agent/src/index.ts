@@ -15,8 +15,11 @@ import { getDb } from "./db.js";
 import {
   countUsers,
   createDesignerUser,
+  expireAuthCookieHeaders,
   handleAuthRequest,
   listAuthUsers,
+  revokeSessionToken,
+  signInUser,
   signUpFirstUser,
 } from "./auth.js";
 import { publicUser, requireArchitect, requireSession } from "./acl.js";
@@ -109,6 +112,9 @@ app.use(
 );
 app.use((req, res, next) => {
   if (req.path.startsWith("/api/auth")) {
+    if (!req.headers.origin) {
+      req.headers.origin = config.webOrigin;
+    }
     void handleAuthRequest(req, res);
     return;
   }
@@ -176,6 +182,38 @@ app.post("/v1/setup", async (req, res) => {
       error: err instanceof Error ? err.message : "创建账号失败",
     });
   }
+});
+
+app.post("/v1/login", async (req, res) => {
+  const email = String(req.body?.email || "").trim().toLowerCase();
+  const password = String(req.body?.password || "");
+  if (!email || !password) {
+    res.status(400).json({ error: "请填写登录邮箱和密码" });
+    return;
+  }
+  try {
+    const response = await signInUser({ email, password, headers: req.headers });
+    if (!response.ok) {
+      const body = (await response.json().catch(() => ({}))) as { code?: string; message?: string };
+      const message =
+        body.code === "INVALID_EMAIL_OR_PASSWORD" ? "邮箱或密码不对" : body.message || "登录失败";
+      res.status(401).json({ error: message });
+      return;
+    }
+    await pipeAuthResponse(response, res);
+  } catch (err) {
+    res.status(401).json({
+      error: err instanceof Error ? err.message : "登录失败",
+    });
+  }
+});
+
+app.post("/v1/logout", async (req, res) => {
+  await revokeSessionToken(req.headers);
+  for (const cookie of expireAuthCookieHeaders()) {
+    res.append("Set-Cookie", cookie);
+  }
+  res.status(200).json({ ok: true });
 });
 
 app.get("/v1/me", (req, res) => {

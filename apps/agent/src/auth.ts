@@ -25,6 +25,8 @@ const trustedOrigins = Array.from(
     webOrigin,
     "http://localhost:3100",
     "http://127.0.0.1:3100",
+    "http://localhost:8787",
+    "http://127.0.0.1:8787",
   ])
 );
 
@@ -86,13 +88,58 @@ const auth = betterAuth({
 
 export const handleAuthRequest = toNodeHandler(auth);
 
+export function ensureAuthOrigin(headers: IncomingHttpHeaders): IncomingHttpHeaders {
+  if (headers.origin || headers.Origin) return headers;
+  return { ...headers, origin: webOrigin };
+}
+
 export function authHeaders(headers: IncomingHttpHeaders) {
-  return fromNodeHeaders(headers);
+  return fromNodeHeaders(ensureAuthOrigin(headers));
 }
 
 export function getAuthSession(headers: IncomingHttpHeaders) {
   return auth.api.getSession({
-    headers: fromNodeHeaders(headers),
+    headers: authHeaders(headers),
+  });
+}
+
+export async function revokeSessionToken(headers: IncomingHttpHeaders): Promise<void> {
+  const session = await getAuthSession(headers).catch(() => null);
+  const token = session?.session?.token;
+  if (!token) return;
+  getDb().prepare(`DELETE FROM "session" WHERE token = ?`).run(token);
+}
+
+export function expireAuthCookieHeaders(): string[] {
+  const secure = webOrigin.startsWith("https://") ? "; Secure" : "";
+  const past = "Expires=Thu, 01 Jan 1970 00:00:00 GMT";
+  const names = [
+    "better-auth.session_token",
+    "better-auth.session_data",
+    "better-auth.dont_remember",
+    ...Array.from({ length: 6 }, (_, i) => `better-auth.session_data.${i}`),
+  ];
+  const out: string[] = [];
+  for (const name of names) {
+    for (const path of ["/", "/api/auth"]) {
+      out.push(`${name}=; Path=${path}; Max-Age=0; ${past}; HttpOnly; SameSite=Lax${secure}`);
+    }
+  }
+  return out;
+}
+
+export function signInUser(input: {
+  email: string;
+  password: string;
+  headers: IncomingHttpHeaders;
+}) {
+  return auth.api.signInEmail({
+    body: {
+      email: input.email.trim().toLowerCase(),
+      password: input.password,
+    },
+    headers: authHeaders(input.headers),
+    asResponse: true,
   });
 }
 
@@ -108,7 +155,7 @@ export function signUpFirstUser(input: {
       email: input.email,
       password: input.password,
     },
-    headers: fromNodeHeaders(input.headers),
+    headers: authHeaders(input.headers),
     asResponse: true,
   });
 }

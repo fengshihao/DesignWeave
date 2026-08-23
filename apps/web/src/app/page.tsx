@@ -2,7 +2,6 @@
 
 import { FormEvent, Suspense, useEffect, useState } from "react";
 import { api, type SessionUser } from "@/lib/api";
-import { authClient } from "@/lib/auth-client";
 import { WorkbenchApp } from "@/components/WorkbenchApp";
 
 export default function HomePage() {
@@ -36,9 +35,12 @@ function HomeBoot() {
         const me = await api.me();
         setUser(me.user);
         setBoot("ready");
-      } catch {
+      } catch (e) {
         setUser(null);
         setBoot("login");
+        if (boot !== "loading") {
+          setError(e instanceof Error ? e.message : "登录状态没写上，请再试一次");
+        }
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "无法连接工作台服务");
@@ -130,16 +132,16 @@ function LoginForm(props: { onDone: () => void; error: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(props.error);
 
+  useEffect(() => {
+    if (props.error) setError(props.error);
+  }, [props.error]);
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError("");
     try {
-      const { error: signError } = await authClient.signIn.email({ email, password });
-      if (signError) {
-        setError(signError.message || "登录失败");
-        return;
-      }
+      await api.login({ email, password });
       props.onDone();
     } catch (err) {
       setError(err instanceof Error ? err.message : "登录失败");

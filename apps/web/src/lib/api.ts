@@ -119,6 +119,14 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
+  login: (body: { email: string; password: string }) =>
+    request<{ user?: SessionUser; token?: string }>("/v1/login", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  logout: () => request<{ ok: boolean }>("/v1/logout", { method: "POST" }),
+
   me: () => request<{ user: SessionUser }>("/v1/me"),
 
   listUsers: () =>

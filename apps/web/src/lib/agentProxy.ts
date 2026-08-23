@@ -30,6 +30,9 @@ export async function proxyToAgent(req: NextRequest): Promise<NextResponse> {
       headers.set(key, value);
     }
   });
+  if (!headers.has("origin")) {
+    headers.set("origin", incoming.origin);
+  }
 
   const init: RequestInit = {
     method: req.method,

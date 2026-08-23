@@ -22,6 +22,8 @@ function publicPath(req: Request): boolean {
   if (req.path.startsWith("/api/auth")) return true;
   if (req.method === "GET" && req.path === "/v1/auth/status") return true;
   if (req.method === "POST" && req.path === "/v1/setup") return true;
+  if (req.method === "POST" && req.path === "/v1/login") return true;
+  if (req.method === "POST" && req.path === "/v1/logout") return true;
   return false;
 }
 
@@ -48,8 +50,8 @@ export async function requireSession(
       role,
     };
     next();
-  } catch (err) {
-    next(err);
+  } catch {
+    res.status(401).json({ error: "请先登录" });
   }
 }
 

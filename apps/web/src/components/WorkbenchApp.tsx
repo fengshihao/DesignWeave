@@ -17,7 +17,7 @@ import { DocTree } from "@/components/DocTree";
 import { CreateProjectPanel } from "@/components/CreateProjectPanel";
 import { SettingsOverlay } from "@/components/SettingsOverlay";
 import { UsersOverlay } from "@/components/UsersOverlay";
-import { authClient } from "@/lib/auth-client";
+import { logoutAndLeave } from "@/lib/auth-client";
 import {
   maxSeq,
   mergeAguiEvents,
@@ -308,7 +308,7 @@ function Rail(props: {
         <button
           className="side-text"
           type="button"
-          onClick={() => void authClient.signOut().then(() => (window.location.href = "/"))}
+          onClick={() => void logoutAndLeave()}
         >
           退出
         </button>
