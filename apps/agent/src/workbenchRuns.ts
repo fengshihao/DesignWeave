@@ -133,6 +133,18 @@ export function listProjectRuns(projectId: string, limit = 20): WorkbenchRun[] {
   return rows.map(mapRun);
 }
 
+export type WorkbenchRunWithEvents = WorkbenchRun & { events: RunEvent[] };
+
+export function listProjectRunsWithEvents(
+  projectId: string,
+  limit = 12
+): WorkbenchRunWithEvents[] {
+  return listProjectRuns(projectId, limit).map((run) => ({
+    ...run,
+    events: listEvents(run.id),
+  }));
+}
+
 export function createRun(input: {
   projectId: string;
   userId: string;
@@ -162,6 +174,15 @@ export function createRun(input: {
       now,
       now
     );
+  const userMessageId = `user-${id}`;
+  appendEvent(id, "RUN_STARTED", { threadId: input.projectId, mode: input.mode });
+  appendEvent(id, "TEXT_MESSAGE_START", { messageId: userMessageId, role: "user" });
+  appendEvent(id, "TEXT_MESSAGE_CONTENT", {
+    messageId: userMessageId,
+    role: "user",
+    delta: input.message,
+  });
+  appendEvent(id, "TEXT_MESSAGE_END", { messageId: userMessageId, role: "user" });
   return getRun(id)!;
 }
 
@@ -194,16 +215,17 @@ export function appendEvent(
     )
     .get(runId) as { maxSeq: number };
   const seq = Number(row.maxSeq) + 1;
+  const stored = { runId, ...payload };
   getDb()
     .prepare(
       `INSERT INTO run_events (run_id, seq, type, payload, created_at)
        VALUES (?, ?, ?, ?, ?)`
     )
-    .run(runId, seq, type, JSON.stringify(payload), now);
+    .run(runId, seq, type, JSON.stringify(stored), now);
   getDb()
     .prepare(`UPDATE workbench_runs SET updated_at = ? WHERE id = ?`)
     .run(now, runId);
-  return { seq, type, payload, createdAt: now };
+  return { seq, type, payload: stored, createdAt: now };
 }
 
 export function listEvents(runId: string, after = 0): RunEvent[] {
@@ -242,8 +264,8 @@ export function cancelRun(runId: string): boolean {
   controller?.abort();
   live.delete(runId);
   setRunStatus(runId, "cancelled", "已取消");
-  appendEvent(runId, "error", { message: "已取消。已写下的文档还在，没有改代码仓。" });
-  appendEvent(runId, "done", { ok: false, cancelled: true });
+  appendEvent(runId, "RUN_ERROR", { message: "已取消。已写下的文档还在，没有改代码仓。" });
+  appendEvent(runId, "RUN_FINISHED", { result: "cancelled" });
   return true;
 }
 
@@ -282,7 +304,9 @@ export async function pipeRunStream(
   const send = (event: RunEvent) => {
     res.write(`id: ${event.seq}\n`);
     res.write(`event: ${event.type}\n`);
-    res.write(`data: ${JSON.stringify({ seq: event.seq, ...event.payload })}\n\n`);
+    res.write(
+      `data: ${JSON.stringify({ seq: event.seq, type: event.type, ...event.payload })}\n\n`
+    );
   };
 
   let seq = after;

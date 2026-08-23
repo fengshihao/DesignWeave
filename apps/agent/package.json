@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.27",
+    "@designweave/molan-protocol": "workspace:*",
     "@designweave/prompts": "workspace:*",
     "@designweave/schema": "workspace:*",
     "better-auth": "^1.6.29",

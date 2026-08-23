@@ -89,10 +89,49 @@ function emitChangedFiles(
   const next = snapshotMtimes(root);
   for (const [rel, mtime] of next) {
     if (prev.get(rel) !== mtime) {
-      appendEvent(runId, "file", { path: rel });
+      appendEvent(runId, "CUSTOM", { name: "file", value: { path: rel } });
     }
   }
   return next;
+}
+
+function hint(runId: string, text: string): void {
+  appendEvent(runId, "CUSTOM", { name: "hint", value: { text } });
+}
+
+function fileWritten(runId: string, rel: string): void {
+  appendEvent(runId, "CUSTOM", { name: "file", value: { path: rel } });
+}
+
+function assistantMessageId(runId: string): string {
+  return `assistant-${runId}`;
+}
+
+function ensureAssistantStart(runId: string, started: { value: boolean }): void {
+  if (started.value) return;
+  started.value = true;
+  appendEvent(runId, "TEXT_MESSAGE_START", {
+    messageId: assistantMessageId(runId),
+    role: "assistant",
+  });
+}
+
+function assistantDelta(runId: string, started: { value: boolean }, text: string): void {
+  if (!text) return;
+  ensureAssistantStart(runId, started);
+  appendEvent(runId, "TEXT_MESSAGE_CONTENT", {
+    messageId: assistantMessageId(runId),
+    role: "assistant",
+    delta: text,
+  });
+}
+
+function finishAssistant(runId: string, started: { value: boolean }): void {
+  if (!started.value) return;
+  appendEvent(runId, "TEXT_MESSAGE_END", {
+    messageId: assistantMessageId(runId),
+    role: "assistant",
+  });
 }
 
 function modeLabel(mode: WorkbenchMode): string {
@@ -229,16 +268,14 @@ async function runMock(
   selectedDirs: string[],
   signal: AbortSignal
 ): Promise<void> {
-  appendEvent(runId, "progress", { text: "演示模式：本机没有模型密钥，也会把结论写进文档仓。" });
+  hint(runId, "演示模式：本机没有模型密钥，也会把结论写进文档仓。");
   await sleep(400, signal);
 
-  appendEvent(runId, "progress", { text: "正在阅读文档仓…" });
+  hint(runId, "正在阅读文档仓…");
   await sleep(500, signal);
 
   if (selectedDirs.length) {
-    appendEvent(runId, "progress", {
-      text: `正在只读代码目录：${selectedDirs.map((r) => path.basename(r)).join("、")}`,
-    });
+    hint(runId, `正在只读代码目录：${selectedDirs.map((r) => path.basename(r)).join("、")}`);
     await sleep(500, signal);
   }
 
@@ -270,8 +307,8 @@ ${selectedDirs.length ? selectedDirs.map((r) => `- \`${r}\``).join("\n") : "- �
 配置本机 Claude / API Key 后，再跑一轮可行性。未改任何业务代码。
 `;
     fs.writeFileSync(path.join(meta.vaultPath, "调研.md"), body, "utf8");
-    appendEvent(runId, "file", { path: "调研.md" });
-    appendEvent(runId, "progress", { text: "已写入 调研.md" });
+    fileWritten(runId, "调研.md");
+    hint(runId, "已写入 调研.md");
   } else if (mode === "clarify") {
     const gapsPath = path.join(meta.vaultPath, "gaps.md");
     const extra = `# 待补齐
@@ -291,8 +328,8 @@ ${selectedDirs.length ? selectedDirs.map((r) => `- \`${r}\``).join("\n") : "- �
 演示模式不会把清晰度标成 ready。接上真实模型后会按检查表写入，并只在全部过关时改 meta.md。
 `;
     fs.writeFileSync(gapsPath, extra, "utf8");
-    appendEvent(runId, "file", { path: "gaps.md" });
-    appendEvent(runId, "progress", { text: "已把清晰度缺口写进 gaps.md" });
+    fileWritten(runId, "gaps.md");
+    hint(runId, "已把清晰度缺口写进 gaps.md");
   } else if (mode === "grill") {
     const gapsPath = path.join(meta.vaultPath, "gaps.md");
     const prev = fs.existsSync(gapsPath) ? fs.readFileSync(gapsPath, "utf8") : "# 待补齐\n";
@@ -305,8 +342,8 @@ ${selectedDirs.length ? selectedDirs.map((r) => `- \`${r}\``).join("\n") : "- �
 - [ ] 范围内外有没有互相打架的句子？
 `;
     fs.writeFileSync(gapsPath, `${prev.trim()}\n${extra}\n`, "utf8");
-    appendEvent(runId, "file", { path: "gaps.md" });
-    appendEvent(runId, "progress", { text: "已把拷问写进 gaps.md" });
+    fileWritten(runId, "gaps.md");
+    hint(runId, "已把拷问写进 gaps.md");
   } else {
     const target = fs.existsSync(path.join(meta.vaultPath, "01-背景与目标.md"))
       ? "01-背景与目标.md"
@@ -321,8 +358,8 @@ ${message}
 （演示模式记下了这句话。接上真实模型后会按章节写入对应篇。）
 `;
     fs.writeFileSync(prdPath, `${prev.trim()}\n${extra}\n`, "utf8");
-    appendEvent(runId, "file", { path: target });
-    appendEvent(runId, "progress", { text: `已把这一轮写进 ${target}` });
+    fileWritten(runId, target);
+    hint(runId, `已把这一轮写进 ${target}`);
   }
 
   await sleep(300, signal);
@@ -339,6 +376,8 @@ async function runClaude(
 ): Promise<void> {
   let snap = snapshotMtimes(meta.vaultPath);
   const allowedTools = ["Read", "Write", "Edit", "Glob", "Grep"];
+  const started = { value: false };
+  let toolSeq = 0;
 
   const q = query({
     prompt: userPrompt(meta, mode, message, audience),
@@ -365,24 +404,34 @@ async function runClaude(
     if (msg.type === "assistant" && msg.message?.content) {
       for (const block of msg.message.content) {
         if (block.type === "text" && block.text) {
-          appendEvent(runId, "text", { text: block.text });
+          assistantDelta(runId, started, block.text);
         }
         if (block.type === "tool_use" && block.name) {
-          appendEvent(runId, "tool", { name: block.name });
+          toolSeq += 1;
+          const toolCallId = `${runId}-tool-${toolSeq}`;
+          appendEvent(runId, "TOOL_CALL_START", {
+            toolCallId,
+            toolCallName: block.name,
+          });
           const pretty =
             block.name === "Write" || block.name === "Edit"
               ? "正在写文档仓…"
               : block.name === "Read"
                 ? "正在读文件…"
                 : `正在用 ${block.name}…`;
-          appendEvent(runId, "progress", { text: pretty });
+          hint(runId, pretty);
+          appendEvent(runId, "TOOL_CALL_END", {
+            toolCallId,
+            toolCallName: block.name,
+          });
         }
       }
     }
     if (msg.type === "result" && typeof msg.result === "string" && msg.result.trim()) {
-      appendEvent(runId, "text", { text: msg.result });
+      assistantDelta(runId, started, msg.result);
     }
   }
+  finishAssistant(runId, started);
   emitChangedFiles(runId, meta.vaultPath, snap);
 }
 
@@ -392,8 +441,8 @@ export async function executeWorkbenchRun(runId: string): Promise<void> {
   const meta = getRequirement(run.projectId);
   if (!meta) {
     setRunStatus(runId, "failed", "工程不存在");
-    appendEvent(runId, "error", { message: "工程不存在" });
-    appendEvent(runId, "done", { ok: false });
+    appendEvent(runId, "RUN_ERROR", { message: "工程不存在" });
+    appendEvent(runId, "RUN_FINISHED", { result: "error" });
     return;
   }
 
@@ -406,16 +455,19 @@ export async function executeWorkbenchRun(runId: string): Promise<void> {
   setEditing(run.projectId, false);
 
   const roots = codeRootsForRun(meta, run.mode, run.message);
-  appendEvent(runId, "trust", {
-    codeRoots: roots,
-    writesDocsOnly: true,
-    mockMode: !config.anthropicApiKey,
-    text:
-      run.mode === "feasibility"
-        ? roots.length
-          ? `只读代码目录：${roots.join("、")}。不会改业务代码，结论写进文档仓。`
-          : "这一轮没有对上代码目录。不会改业务代码，只写文档仓。用产品问题消歧。"
-        : "这一档不读代码目录。不会改业务代码，只写文档仓。",
+  appendEvent(runId, "CUSTOM", {
+    name: "trust",
+    value: {
+      codeRoots: roots,
+      writesDocsOnly: true,
+      mockMode: !config.anthropicApiKey,
+      text:
+        run.mode === "feasibility"
+          ? roots.length
+            ? `只读代码目录：${roots.join("、")}。不会改业务代码，结论写进文档仓。`
+            : "这一轮没有对上代码目录。不会改业务代码，只写文档仓。用产品问题消歧。"
+          : "这一档不读代码目录。不会改业务代码，只写文档仓。",
+    },
   });
 
   try {
@@ -447,27 +499,32 @@ export async function executeWorkbenchRun(runId: string): Promise<void> {
       versionId = version?.id ?? null;
     }
     setRunStatus(runId, "succeeded");
-    appendEvent(runId, "progress", {
-      text: versionId ? "本轮完成，已记入版本。未改业务代码。" : "本轮完成。文档没有新的改动需要记版。",
+    hint(
+      runId,
+      versionId ? "本轮完成，已记入版本。未改业务代码。" : "本轮完成。文档没有新的改动需要记版。"
+    );
+    appendEvent(runId, "RUN_FINISHED", {
+      result: "success",
+      versionId,
+      mockMode: !config.anthropicApiKey,
     });
-    appendEvent(runId, "done", { ok: true, versionId, mockMode: !config.anthropicApiKey });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const cancelled = controller.signal.aborted || message.includes("取消");
     if (cancelled) {
       if (getRun(runId)?.status !== "cancelled") {
         setRunStatus(runId, "cancelled", "已取消");
-        appendEvent(runId, "error", {
+        appendEvent(runId, "RUN_ERROR", {
           message: "已取消。已写下的文档还在，没有改代码仓。",
         });
-        appendEvent(runId, "done", { ok: false, cancelled: true });
+        appendEvent(runId, "RUN_FINISHED", { result: "cancelled" });
       }
     } else {
       setRunStatus(runId, "failed", message);
-      appendEvent(runId, "error", {
+      appendEvent(runId, "RUN_ERROR", {
         message: `${message}。已写下的文档还在，没有改代码仓。`,
       });
-      appendEvent(runId, "done", { ok: false });
+      appendEvent(runId, "RUN_FINISHED", { result: "error" });
     }
   } finally {
     endRunAbort(runId);

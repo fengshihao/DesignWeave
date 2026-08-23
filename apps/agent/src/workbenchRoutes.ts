@@ -18,6 +18,7 @@ import {
   getActiveRun,
   getRun,
   listEvents,
+  listProjectRunsWithEvents,
   pipeRunStream,
   type WorkbenchMode,
 } from "./workbenchRuns.js";
@@ -146,8 +147,18 @@ export function registerWorkbenchRoutes(app: Express): void {
         mode,
         message,
       });
-      res.status(201).json({ runId: run.id, run });
+      res.status(201).json({ runId: run.id, run, events: listEvents(run.id) });
       void executeWorkbenchRun(run.id);
+    } catch (err) {
+      fail(res, err);
+    }
+  });
+
+  app.get("/v1/requirements/:id/runs", (req, res) => {
+    try {
+      requireProject(req);
+      const limit = Math.min(30, Math.max(1, Number(req.query.limit || 12) || 12));
+      res.json({ runs: listProjectRunsWithEvents(req.params.id, limit) });
     } catch (err) {
       fail(res, err);
     }
