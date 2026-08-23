@@ -1,33 +1,22 @@
 "use client";
 
-import { FormEvent, PointerEvent as ReactPointerEvent, useEffect, useRef } from "react";
+import {
+  KeyboardEvent,
+  PointerEvent as ReactPointerEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import type { ChatTurn } from "@designweave/molan-protocol";
 import type { WorkbenchMode, WorkbenchRun } from "@/lib/api";
 import type { EntrustSize } from "@/lib/remember";
 
-export type LogItem = { seq: number; kind: string; text: string };
-
-const MODES: Array<{ id: WorkbenchMode; label: string }> = [
-  { id: "clarify", label: "检查清晰度" },
-  { id: "coauthor", label: "共创" },
-  { id: "grill", label: "拷问" },
-  { id: "feasibility", label: "可行性" },
+const MODES: Array<{ id: WorkbenchMode; label: string; hint: string }> = [
+  { id: "clarify", label: "检查清晰度", hint: "这一轮要核对什么？" },
+  { id: "coauthor", label: "共创", hint: "这一轮要写什么？" },
+  { id: "grill", label: "拷问", hint: "你怀疑哪一句站不住？" },
+  { id: "feasibility", label: "可行性", hint: "要对照现有能力问什么？" },
 ];
-
-function groupTurns(log: LogItem[]) {
-  const turns: Array<{ you?: string; items: LogItem[] }> = [];
-  let current: { you?: string; items: LogItem[] } = { items: [] };
-  for (const item of log) {
-    if (item.kind === "trust") continue;
-    if (item.kind === "you") {
-      if (current.you || current.items.length) turns.push(current);
-      current = { you: item.text, items: [] };
-    } else {
-      current.items.push(item);
-    }
-  }
-  if (current.you || current.items.length) turns.push(current);
-  return turns;
-}
 
 const SIZE_LABEL: Record<EntrustSize, string> = {
   collapsed: "收起",
@@ -41,6 +30,37 @@ function nextSize(size: EntrustSize): EntrustSize {
   return "collapsed";
 }
 
+function toolLabel(name: string): string {
+  if (name === "Write" || name === "Edit") return "写文档";
+  if (name === "Read") return "读文件";
+  if (name === "Glob") return "找文件";
+  if (name === "Grep") return "搜索";
+  return name;
+}
+
+function IconSend() {
+  return (
+    <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
+      <path
+        d="M10 3.5 10 16.5 M10 3.5 5.5 8.2 M10 3.5 14.5 8.2"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function IconStop() {
+  return (
+    <svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true">
+      <rect x="5" y="5" width="10" height="10" rx="1.6" fill="currentColor" />
+    </svg>
+  );
+}
+
 export function EntrustLayer(props: {
   size: EntrustSize;
   width: number;
@@ -50,26 +70,47 @@ export function EntrustLayer(props: {
   onModeChange: (mode: WorkbenchMode) => void;
   hasCode: boolean;
   allowedModes?: WorkbenchMode[];
-  log: LogItem[];
+  turns: ChatTurn[];
   message: string;
   onMessageChange: (value: string) => void;
-  onSend: (e: FormEvent) => void;
+  onSend: () => void;
   onCancel: () => void;
+  onOpenFile?: (path: string) => void;
   youHold: boolean;
   aiRunning: boolean;
   busy: boolean;
   activeRun: WorkbenchRun | null;
 }) {
   const overlayRef = useRef<HTMLElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const stickRef = useRef(true);
   const dragRef = useRef<{ pointerId: number; startX: number; startW: number } | null>(null);
-  const turns = groupTurns(props.log);
+  const [showJump, setShowJump] = useState(false);
   const floating = props.size !== "collapsed";
+  const placeholder = MODES.find((m) => m.id === props.mode)?.hint || "托付给 AI…";
+  const canSend = Boolean(props.message.trim()) && !props.aiRunning && !props.busy;
 
   useEffect(() => {
     return () => {
       document.body.classList.remove("is-col-resizing");
     };
   }, []);
+
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el || !stickRef.current) return;
+    el.scrollTop = el.scrollHeight;
+    setShowJump(false);
+  }, [props.turns, props.aiRunning]);
+
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const max = floating ? 160 : 36;
+    el.style.height = `${Math.min(el.scrollHeight, max)}px`;
+  }, [props.message, floating]);
 
   function endResize(el: HTMLDivElement, pointerId: number) {
     if (el.hasPointerCapture(pointerId)) {
@@ -107,6 +148,29 @@ export function EntrustLayer(props: {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== e.pointerId) return;
     endResize(e.currentTarget, e.pointerId);
+  }
+
+  function onBodyScroll() {
+    const el = bodyRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+    stickRef.current = nearBottom;
+    setShowJump(!nearBottom);
+  }
+
+  function jumpToLatest() {
+    const el = bodyRef.current;
+    if (!el) return;
+    stickRef.current = true;
+    el.scrollTop = el.scrollHeight;
+    setShowJump(false);
+  }
+
+  function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+    e.preventDefault();
+    if (!canSend) return;
+    props.onSend();
   }
 
   return (
@@ -152,7 +216,7 @@ export function EntrustLayer(props: {
             })}
           </div>
         ) : (
-          <span className="muted" style={{ fontSize: 12 }}>
+          <span className="entrust-mode-chip">
             {MODES.find((m) => m.id === props.mode)?.label || "托付"}
           </span>
         )}
@@ -165,39 +229,147 @@ export function EntrustLayer(props: {
         </button>
       </div>
       {floating ? (
-        <div className="entrust-body">
-          {turns.map((turn, i) => (
-            <div className="turn" key={`${turn.you || "t"}-${i}`}>
-              {turn.you ? <div className="turn-you">{turn.you}</div> : null}
-              {turn.items.map((item, j) => (
-                <p key={`${item.seq}-${j}`} className={`log-${item.kind}`}>
-                  {item.text}
-                </p>
-              ))}
-            </div>
-          ))}
+        <div className="entrust-stream">
+          <div className="entrust-body" ref={bodyRef} onScroll={onBodyScroll}>
+            {props.turns.length === 0 ? (
+              <div className="entrust-empty">
+                <p>托付给 AI 写文档。</p>
+                <p className="muted">先说这一轮要改什么。它会写回纸面，而不是只停在对话里。</p>
+              </div>
+            ) : (
+              props.turns.map((turn) => <TurnBubble key={turn.runId} turn={turn} onOpenFile={props.onOpenFile} />)
+            )}
+            {props.aiRunning ? (
+              <div className="entrust-typing" aria-live="polite">
+                <span />
+                <span />
+                <span />
+              </div>
+            ) : null}
+          </div>
+          {showJump ? (
+            <button className="entrust-jump" type="button" onClick={jumpToLatest}>
+              回到最新
+            </button>
+          ) : null}
         </div>
       ) : null}
       {props.youHold ? (
-        <form onSubmit={props.onSend} className="entrust-composer">
-          <textarea
-            value={props.message}
-            onChange={(e) => props.onMessageChange(e.target.value)}
-            disabled={props.aiRunning || props.busy}
-            rows={floating ? 3 : 1}
-          />
-          <div style={{ display: "flex", gap: 8 }}>
-            <button className="btn primary" type="submit" disabled={props.aiRunning || props.busy}>
-              {props.aiRunning ? "进行中…" : "发送"}
-            </button>
-            {props.aiRunning && props.activeRun ? (
-              <button className="btn" type="button" onClick={props.onCancel}>
-                取消这一轮
-              </button>
-            ) : null}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!canSend) return;
+            props.onSend();
+          }}
+          className="entrust-composer"
+        >
+          <div className="sender">
+            <textarea
+              ref={inputRef}
+              value={props.message}
+              onChange={(e) => props.onMessageChange(e.target.value)}
+              onKeyDown={onKeyDown}
+              disabled={props.aiRunning || props.busy}
+              rows={floating ? 2 : 1}
+              aria-label={placeholder}
+              placeholder={placeholder}
+            />
+            <div className="sender-bar">
+              {floating ? (
+                <span className="sender-hint">Enter 发送 · Shift+Enter 换行</span>
+              ) : (
+                <span className="sender-hint">Enter 发送</span>
+              )}
+              {props.aiRunning && props.activeRun ? (
+                <button
+                  className="sender-btn is-stop"
+                  type="button"
+                  onClick={props.onCancel}
+                  aria-label="停止这一轮"
+                  title="停止这一轮"
+                >
+                  <IconStop />
+                </button>
+              ) : (
+                <button
+                  className="sender-btn"
+                  type="submit"
+                  disabled={!canSend}
+                  aria-label="发送"
+                  title="发送"
+                >
+                  <IconSend />
+                </button>
+              )}
+            </div>
           </div>
         </form>
       ) : null}
     </aside>
+  );
+}
+
+function TurnBubble(props: { turn: ChatTurn; onOpenFile?: (path: string) => void }) {
+  const { turn } = props;
+  return (
+    <article className="turn">
+      {turn.you ? <div className="bubble bubble-you">{turn.you}</div> : null}
+      <div className="bubble-ai">
+        {turn.blocks.map((block) => {
+          if (block.kind === "trust") {
+            return (
+              <p key={block.id} className="log-trust">
+                {block.text}
+              </p>
+            );
+          }
+          if (block.kind === "hint") {
+            return (
+              <p key={block.id} className="log-hint">
+                {block.text}
+              </p>
+            );
+          }
+          if (block.kind === "text") {
+            return (
+              <div key={block.id} className="log-text">
+                {block.text}
+              </div>
+            );
+          }
+          if (block.kind === "tool") {
+            return (
+              <span key={block.id} className="chip chip-tool">
+                {toolLabel(block.name)}
+              </span>
+            );
+          }
+          if (block.kind === "file") {
+            return (
+              <button
+                key={block.id}
+                type="button"
+                className="chip chip-file"
+                onClick={() => props.onOpenFile?.(block.path)}
+              >
+                {block.path}
+              </button>
+            );
+          }
+          if (block.kind === "error") {
+            return (
+              <p key={block.id} className="log-error">
+                {block.text}
+              </p>
+            );
+          }
+          return (
+            <p key={block.id} className={`log-status is-${block.result || "success"}`}>
+              {block.text}
+            </p>
+          );
+        })}
+      </div>
+    </article>
   );
 }

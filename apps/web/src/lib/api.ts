@@ -386,7 +386,11 @@ export const api = {
     }),
 
   startRun: (id: string, body: { mode: WorkbenchMode; message: string; clientId: string }) =>
-    request<{ runId: string; run: WorkbenchRun }>(`/v1/requirements/${id}/runs`, {
+    request<{
+      runId: string;
+      run: WorkbenchRun;
+      events: Array<{ seq: number; type: string; payload: Record<string, unknown> }>;
+    }>(`/v1/requirements/${id}/runs`, {
       method: "POST",
       body: JSON.stringify(body),
     }),
@@ -399,4 +403,13 @@ export const api = {
 
   currentRun: (id: string) =>
     request<{ run: WorkbenchRun | null }>(`/v1/requirements/${id}/runs/current`),
+
+  listRuns: (id: string, limit = 12) =>
+    request<{
+      runs: Array<
+        WorkbenchRun & {
+          events: Array<{ seq: number; type: string; payload: Record<string, unknown> }>;
+        }
+      >;
+    }>(`/v1/requirements/${id}/runs?limit=${limit}`),
 };

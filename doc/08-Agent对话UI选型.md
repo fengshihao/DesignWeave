@@ -75,9 +75,16 @@ AG-UI 的 HttpAgent 常见用法是 **一次 POST，SSE 直到跑完**——和�
 - Markdown 解析与代码高亮  
 - AG-UI 那套事件名和 JSON 形状（用 `@ag-ui/core` 类型即可，不必上 `@ag-ui/client` 的 HttpAgent）
 
-## 4. 和现有代码的差距
+## 4. 落地（对照 AgentScope 2.0）
 
-当前 `apps/web` 的 `/v1/requirements/:id/chat`、`/v1/sessions/:id/messages` 是「请求期间流式、断线即停」，UI 是普通消息列表。目标态要拆成：session 事件日志 + 可重放流 + 侧栏订流。
+不引入 AgentScope 运行时 / 官方 Web UI。抄它的两件事：
+
+1. **传输**：`POST /v1/requirements/:id/runs` 立刻返回 `{ runId, events }`（用户话已写入日志）；`GET .../runs/:runId/stream?after=seq` 先重放再直播；`GET .../runs` 拉最近若干轮拼回对话。
+2. **事件名**：SSE `event` + `data.type` 用 AG-UI 子集：`RUN_STARTED` / `TEXT_MESSAGE_*` / `TOOL_CALL_*` / `CUSTOM` / `RUN_ERROR` / `RUN_FINISHED`。产品扩展：`CUSTOM.name = trust | hint | file`。旧事件名（`progress`/`text`/`tool`/`done`）在客户端仍能收成同一套。
+
+面板：自研托付层。输入区对齐 `@agentscope-ai/chat` 的 Sender（圆角井、内嵌发送/停止、Enter 发送），消息对齐 Bubble（人右、助手左、工具/文件芯片），纸面主题不换成 ChatGPT 整页。
+
+契约在 `packages/molan-protocol` 的 `run.ts`，前后端共用 reducer。
 
 ## 5. 结论（写入 03 的 G1）
 

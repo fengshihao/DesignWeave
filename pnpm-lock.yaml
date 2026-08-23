@@ -13,6 +13,9 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.2.27
         version: 0.2.27(zod@4.0.0)
+      '@designweave/molan-protocol':
+        specifier: workspace:*
+        version: link:../../packages/molan-protocol
       '@designweave/prompts':
         specifier: workspace:*
         version: link:../../packages/prompts

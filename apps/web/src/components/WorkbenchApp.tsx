@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   api,
@@ -11,13 +11,21 @@ import {
   type WorkbenchRun,
 } from "@/lib/api";
 import { MolanFrame, type MolanHandle } from "@/components/MolanFrame";
-import { EntrustLayer, type LogItem } from "@/components/EntrustLayer";
+import { EntrustLayer } from "@/components/EntrustLayer";
 import { VersionDrawer } from "@/components/VersionDrawer";
 import { DocTree } from "@/components/DocTree";
 import { CreateProjectPanel } from "@/components/CreateProjectPanel";
 import { SettingsOverlay } from "@/components/SettingsOverlay";
 import { UsersOverlay } from "@/components/UsersOverlay";
 import { authClient } from "@/lib/auth-client";
+import {
+  maxSeq,
+  mergeAguiEvents,
+  parseSseData,
+  reduceAguiEvents,
+  toAguiEvent,
+  type AguiEvent,
+} from "@designweave/molan-protocol";
 import {
   forgetProject,
   lastEntrustSize,
@@ -338,7 +346,7 @@ function ProjectPaper(props: {
   const [activeRun, setActiveRun] = useState<WorkbenchRun | null>(null);
   const [mode, setMode] = useState<WorkbenchMode>("clarify");
   const [message, setMessage] = useState("");
-  const [log, setLog] = useState<LogItem[]>([]);
+  const [events, setEvents] = useState<AguiEvent[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -367,6 +375,7 @@ function ProjectPaper(props: {
   const aiRunning = Boolean(
     activeRun && (activeRun.status === "queued" || activeRun.status === "running")
   );
+  const turns = reduceAguiEvents(events);
   const readOnly = !youHold || aiRunning || Boolean(history);
   const allowed = meta ? modesFor(meta, props.hasApprovedCodeDirs) : (["clarify"] as WorkbenchMode[]);
   const editBlockedReason = history
@@ -444,8 +453,24 @@ function ProjectPaper(props: {
     setDirty(false);
     setHistory(null);
     setMode(defaultMode(data.requirement, props.hasApprovedCodeDirs));
+    const timeline = await api.listRuns(id);
+    const historical: AguiEvent[] = [];
+    for (const run of [...timeline.runs].reverse()) {
+      for (const ev of run.events) {
+        historical.push(
+          toAguiEvent({
+            seq: ev.seq,
+            type: ev.type,
+            payload: ev.payload,
+            runId: run.id,
+          })
+        );
+      }
+    }
+    setEvents(historical);
     if (data.activeRun && (data.activeRun.status === "queued" || data.activeRun.status === "running")) {
-      followSeq.current = 0;
+      const fromActive = historical.filter((ev) => ev.runId === data.activeRun?.id);
+      followSeq.current = maxSeq(fromActive);
     }
     const savedSize = lastEntrustSize(id);
     const savedWidth = lastEntrustWidth(id);
@@ -506,11 +531,9 @@ function ProjectPaper(props: {
     return () => clearInterval(timer);
   }, [cid, currentPath, etag, history, id, readOnly, refreshTree, refreshVersions]);
 
-  const appendLog = useCallback((item: LogItem) => {
-    setLog((prev) => {
-      if (prev.some((x) => x.seq === item.seq && item.seq > 0)) return prev;
-      return [...prev, item].slice(-80);
-    });
+  const ingestEvents = useCallback((incoming: AguiEvent[]) => {
+    if (!incoming.length) return;
+    setEvents((prev) => mergeAguiEvents(prev, incoming));
   }, []);
 
   const currentPathRef = useRef(currentPath);
@@ -544,17 +567,12 @@ function ProjectPaper(props: {
           } catch {
             continue;
           }
-          const seq = Number(payload.seq || 0);
-          if (seq) followSeq.current = seq;
-          if (type === "trust") {
-            appendLog({ seq, kind: "trust", text: String(payload.text || "") });
-          } else if (type === "progress" || type === "text") {
-            appendLog({ seq, kind: type, text: String(payload.text || "") });
-          } else if (type === "tool") {
-            appendLog({ seq, kind: "tool", text: `用了 ${String(payload.name || "工具")}` });
-          } else if (type === "file") {
-            const path = String(payload.path || "");
-            appendLog({ seq, kind: "file", text: `已写入 ${path}` });
+          const parsed = parseSseData(type, payload, runId);
+          if (!parsed) continue;
+          followSeq.current = parsed.seq;
+          ingestEvents([parsed]);
+          if (parsed.type === "CUSTOM" && parsed.name === "file") {
+            const path = String(parsed.value?.path || "");
             if (path === currentPathRef.current) {
               void api.readFile(id, currentPathRef.current).then((file) => {
                 setContent(file.content);
@@ -562,15 +580,9 @@ function ProjectPaper(props: {
               });
             }
             void refreshTree();
-          } else if (type === "error") {
-            appendLog({ seq, kind: "error", text: String(payload.message || "失败") });
-            setError(String(payload.message || "失败"));
-          } else if (type === "done") {
-            appendLog({
-              seq,
-              kind: "done",
-              text: payload.ok ? "这一轮结束。" : "这一轮没有成功结束。",
-            });
+          } else if (parsed.type === "RUN_ERROR") {
+            setError(parsed.message || "失败");
+          } else if (parsed.type === "RUN_FINISHED") {
             await refreshVersions();
             await refreshTree();
             const cur = await api.currentRun(id);
@@ -584,7 +596,7 @@ function ProjectPaper(props: {
         }
       }
     },
-    [appendLog, cid, id, refreshTree, refreshVersions]
+    [cid, id, ingestEvents, refreshTree, refreshVersions]
   );
 
   useEffect(() => {
@@ -633,8 +645,7 @@ function ProjectPaper(props: {
     }
   }
 
-  async function onSend(e: FormEvent) {
-    e.preventDefault();
+  async function onSend() {
     const text = message.trim();
     if (!text || busy || aiRunning) return;
     setGate("");
@@ -653,8 +664,17 @@ function ProjectPaper(props: {
       const started = await api.startRun(id, { mode, message: text, clientId: cid });
       setMessage("");
       setActiveRun(started.run);
-      followSeq.current = 0;
-      appendLog({ seq: 0, kind: "you", text });
+      ingestEvents(
+        started.events.map((ev) =>
+          toAguiEvent({
+            seq: ev.seq,
+            type: ev.type,
+            payload: ev.payload,
+            runId: started.run.id,
+          })
+        )
+      );
+      followSeq.current = maxSeq(started.events);
       if (entrustSize === "collapsed") changeEntrustSize("half");
     } catch (err) {
       setGate(err instanceof Error ? err.message : "没发出去");
@@ -790,16 +810,15 @@ function ProjectPaper(props: {
               onModeChange={setMode}
               hasCode={props.hasApprovedCodeDirs}
               allowedModes={allowed}
-              log={log}
+              turns={turns}
               message={message}
               onMessageChange={setMessage}
-              onSend={(e) => void onSend(e)}
+              onSend={() => void onSend()}
               onCancel={() => {
                 if (!activeRun) return;
-                void api.cancelRun(id, activeRun.id, cid).then(() => {
-                  appendLog({ seq: Date.now(), kind: "error", text: "已请求取消。" });
-                });
+                void api.cancelRun(id, activeRun.id, cid);
               }}
+              onOpenFile={(path) => void openFile(path)}
               youHold={youHold}
               aiRunning={aiRunning}
               busy={busy}

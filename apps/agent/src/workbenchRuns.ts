@@ -1,5 +1,6 @@
 import { customAlphabet } from "nanoid";
 import type { Response } from "express";
+import { agui, userMessageId, type AguiEventType } from "@designweave/molan-protocol";
 import { getDb } from "./db.js";
 import { HttpError } from "./httpError.js";
 
@@ -133,6 +134,18 @@ export function listProjectRuns(projectId: string, limit = 20): WorkbenchRun[] {
   return rows.map(mapRun);
 }
 
+export type WorkbenchRunWithEvents = WorkbenchRun & { events: RunEvent[] };
+
+export function listProjectRunsWithEvents(
+  projectId: string,
+  limit = 12
+): WorkbenchRunWithEvents[] {
+  return listProjectRuns(projectId, limit).map((run) => ({
+    ...run,
+    events: listEvents(run.id),
+  }));
+}
+
 export function createRun(input: {
   projectId: string;
   userId: string;
@@ -162,6 +175,11 @@ export function createRun(input: {
       now,
       now
     );
+  const userId = userMessageId(id);
+  appendAgui(id, agui.runStarted(input.projectId, input.mode));
+  appendAgui(id, agui.textStart(userId, "user"));
+  appendAgui(id, agui.textDelta(userId, "user", input.message));
+  appendAgui(id, agui.textEnd(userId, "user"));
   return getRun(id)!;
 }
 
@@ -183,7 +201,7 @@ export function setRunStatus(
 
 export function appendEvent(
   runId: string,
-  type: string,
+  type: AguiEventType,
   payload: Record<string, unknown> = {}
 ): RunEvent {
   ensureRunTables();
@@ -194,16 +212,24 @@ export function appendEvent(
     )
     .get(runId) as { maxSeq: number };
   const seq = Number(row.maxSeq) + 1;
+  const stored = { runId, ...payload };
   getDb()
     .prepare(
       `INSERT INTO run_events (run_id, seq, type, payload, created_at)
        VALUES (?, ?, ?, ?, ?)`
     )
-    .run(runId, seq, type, JSON.stringify(payload), now);
+    .run(runId, seq, type, JSON.stringify(stored), now);
   getDb()
     .prepare(`UPDATE workbench_runs SET updated_at = ? WHERE id = ?`)
     .run(now, runId);
-  return { seq, type, payload, createdAt: now };
+  return { seq, type, payload: stored, createdAt: now };
+}
+
+export function appendAgui(
+  runId: string,
+  event: { type: AguiEventType; payload: Record<string, unknown> }
+): RunEvent {
+  return appendEvent(runId, event.type, event.payload);
 }
 
 export function listEvents(runId: string, after = 0): RunEvent[] {
@@ -242,8 +268,8 @@ export function cancelRun(runId: string): boolean {
   controller?.abort();
   live.delete(runId);
   setRunStatus(runId, "cancelled", "已取消");
-  appendEvent(runId, "error", { message: "已取消。已写下的文档还在，没有改代码仓。" });
-  appendEvent(runId, "done", { ok: false, cancelled: true });
+  appendAgui(runId, agui.error("已取消。已写下的文档还在，没有改代码仓。"));
+  appendAgui(runId, agui.finished("cancelled"));
   return true;
 }
 
@@ -282,7 +308,9 @@ export async function pipeRunStream(
   const send = (event: RunEvent) => {
     res.write(`id: ${event.seq}\n`);
     res.write(`event: ${event.type}\n`);
-    res.write(`data: ${JSON.stringify({ seq: event.seq, ...event.payload })}\n\n`);
+    res.write(
+      `data: ${JSON.stringify({ seq: event.seq, type: event.type, ...event.payload })}\n\n`
+    );
   };
 
   let seq = after;
