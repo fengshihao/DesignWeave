@@ -271,6 +271,7 @@ export function EntrustLayer(props: {
               onKeyDown={onKeyDown}
               disabled={props.aiRunning || props.busy}
               rows={floating ? 2 : 1}
+              aria-label={placeholder}
               placeholder={placeholder}
             />
             <div className="sender-bar">

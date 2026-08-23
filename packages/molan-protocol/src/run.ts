@@ -304,3 +304,50 @@ export function mergeAguiEvents(prev: AguiEvent[], incoming: AguiEvent[]): AguiE
   }
   return next;
 }
+
+export type AguiEmit = {
+  type: AguiEventType;
+  payload: Record<string, unknown>;
+};
+
+export function userMessageId(runId: string): string {
+  return `user-${runId}`;
+}
+
+export function assistantMessageId(runId: string): string {
+  return `assistant-${runId}`;
+}
+
+/** 后台发出去的载荷，和前端 toAguiEvent / reducer 对得上。 */
+export const agui = {
+  runStarted(threadId: string, mode?: string): AguiEmit {
+    return {
+      type: "RUN_STARTED",
+      payload: { threadId, ...(mode ? { mode } : {}) },
+    };
+  },
+  textStart(messageId: string, role: AguiRole): AguiEmit {
+    return { type: "TEXT_MESSAGE_START", payload: { messageId, role } };
+  },
+  textDelta(messageId: string, role: AguiRole, delta: string): AguiEmit {
+    return { type: "TEXT_MESSAGE_CONTENT", payload: { messageId, role, delta } };
+  },
+  textEnd(messageId: string, role: AguiRole): AguiEmit {
+    return { type: "TEXT_MESSAGE_END", payload: { messageId, role } };
+  },
+  toolStart(toolCallId: string, toolCallName: string): AguiEmit {
+    return { type: "TOOL_CALL_START", payload: { toolCallId, toolCallName } };
+  },
+  toolEnd(toolCallId: string, toolCallName: string): AguiEmit {
+    return { type: "TOOL_CALL_END", payload: { toolCallId, toolCallName } };
+  },
+  custom(name: CustomEventName, value: Record<string, unknown>): AguiEmit {
+    return { type: "CUSTOM", payload: { name, value } };
+  },
+  error(message: string): AguiEmit {
+    return { type: "RUN_ERROR", payload: { message } };
+  },
+  finished(result: AguiRunResult, extra: Record<string, unknown> = {}): AguiEmit {
+    return { type: "RUN_FINISHED", payload: { result, ...extra } };
+  },
+};

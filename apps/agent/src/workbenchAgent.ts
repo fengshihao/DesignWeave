@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
+import { agui, assistantMessageId } from "@designweave/molan-protocol";
 import { config } from "./config.js";
 import { buildClaudeQueryOptions } from "./claudeRuntime.js";
 import { commitAll, isDirty } from "./gitVault.js";
@@ -9,7 +10,7 @@ import { listDocTree } from "./files.js";
 import { getDb } from "./db.js";
 import { isArchitect, ROLE_LABELS, type AppRole } from "./roles.js";
 import {
-  appendEvent,
+  appendAgui,
   beginRunAbort,
   endRunAbort,
   getRun,
@@ -89,49 +90,35 @@ function emitChangedFiles(
   const next = snapshotMtimes(root);
   for (const [rel, mtime] of next) {
     if (prev.get(rel) !== mtime) {
-      appendEvent(runId, "CUSTOM", { name: "file", value: { path: rel } });
+      appendAgui(runId, agui.custom("file", { path: rel }));
     }
   }
   return next;
 }
 
 function hint(runId: string, text: string): void {
-  appendEvent(runId, "CUSTOM", { name: "hint", value: { text } });
+  appendAgui(runId, agui.custom("hint", { text }));
 }
 
 function fileWritten(runId: string, rel: string): void {
-  appendEvent(runId, "CUSTOM", { name: "file", value: { path: rel } });
-}
-
-function assistantMessageId(runId: string): string {
-  return `assistant-${runId}`;
+  appendAgui(runId, agui.custom("file", { path: rel }));
 }
 
 function ensureAssistantStart(runId: string, started: { value: boolean }): void {
   if (started.value) return;
   started.value = true;
-  appendEvent(runId, "TEXT_MESSAGE_START", {
-    messageId: assistantMessageId(runId),
-    role: "assistant",
-  });
+  appendAgui(runId, agui.textStart(assistantMessageId(runId), "assistant"));
 }
 
 function assistantDelta(runId: string, started: { value: boolean }, text: string): void {
   if (!text) return;
   ensureAssistantStart(runId, started);
-  appendEvent(runId, "TEXT_MESSAGE_CONTENT", {
-    messageId: assistantMessageId(runId),
-    role: "assistant",
-    delta: text,
-  });
+  appendAgui(runId, agui.textDelta(assistantMessageId(runId), "assistant", text));
 }
 
 function finishAssistant(runId: string, started: { value: boolean }): void {
   if (!started.value) return;
-  appendEvent(runId, "TEXT_MESSAGE_END", {
-    messageId: assistantMessageId(runId),
-    role: "assistant",
-  });
+  appendAgui(runId, agui.textEnd(assistantMessageId(runId), "assistant"));
 }
 
 function modeLabel(mode: WorkbenchMode): string {
@@ -409,10 +396,7 @@ async function runClaude(
         if (block.type === "tool_use" && block.name) {
           toolSeq += 1;
           const toolCallId = `${runId}-tool-${toolSeq}`;
-          appendEvent(runId, "TOOL_CALL_START", {
-            toolCallId,
-            toolCallName: block.name,
-          });
+          appendAgui(runId, agui.toolStart(toolCallId, block.name));
           const pretty =
             block.name === "Write" || block.name === "Edit"
               ? "正在写文档仓…"
@@ -420,10 +404,7 @@ async function runClaude(
                 ? "正在读文件…"
                 : `正在用 ${block.name}…`;
           hint(runId, pretty);
-          appendEvent(runId, "TOOL_CALL_END", {
-            toolCallId,
-            toolCallName: block.name,
-          });
+          appendAgui(runId, agui.toolEnd(toolCallId, block.name));
         }
       }
     }
@@ -441,8 +422,8 @@ export async function executeWorkbenchRun(runId: string): Promise<void> {
   const meta = getRequirement(run.projectId);
   if (!meta) {
     setRunStatus(runId, "failed", "工程不存在");
-    appendEvent(runId, "RUN_ERROR", { message: "工程不存在" });
-    appendEvent(runId, "RUN_FINISHED", { result: "error" });
+    appendAgui(runId, agui.error("工程不存在"));
+    appendAgui(runId, agui.finished("error"));
     return;
   }
 
@@ -455,9 +436,9 @@ export async function executeWorkbenchRun(runId: string): Promise<void> {
   setEditing(run.projectId, false);
 
   const roots = codeRootsForRun(meta, run.mode, run.message);
-  appendEvent(runId, "CUSTOM", {
-    name: "trust",
-    value: {
+  appendAgui(
+    runId,
+    agui.custom("trust", {
       codeRoots: roots,
       writesDocsOnly: true,
       mockMode: !config.anthropicApiKey,
@@ -467,8 +448,8 @@ export async function executeWorkbenchRun(runId: string): Promise<void> {
             ? `只读代码目录：${roots.join("、")}。不会改业务代码，结论写进文档仓。`
             : "这一轮没有对上代码目录。不会改业务代码，只写文档仓。用产品问题消歧。"
           : "这一档不读代码目录。不会改业务代码，只写文档仓。",
-    },
-  });
+    })
+  );
 
   try {
     if (!config.anthropicApiKey) {
@@ -503,28 +484,26 @@ export async function executeWorkbenchRun(runId: string): Promise<void> {
       runId,
       versionId ? "本轮完成，已记入版本。未改业务代码。" : "本轮完成。文档没有新的改动需要记版。"
     );
-    appendEvent(runId, "RUN_FINISHED", {
-      result: "success",
-      versionId,
-      mockMode: !config.anthropicApiKey,
-    });
+    appendAgui(
+      runId,
+      agui.finished("success", {
+        versionId,
+        mockMode: !config.anthropicApiKey,
+      })
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const cancelled = controller.signal.aborted || message.includes("取消");
     if (cancelled) {
       if (getRun(runId)?.status !== "cancelled") {
         setRunStatus(runId, "cancelled", "已取消");
-        appendEvent(runId, "RUN_ERROR", {
-          message: "已取消。已写下的文档还在，没有改代码仓。",
-        });
-        appendEvent(runId, "RUN_FINISHED", { result: "cancelled" });
+        appendAgui(runId, agui.error("已取消。已写下的文档还在，没有改代码仓。"));
+        appendAgui(runId, agui.finished("cancelled"));
       }
     } else {
       setRunStatus(runId, "failed", message);
-      appendEvent(runId, "RUN_ERROR", {
-        message: `${message}。已写下的文档还在，没有改代码仓。`,
-      });
-      appendEvent(runId, "RUN_FINISHED", { result: "error" });
+      appendAgui(runId, agui.error(`${message}。已写下的文档还在，没有改代码仓。`));
+      appendAgui(runId, agui.finished("error"));
     }
   } finally {
     endRunAbort(runId);

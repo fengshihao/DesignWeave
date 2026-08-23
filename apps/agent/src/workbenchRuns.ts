@@ -1,5 +1,6 @@
 import { customAlphabet } from "nanoid";
 import type { Response } from "express";
+import { agui, userMessageId, type AguiEventType } from "@designweave/molan-protocol";
 import { getDb } from "./db.js";
 import { HttpError } from "./httpError.js";
 
@@ -174,15 +175,11 @@ export function createRun(input: {
       now,
       now
     );
-  const userMessageId = `user-${id}`;
-  appendEvent(id, "RUN_STARTED", { threadId: input.projectId, mode: input.mode });
-  appendEvent(id, "TEXT_MESSAGE_START", { messageId: userMessageId, role: "user" });
-  appendEvent(id, "TEXT_MESSAGE_CONTENT", {
-    messageId: userMessageId,
-    role: "user",
-    delta: input.message,
-  });
-  appendEvent(id, "TEXT_MESSAGE_END", { messageId: userMessageId, role: "user" });
+  const userId = userMessageId(id);
+  appendAgui(id, agui.runStarted(input.projectId, input.mode));
+  appendAgui(id, agui.textStart(userId, "user"));
+  appendAgui(id, agui.textDelta(userId, "user", input.message));
+  appendAgui(id, agui.textEnd(userId, "user"));
   return getRun(id)!;
 }
 
@@ -204,7 +201,7 @@ export function setRunStatus(
 
 export function appendEvent(
   runId: string,
-  type: string,
+  type: AguiEventType,
   payload: Record<string, unknown> = {}
 ): RunEvent {
   ensureRunTables();
@@ -226,6 +223,13 @@ export function appendEvent(
     .prepare(`UPDATE workbench_runs SET updated_at = ? WHERE id = ?`)
     .run(now, runId);
   return { seq, type, payload: stored, createdAt: now };
+}
+
+export function appendAgui(
+  runId: string,
+  event: { type: AguiEventType; payload: Record<string, unknown> }
+): RunEvent {
+  return appendEvent(runId, event.type, event.payload);
 }
 
 export function listEvents(runId: string, after = 0): RunEvent[] {
@@ -264,8 +268,8 @@ export function cancelRun(runId: string): boolean {
   controller?.abort();
   live.delete(runId);
   setRunStatus(runId, "cancelled", "已取消");
-  appendEvent(runId, "RUN_ERROR", { message: "已取消。已写下的文档还在，没有改代码仓。" });
-  appendEvent(runId, "RUN_FINISHED", { result: "cancelled" });
+  appendAgui(runId, agui.error("已取消。已写下的文档还在，没有改代码仓。"));
+  appendAgui(runId, agui.finished("cancelled"));
   return true;
 }
 

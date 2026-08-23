@@ -2,11 +2,14 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   AguiEventSchema,
+  agui,
+  assistantMessageId,
   maxSeq,
   mergeAguiEvents,
   parseSseData,
   reduceAguiEvents,
   toAguiEvent,
+  userMessageId,
 } from "./run.js";
 
 test("AguiEventSchema 接受 RUN_STARTED / TEXT_MESSAGE_CONTENT / CUSTOM", () => {
@@ -148,4 +151,25 @@ test("mergeAguiEvents 按 runId+seq 去重", () => {
   const merged = mergeAguiEvents(a, b);
   assert.equal(merged.length, 2);
   assert.equal(maxSeq(merged), 2);
+});
+
+test("agui 工厂发出的载荷能被 toAguiEvent / reduce 吃进去", () => {
+  const runId = "r2";
+  const userId = userMessageId(runId);
+  const frames = [
+    agui.runStarted("p1", "coauthor"),
+    agui.textStart(userId, "user"),
+    agui.textDelta(userId, "user", "补验收"),
+    agui.textEnd(userId, "user"),
+    agui.custom("hint", { text: "正在写文档仓…" }),
+    agui.textDelta(assistantMessageId(runId), "assistant", "好。"),
+    agui.finished("success"),
+  ];
+  const events = frames.map((frame, i) =>
+    toAguiEvent({ seq: i + 1, type: frame.type, payload: { runId, ...frame.payload }, runId })
+  );
+  const turns = reduceAguiEvents(events);
+  assert.equal(turns[0].you, "补验收");
+  assert.ok(turns[0].blocks.some((b) => b.kind === "hint"));
+  assert.ok(turns[0].blocks.some((b) => b.kind === "status"));
 });
