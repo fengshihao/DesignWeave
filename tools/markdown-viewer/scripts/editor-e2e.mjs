@@ -168,48 +168,6 @@ async function main() {
     const previewFirst = await page.evaluate(() => window.__molan.isPreview());
     assert(previewFirst === true, "默认处于预览模式");
 
-    await page.click("#modeBtn");
-    await page.waitForFunction(() => window.__molan && !window.__molan.isPreview(), { timeout: 15000 });
-    await sleep(500);
-    assert(await page.evaluate(() => !window.__molan.isPreview()), "点击编辑后进入编辑模式");
-
-    await page.evaluate(() => {
-      const api = window.__molan;
-      const cur = api.getValue();
-      api.setValue(cur + "\\n\\n追加一行。", false);
-    });
-    await sleep(300);
-    const hasAppended = await page.evaluate(() => (window.__molan.getValue() || "").includes("追加一行"));
-    assert(hasAppended, "编辑模式下 setValue 生效");
-
-    await page.click("#modeBtn");
-    await page.waitForFunction(() => window.__molan && window.__molan.isPreview(), { timeout: 15000 });
-    assert(await page.evaluate(() => window.__molan.isPreview()), "再次点击回到预览模式");
-
-    await page.keyboard.down("Meta");
-    await page.keyboard.press("f");
-    await page.keyboard.up("Meta");
-    await page.waitForSelector("#molanFindBar:not([hidden])", { timeout: 5000 });
-    await page.type("#molanFindInput", "alpha");
-    await sleep(350);
-    const findCount = await page.evaluate(() => document.getElementById("molanFindCount")?.textContent || "");
-    assert(/1\/1/.test(findCount), `查找 alpha 应命中 1 处，实际「${findCount}」`);
-
-    await page.click("#molanFindClose");
-    await sleep(150);
-    const findHidden = await page.evaluate(() => {
-      const bar = document.getElementById("molanFindBar");
-      return !bar || bar.hidden;
-    });
-    assert(findHidden, "关闭查找栏");
-
-    await page.click("#headerPrefsBtn");
-    await page.waitForSelector("#headerPrefsMenu:not([hidden])", { timeout: 3000 });
-    await page.click('#themeSwitch [data-theme="hack"]');
-    await sleep(250);
-    const theme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
-    assert(theme === "hack", `切换终端主题，实际 data-theme=${theme}`);
-
     await page.evaluate(async () => {
       await window.__molan.setValue(
         "# 流程图\n\n```mermaid\nflowchart TD\n  A[开始] --> B{是否继续?}\n  B -->|是| C[完成]\n  B -->|否| D[结束]\n```\n",
@@ -245,6 +203,57 @@ async function main() {
     assert(copyResult.type === "image/png", `导出应为 PNG，实际 ${copyResult.type}`);
     assert(copyResult.size > 100, `PNG 不应为空，实际 ${copyResult.size} bytes`);
     assert(copyResult.stillFo === copyResult.foCount, "导出不得改动页面上的流程图 SVG");
+
+    // 本 harness 不加载 molan-app.js，预览/编辑切换走编辑器 API。
+    await page.evaluate(async () => {
+      await window.__molan.setValue("# 墨览回归\n\n查找目标：alpha beta gamma\n\n第二段文字。", true);
+      await window.__molan.setPreview(false);
+    });
+    await page.waitForFunction(() => window.__molan && !window.__molan.isPreview(), { timeout: 20000 });
+    await sleep(500);
+    assert(await page.evaluate(() => !window.__molan.isPreview()), "setPreview(false) 进入编辑模式");
+
+    await page.evaluate(() => {
+      const api = window.__molan;
+      const cur = api.getValue();
+      api.setValue(cur + "\\n\\n追加一行。", false);
+    });
+    await sleep(300);
+    const hasAppended = await page.evaluate(() => (window.__molan.getValue() || "").includes("追加一行"));
+    assert(hasAppended, "编辑模式下 setValue 生效");
+
+    await page.evaluate(async () => {
+      await window.__molan.setPreview(true);
+    });
+    await page.waitForFunction(() => window.__molan && window.__molan.isPreview(), { timeout: 15000 });
+    assert(await page.evaluate(() => window.__molan.isPreview()), "setPreview(true) 回到预览模式");
+
+    await page.keyboard.down("Meta");
+    await page.keyboard.press("f");
+    await page.keyboard.up("Meta");
+    await page.waitForSelector("#molanFindBar:not([hidden])", { timeout: 5000 });
+    await page.type("#molanFindInput", "alpha");
+    await sleep(350);
+    const findCount = await page.evaluate(() => document.getElementById("molanFindCount")?.textContent || "");
+    assert(/1\/1/.test(findCount), `查找 alpha 应命中 1 处，实际「${findCount}」`);
+
+    await page.click("#molanFindClose");
+    await page.waitForFunction(() => {
+      const bar = document.getElementById("molanFindBar");
+      return !bar || bar.hidden;
+    }, { timeout: 3000 });
+    const findHidden = await page.evaluate(() => {
+      const bar = document.getElementById("molanFindBar");
+      return !bar || bar.hidden;
+    });
+    assert(findHidden, "关闭查找栏");
+
+    await page.click("#headerPrefsBtn");
+    await page.waitForSelector("#headerPrefsMenu:not([hidden])", { timeout: 3000 });
+    await page.click('#themeSwitch [data-theme="hack"]');
+    await sleep(250);
+    const theme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
+    assert(theme === "hack", `切换终端主题，实际 data-theme=${theme}`);
   } catch (err) {
     failures.push(err.stack || String(err));
   } finally {
