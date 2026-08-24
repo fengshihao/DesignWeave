@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.1.17
+
+- 修复复制流程图：Mermaid HTML 标签不再污染 canvas，PNG 可正常写入剪贴板
+
 ## 0.1.16
 
 - 顶栏增加导出：PDF（系统浏览器打印存盘；Cursor 内置窗口改为下载可打印 HTML，避免崩溃）与 PNG 图片
