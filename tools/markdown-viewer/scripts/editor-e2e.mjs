@@ -209,6 +209,42 @@ async function main() {
     await sleep(250);
     const theme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
     assert(theme === "hack", `切换终端主题，实际 data-theme=${theme}`);
+
+    await page.evaluate(async () => {
+      await window.__molan.setValue(
+        "# 流程图\n\n```mermaid\nflowchart TD\n  A[开始] --> B{是否继续?}\n  B -->|是| C[完成]\n  B -->|否| D[结束]\n```\n",
+        true,
+      );
+    });
+    await page.waitForSelector(".language-mermaid svg", { timeout: 25000 });
+    await sleep(400);
+    const copyResult = await page.evaluate(async () => {
+      const svg = document.querySelector(".language-mermaid svg");
+      if (!svg) return { ok: false, error: "no svg" };
+      const foCount = svg.querySelectorAll("foreignObject").length;
+      try {
+        const blob = await window.MolanEditor.svgToPngBlob(svg);
+        return {
+          ok: true,
+          foCount,
+          type: blob.type,
+          size: blob.size,
+          stillFo: svg.querySelectorAll("foreignObject").length,
+        };
+      } catch (err) {
+        return {
+          ok: false,
+          foCount,
+          error: String(err && err.message || err),
+          name: err && err.name,
+        };
+      }
+    });
+    assert(copyResult.foCount > 0, `预览流程图应使用 HTML 标签（foreignObject），实际 ${copyResult.foCount}`);
+    assert(copyResult.ok, `复制流程图不应污染 canvas，实际 ${copyResult.name || ""} ${copyResult.error || ""}`);
+    assert(copyResult.type === "image/png", `导出应为 PNG，实际 ${copyResult.type}`);
+    assert(copyResult.size > 100, `PNG 不应为空，实际 ${copyResult.size} bytes`);
+    assert(copyResult.stillFo === copyResult.foCount, "导出不得改动页面上的流程图 SVG");
   } catch (err) {
     failures.push(err.stack || String(err));
   } finally {
