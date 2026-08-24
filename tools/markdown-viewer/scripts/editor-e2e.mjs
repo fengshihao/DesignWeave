@@ -168,10 +168,50 @@ async function main() {
     const previewFirst = await page.evaluate(() => window.__molan.isPreview());
     assert(previewFirst === true, "默认处于预览模式");
 
-    await page.click("#modeBtn");
-    await page.waitForFunction(() => window.__molan && !window.__molan.isPreview(), { timeout: 15000 });
+    await page.evaluate(async () => {
+      await window.__molan.setValue(
+        "# 流程图\n\n```mermaid\nflowchart TD\n  A[开始] --> B{是否继续?}\n  B -->|是| C[完成]\n  B -->|否| D[结束]\n```\n",
+        true,
+      );
+    });
+    await page.waitForSelector(".language-mermaid svg", { timeout: 25000 });
+    await sleep(400);
+    const copyResult = await page.evaluate(async () => {
+      const svg = document.querySelector(".language-mermaid svg");
+      if (!svg) return { ok: false, error: "no svg" };
+      const foCount = svg.querySelectorAll("foreignObject").length;
+      try {
+        const blob = await window.MolanEditor.svgToPngBlob(svg);
+        return {
+          ok: true,
+          foCount,
+          type: blob.type,
+          size: blob.size,
+          stillFo: svg.querySelectorAll("foreignObject").length,
+        };
+      } catch (err) {
+        return {
+          ok: false,
+          foCount,
+          error: String(err && err.message || err),
+          name: err && err.name,
+        };
+      }
+    });
+    assert(copyResult.foCount > 0, `预览流程图应使用 HTML 标签（foreignObject），实际 ${copyResult.foCount}`);
+    assert(copyResult.ok, `复制流程图不应污染 canvas，实际 ${copyResult.name || ""} ${copyResult.error || ""}`);
+    assert(copyResult.type === "image/png", `导出应为 PNG，实际 ${copyResult.type}`);
+    assert(copyResult.size > 100, `PNG 不应为空，实际 ${copyResult.size} bytes`);
+    assert(copyResult.stillFo === copyResult.foCount, "导出不得改动页面上的流程图 SVG");
+
+    // 本 harness 不加载 molan-app.js，预览/编辑切换走编辑器 API。
+    await page.evaluate(async () => {
+      await window.__molan.setValue("# 墨览回归\n\n查找目标：alpha beta gamma\n\n第二段文字。", true);
+      await window.__molan.setPreview(false);
+    });
+    await page.waitForFunction(() => window.__molan && !window.__molan.isPreview(), { timeout: 20000 });
     await sleep(500);
-    assert(await page.evaluate(() => !window.__molan.isPreview()), "点击编辑后进入编辑模式");
+    assert(await page.evaluate(() => !window.__molan.isPreview()), "setPreview(false) 进入编辑模式");
 
     await page.evaluate(() => {
       const api = window.__molan;
@@ -182,9 +222,11 @@ async function main() {
     const hasAppended = await page.evaluate(() => (window.__molan.getValue() || "").includes("追加一行"));
     assert(hasAppended, "编辑模式下 setValue 生效");
 
-    await page.click("#modeBtn");
+    await page.evaluate(async () => {
+      await window.__molan.setPreview(true);
+    });
     await page.waitForFunction(() => window.__molan && window.__molan.isPreview(), { timeout: 15000 });
-    assert(await page.evaluate(() => window.__molan.isPreview()), "再次点击回到预览模式");
+    assert(await page.evaluate(() => window.__molan.isPreview()), "setPreview(true) 回到预览模式");
 
     await page.keyboard.down("Meta");
     await page.keyboard.press("f");
@@ -196,7 +238,10 @@ async function main() {
     assert(/1\/1/.test(findCount), `查找 alpha 应命中 1 处，实际「${findCount}」`);
 
     await page.click("#molanFindClose");
-    await sleep(150);
+    await page.waitForFunction(() => {
+      const bar = document.getElementById("molanFindBar");
+      return !bar || bar.hidden;
+    }, { timeout: 3000 });
     const findHidden = await page.evaluate(() => {
       const bar = document.getElementById("molanFindBar");
       return !bar || bar.hidden;

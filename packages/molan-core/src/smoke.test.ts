@@ -77,3 +77,13 @@ test("流程图编辑器预览只缩放不打开灯箱", () => {
   assert.doesNotMatch(src, /molan-mermaid-editor-copy/);
   assert.doesNotMatch(src, /lightbox\?\.openFromSvg/);
 });
+
+test("复制流程图前会去掉会污染 canvas 的 foreignObject", () => {
+  const src = readFileSync(join(root, "src", "molan-editor.js"), "utf8");
+  assert.match(src, /function sanitizeSvgForCanvas/);
+  assert.match(src, /function replaceForeignObjectWithText/);
+  assert.match(src, /function svgToPngBlob/);
+  assert.match(src, /async function copySvgAsPng/);
+  assert.match(src, /svgToPngBlob,/);
+  assert.match(src, /clone\.querySelectorAll\("foreignObject, script"\)/);
+});
