@@ -99,4 +99,5 @@ test("文本复制有 clipboard API 降级和流程图源码回退", () => {
   assert.match(src, /vditor-copy/);
   assert.match(src, /copyText: copyTextToClipboard/);
   assert.match(src, /mermaidCopySource,/);
+  assert.match(src, /e\.key === "Escape" && exportMenuIsOpen/);
 });

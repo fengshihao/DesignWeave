@@ -158,6 +158,7 @@ const harness = `<!DOCTYPE html>
   <script src="./molan-i18n.js"></script>
   <script src="./molan-editor.js"></script>
   <script>
+    window.MolanI18n?.setLang?.("zh", false);
     window.MolanEditor.create({
       elementId: "vditor",
       defaultPreview: true,
@@ -320,7 +321,7 @@ async function main() {
     await sleep(400);
     const imageToast = await toastText();
     assert(
-      /已复制流程图图片|已改为下载/.test(imageToast),
+      /已复制流程图图片|已改为下载|Copied diagram image|downloaded instead/i.test(imageToast),
       `流程图复制图片 toast，实际「${imageToast}」`,
     );
 
@@ -332,7 +333,7 @@ async function main() {
     await sleep(400);
     const lightboxToast = await toastText();
     assert(
-      /已复制流程图图片|已改为下载/.test(lightboxToast),
+      /已复制流程图图片|已改为下载|Copied diagram image|downloaded instead/i.test(lightboxToast),
       `灯箱复制图片 toast，实际「${lightboxToast}」`,
     );
     await page.click("#lightboxClose");
@@ -391,6 +392,11 @@ async function main() {
     });
     assert(exportItems.includes("pdf") && exportItems.includes("png"), `导出菜单含 pdf/png，实际 ${exportItems.join(",")}`);
     await page.keyboard.press("Escape");
+    await page.waitForFunction(() => {
+      const menu = document.getElementById("exportMenu");
+      return !menu || menu.hidden;
+    }, { timeout: 3000 });
+    assert(true, "关闭导出菜单");
 
     await page.click("#sourceViewBtn");
     await page.waitForFunction(() => window.MolanEditor.source.isOpen(), { timeout: 5000 });
@@ -412,14 +418,25 @@ async function main() {
     }, { timeout: 5000 });
     assert(true, "关闭大纲");
 
-    await page.$eval("#molanPreviewBody p, #molanPreviewBody h1", (el) => {
+    await page.evaluate(() => {
+      const wrap = document.getElementById("editorWrap");
+      const el = document.querySelector("#molanPreviewBody p:last-of-type");
       el.scrollIntoView({ block: "center" });
+      const b = el.getBoundingClientRect();
+      const x = b.left + 16;
+      const y = b.bottom + 10;
+      wrap.dispatchEvent(new MouseEvent("mousemove", {
+        bubbles: true,
+        clientX: x,
+        clientY: y,
+        view: window,
+      }));
+      window.__molanInsertPoint = { x, y };
     });
-    const para = await page.$("#molanPreviewBody p, #molanPreviewBody h1");
-    const box = await para.boundingBox();
-    if (box) {
-      await page.mouse.move(box.x + Math.min(40, box.width / 2), box.y + box.height / 2);
-    }
+    const insertPoint = await page.evaluate(() => window.__molanInsertPoint);
+    await page.mouse.move(insertPoint.x, insertPoint.y);
+    await sleep(80);
+    await page.mouse.move(insertPoint.x + 1, insertPoint.y);
     await page.waitForSelector(".molan-block-insert:not([hidden])", { timeout: 5000 });
     await page.click(".molan-block-plus");
     await page.waitForSelector(".molan-insert-menu:not([hidden])", { timeout: 4000 });

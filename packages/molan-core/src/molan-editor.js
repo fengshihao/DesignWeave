@@ -6448,6 +6448,12 @@
     if (!e.target?.closest?.(".export-prefs")) closeExportMenu();
   });
   document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && exportMenuIsOpen()) {
+      e.preventDefault();
+      closeExportMenu();
+      document.getElementById("pdfBtn")?.focus();
+      return;
+    }
     if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "p") return;
     const unsafe = isUnsafePrintHost();
     if (!unsafe && e.defaultPrevented) return;
