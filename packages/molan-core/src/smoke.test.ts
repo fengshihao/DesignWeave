@@ -48,6 +48,16 @@ test("molan.css 含四主题变量", () => {
   assert.match(css, /--reader-heading/);
   assert.match(css, /\.type-fonts/);
   assert.match(css, /\.type-row-fonts/);
+  {
+    const prefsIn = css.match(/@keyframes molan-prefs-in \{[\s\S]*?\n    \}/);
+    assert.ok(prefsIn, "extract molan-prefs-in");
+    assert.match(prefsIn[0], /transform: translateY\(-6px\) scale\(0\.98\)/);
+    assert.doesNotMatch(prefsIn[0], /filter:/);
+    const typeMenu = css.match(/    \.type-menu \{[\s\S]*?\n    \}/);
+    assert.ok(typeMenu, "extract .type-menu");
+    assert.doesNotMatch(typeMenu[0], /backdrop-filter/);
+  }
+  assert.match(css, /\.type-menu\.is-open \{[\s\S]*?molan-prefs-in 0\.2s/);
   assert.match(css, /\.molan-mermaid-editor \{[\s\S]*width:\s*min\(96vw,\s*1400px\)/);
   assert.match(css, /\.molan-mermaid-editor \{[\s\S]*height:\s*min\(90vh,\s*900px\)/);
   assert.doesNotMatch(css, /#editModeBtn/);
