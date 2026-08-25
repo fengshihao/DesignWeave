@@ -1861,10 +1861,72 @@
       margin: 0 -2px;
     }
 
+    .type-fonts[hidden] {
+      display: none;
+    }
+
     .type-row-fonts {
       margin-top: 2px;
       padding-top: 10px;
       border-top: 1px solid var(--hairline);
+    }
+
+    .type-font-toggle {
+      appearance: none;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      width: 100%;
+      margin: 0;
+      padding: 2px 0;
+      border: 0;
+      background: transparent;
+      color: var(--ink-soft);
+      font-family: inherit;
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: inherit;
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .type-row-fonts.is-open .type-font-toggle {
+      margin-bottom: 7px;
+    }
+
+    .type-font-toggle:hover {
+      color: var(--ink);
+    }
+
+    .type-font-toggle:focus-visible {
+      outline: 2px solid var(--accent-glow);
+      outline-offset: 2px;
+      border-radius: 6px;
+    }
+
+    .type-font-toggle .type-val {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 0;
+    }
+
+    .type-font-toggle .type-val::after {
+      content: "";
+      width: 0.38em;
+      height: 0.38em;
+      margin-top: -0.12em;
+      border-right: 1.5px solid currentColor;
+      border-bottom: 1.5px solid currentColor;
+      transform: rotate(-45deg);
+      opacity: 0.6;
+      flex: 0 0 auto;
+    }
+
+    .type-font-toggle[aria-expanded="true"] .type-val::after {
+      transform: rotate(45deg);
+      margin-top: -0.22em;
     }
 
     .type-fonts button {
