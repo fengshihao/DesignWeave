@@ -374,9 +374,22 @@ async function main() {
     const theme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
     assert(theme === "xuan", `切换宣纸主题，实际 ${theme}`);
 
-    await page.click("#typeBtn");
-    await page.waitForSelector("#typeMenu:not([hidden])", { timeout: 3000 });
-    assert(true, "打开排版菜单");
+    const typeOpen = await page.evaluate(() => {
+      const before = document.querySelectorAll('link[id^="molan-reader-font-"]').length;
+      document.getElementById("typeBtn")?.click();
+      const after = document.querySelectorAll('link[id^="molan-reader-font-"]').length;
+      const menu = document.getElementById("typeMenu");
+      return {
+        before,
+        after,
+        open: !!(menu && !menu.hidden),
+      };
+    });
+    assert(typeOpen.open, "打开排版菜单");
+    assert(
+      typeOpen.after === typeOpen.before,
+      `打开排版菜单不应同步拉取网络字体，打开前 ${typeOpen.before} 打开后 ${typeOpen.after}`,
+    );
     await page.keyboard.press("Escape");
     await page.waitForFunction(() => {
       const menu = document.getElementById("typeMenu");

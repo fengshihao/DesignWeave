@@ -91,7 +91,7 @@ assert(html.indexOf('id="molanFindBtn"') < html.indexOf('id="copyBtn"'), "find c
 assert(html.indexOf('id="copyBtn"') < html.indexOf('id="pdfBtn"'), "copy comes before export pdf");
 assert(html.includes("./vendor/vditor/dist/method.min.js"), "html loads local method.min.js");
 assert(html.includes("./vendor/vditor/dist/js/lute/lute.min.js"), "html preloads local lute");
-assert(html.includes("molan-editor.js?v=20260825c"), "studio html cache-busts table editor");
+assert(html.includes("molan-editor.js?v=20260825d"), "studio html cache-busts table editor");
 assert(html.includes("molan.css?v=20260822pg"), "studio html cache-busts table css");
 assert(html.includes("molan-i18n.js?v=20260825b"), "studio html cache-busts table i18n");
 assert(html.includes("molan-app.js?v=20260825b"), "studio html cache-busts studio app");

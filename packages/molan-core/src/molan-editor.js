@@ -3470,16 +3470,37 @@
     } catch (_) { /* ignore */ }
   }
 
-  function loadReaderFont(id) {
+  let typeFontPreviewToken = 0;
+
+  function loadReaderFont(id, onReady) {
     const preset = TYPE_FONTS[id];
-    if (!preset?.google) return;
-    if (isVscodeHost()) return;
+    const done = (ok) => {
+      if (typeof onReady === "function") onReady(ok);
+    };
+    if (!preset?.google) {
+      done(false);
+      return;
+    }
+    if (isVscodeHost()) {
+      done(false);
+      return;
+    }
     const linkId = "molan-reader-font-" + id;
-    if (document.getElementById(linkId) || !document.head) return;
+    const existing = document.getElementById(linkId);
+    if (existing) {
+      done(true);
+      return;
+    }
+    if (!document.head) {
+      done(false);
+      return;
+    }
     const link = document.createElement("link");
     link.id = linkId;
     link.rel = "stylesheet";
     link.href = "https://fonts.googleapis.com/css2?" + preset.google + "&display=swap";
+    link.addEventListener("load", () => done(true), { once: true });
+    link.addEventListener("error", () => done(false), { once: true });
     document.head.appendChild(link);
   }
 
@@ -3527,9 +3548,40 @@
   function paintTypeFontFaces(box) {
     if (!box) return;
     box.querySelectorAll("[data-type-font]").forEach((btn) => {
-      const preset = TYPE_FONTS[btn.getAttribute("data-type-font")];
-      btn.style.fontFamily = preset?.ui || "";
+      const id = btn.getAttribute("data-type-font");
+      const preset = TYPE_FONTS[id];
+      if (!preset) {
+        btn.style.fontFamily = "";
+        return;
+      }
+      if (preset.google && !document.getElementById("molan-reader-font-" + id)) return;
+      btn.style.fontFamily = preset.ui;
     });
+  }
+
+  function scheduleTypeFontPreviews() {
+    if (isVscodeHost()) return;
+    const token = ++typeFontPreviewToken;
+    const ids = TYPE_FONT_ORDER.filter((id) => TYPE_FONTS[id]?.google);
+    let i = 0;
+    const run = () => {
+      if (token !== typeFontPreviewToken || !typeIsOpen()) return;
+      const id = ids[i++];
+      if (!id) return;
+      loadReaderFont(id, () => {
+        if (token !== typeFontPreviewToken) return;
+        const btn = document.querySelector(`#typeMenu [data-type-font="${id}"]`);
+        const preset = TYPE_FONTS[id];
+        if (btn && preset) btn.style.fontFamily = preset.ui;
+        next();
+      });
+    };
+    const next = () => {
+      if (token !== typeFontPreviewToken || !typeIsOpen()) return;
+      if (typeof requestIdleCallback === "function") requestIdleCallback(run, { timeout: 600 });
+      else setTimeout(run, 80);
+    };
+    next();
   }
 
   function ensureTypeFontButtons(menu) {
@@ -3686,16 +3738,17 @@
     menu.hidden = false;
     btn.setAttribute("aria-expanded", "true");
     btn.classList.add("is-on");
-    TYPE_FONT_ORDER.forEach(loadReaderFont);
     paintTypeControls();
     if (!already) {
       menu.classList.remove("is-out", "is-open");
       void menu.offsetWidth;
       menu.classList.add("is-open");
     }
+    scheduleTypeFontPreviews();
   }
 
   function closeType() {
+    typeFontPreviewToken += 1;
     const menu = document.getElementById("typeMenu");
     const btn = document.getElementById("typeBtn");
     if (!menu || menu.hidden || menu.classList.contains("is-out")) {

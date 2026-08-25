@@ -28,6 +28,8 @@ test("molan-editor.js 导出 MolanEditor.create", () => {
   assert.match(src, /--reader-font/);
   assert.match(src, /data-type-font/);
   assert.match(src, /type-row-fonts/);
+  assert.match(src, /function scheduleTypeFontPreviews/);
+  assert.doesNotMatch(src, /TYPE_FONT_ORDER\.forEach\(loadReaderFont\)/);
   assert.doesNotMatch(src, /editModeBtn/);
 });
 
