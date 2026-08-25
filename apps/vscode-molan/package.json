@@ -160,7 +160,8 @@
   "dependencies": {
     "@designweave/molan-host": "workspace:*",
     "@designweave/molan-protocol": "workspace:*",
-    "vditor": "3.10.9"
+    "vditor": "3.10.9",
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",

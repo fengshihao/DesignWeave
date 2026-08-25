@@ -21,7 +21,8 @@
     "test": "node ../../scripts/run-ts-tests.mjs"
   },
   "dependencies": {
-    "@designweave/molan-protocol": "workspace:*"
+    "@designweave/molan-protocol": "workspace:*",
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",

@@ -24,9 +24,12 @@ need_pnpm() {
 
 ensure_deps() {
   need_pnpm
-  if [[ ! -d "${EXT_DIR}/node_modules/vditor" && ! -d "${ROOT}/node_modules/vditor" ]]; then
-    echo "==> 安装 molan-markdown 依赖"
-    CI=true pnpm install --filter molan-markdown --config.confirmModulesPurge=false
+  local protocol_zod="${ROOT}/packages/molan-protocol/node_modules/zod"
+  local ext_zod="${EXT_DIR}/node_modules/zod"
+  if [[ ! -d "${EXT_DIR}/node_modules/vditor" && ! -d "${ROOT}/node_modules/vditor" ]] \
+    || [[ ! -e "${protocol_zod}" && ! -e "${ext_zod}" ]]; then
+    echo "==> 安装 molan-markdown 与 molan-protocol（含 zod）依赖"
+    CI=true pnpm install --filter molan-markdown --filter @designweave/molan-protocol --filter @designweave/molan-host --filter @designweave/molan-core --config.confirmModulesPurge=false
   fi
 }
 

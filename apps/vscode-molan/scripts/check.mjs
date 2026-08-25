@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
+import { createRequire } from "node:module";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = join(root, "..", "..");
@@ -35,11 +36,27 @@ assert(!existsSync(join(root, "media/vditor/dist/js/echarts")), "echarts must be
 assert(!existsSync(join(root, "media/vditor/dist/js/graphviz")), "graphviz must be stripped");
 assert(!existsSync(join(root, "media/vditor/dist/js/abcjs")), "abcjs must be stripped");
 assert(!existsSync(join(root, "media/vditor/dist/js/markmap")), "markmap must be stripped");
+assert(pkg.dependencies?.zod, "extension declares zod so pnpm/tsc can resolve protocol types");
 assert(existsSync(join(root, "out/extension.js")), "compiled extension.js");
 
 const js = readFileSync(join(root, "out/extension.js"), "utf8");
 assert(!js.includes('require("@designweave/molan-host")'), "molan-host must be bundled, not a runtime require");
 assert(!js.includes('require("@designweave/molan-protocol")'), "molan-protocol must not be a runtime require");
+assert(!/\brequire\(["']zod["']\)/.test(js), "zod must be bundled into out/extension.js");
+{
+  const require = createRequire(join(root, "package.json"));
+  let zodPath = "";
+  try {
+    zodPath = require.resolve("zod");
+  } catch {
+    try {
+      zodPath = createRequire(join(repoRoot, "packages", "molan-protocol", "package.json")).resolve("zod");
+    } catch {
+      zodPath = "";
+    }
+  }
+  assert(zodPath, "zod is installed for compiling the extension");
+}
 assert(js.includes("molan.markdownEditor"), "compiled viewType");
 assert(js.includes("molan-host-vscode"), "webview host class");
 assert(js.includes("__MOLAN_VDITOR_CDN__"), "vditor cdn injection");
