@@ -18,7 +18,8 @@ pnpm vscode:molan
 ```bash
 pnpm vscode:molan:package   # 生成 .vsix
 pnpm vscode:molan:install   # 打包后装到本机 Cursor / VS Code
-pnpm molan:publish          # 网站 + Open VSX；打开 VS Code 商店管理页
+pnpm molan:publish          # 网站（若有 deploy/upload.sh）+ Open VSX + 打开 VS 商店页
+pnpm molan:publish:extension # 仅 Open VSX + VS 商店页，不需要 upload.sh
 ```
 
 `.vsix` 落在 `apps/vscode-molan/`。也可手动安装：

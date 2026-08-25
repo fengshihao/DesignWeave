@@ -1,16 +1,43 @@
 #!/usr/bin/env bash
 # 发布墨览：腾讯云网站 + Cursor（Open VSX）；VS Code 商店打开管理页人工上传。
 # 用法：
-#   bash scripts/molan-publish.sh
+#   bash scripts/molan-publish.sh                 # 网站（若有 upload.sh）+ Open VSX + 打开 VS 商店页
+#   bash scripts/molan-publish.sh --skip-site     # 仅打包 + Open VSX + 打开 VS 商店页
+#   bash scripts/molan-publish.sh --extension-only # 同 --skip-site
 #   pnpm molan:publish
+#   pnpm molan:publish:extension
 #
 # 需要环境变量 OVSX_PAT（Open VSX 令牌，可写在 ~/.zshrc）。
+# 网站同步脚本 tools/markdown-viewer/deploy/upload.sh 在 .gitignore，需本机自行放置；
+# 模板见 tools/markdown-viewer/deploy.example/upload.sh.example
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 EXT_DIR="${ROOT}/apps/vscode-molan"
 UPLOAD="${ROOT}/tools/markdown-viewer/deploy/upload.sh"
+UPLOAD_EXAMPLE="${ROOT}/tools/markdown-viewer/deploy.example/upload.sh.example"
 MARKET_URL="https://marketplace.visualstudio.com/manage/publishers/fengshihao"
+
+SKIP_SITE=0
+for arg in "$@"; do
+  case "${arg}" in
+    --skip-site | --extension-only)
+      SKIP_SITE=1
+      ;;
+    -h | --help | help)
+      sed -n '2,14p' "$0"
+      exit 0
+      ;;
+    *)
+      echo "未知参数：${arg}" >&2
+      echo "用法：bash scripts/molan-publish.sh [--skip-site|--extension-only]" >&2
+      exit 1
+      ;;
+  esac
+done
+if [[ "${MOLAN_SKIP_SITE:-}" == "1" ]]; then
+  SKIP_SITE=1
+fi
 
 cd "${ROOT}"
 
@@ -25,14 +52,9 @@ need pnpm
 need npx
 need node
 
-if [[ ! -x "${UPLOAD}" ]]; then
-  echo "找不到上传脚本：${UPLOAD}" >&2
-  exit 1
-fi
-
 if [[ -z "${OVSX_PAT:-}" ]]; then
   echo "未设置 OVSX_PAT。请在本机导出 Open VSX 令牌后再运行。" >&2
-  echo "  export OVSX_PAT=\"…\"" >&2
+  echo "  export OVSX_PAT=\"…\"   # https://open-vsx.org/user-settings/tokens" >&2
   exit 1
 fi
 
@@ -51,8 +73,20 @@ bash "${ROOT}/scripts/vscode-molan.sh" package
 VSIX="$(ls -t "${EXT_DIR}"/molan-markdown-*.vsix | head -n 1)"
 echo "    ${VSIX}"
 
-echo "==> 2/4 同步腾讯云 https://molan.guoyoutech.cn/"
-bash "${UPLOAD}"
+if [[ "${SKIP_SITE}" == "1" ]]; then
+  echo "==> 2/4 跳过网站同步（--skip-site）"
+elif [[ ! -x "${UPLOAD}" ]]; then
+  echo "==> 2/4 跳过网站同步（未找到可执行的 upload.sh）" >&2
+  echo "    期望路径：${UPLOAD}" >&2
+  echo "    该目录在 .gitignore，不会随 git 下发。若需同步 https://molan.guoyoutech.cn/：" >&2
+  echo "      mkdir -p tools/markdown-viewer/deploy" >&2
+  echo "      cp ${UPLOAD_EXAMPLE} tools/markdown-viewer/deploy/upload.sh" >&2
+  echo "      # 编辑 SSH/rsync 目标后 chmod +x" >&2
+  echo "    仅发扩展可改用：pnpm molan:publish:extension" >&2
+else
+  echo "==> 2/4 同步腾讯云 https://molan.guoyoutech.cn/"
+  bash "${UPLOAD}"
+fi
 
 echo "==> 3/4 发布 Cursor / Open VSX"
 set +e
@@ -74,7 +108,7 @@ echo "    安装包：${VSIX}"
 echo "    ${MARKET_URL}"
 case "$(uname -s 2>/dev/null || echo unknown)" in
   Darwin) open "${MARKET_URL}" ;;
-  MINGW*|MSYS*|CYGWIN*) cmd.exe /c start "" "${MARKET_URL}" ;;
+  MINGW* | MSYS* | CYGWIN*) cmd.exe /c start "" "${MARKET_URL}" ;;
   *) xdg-open "${MARKET_URL}" >/dev/null 2>&1 || true ;;
 esac
 
