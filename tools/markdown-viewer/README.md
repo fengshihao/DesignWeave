@@ -41,4 +41,4 @@ vendor/vditor     裁剪后的 Vditor（`pnpm molan` / 编译扩展时同步，�
 
 编译扩展时把 `molan.css` 和 `molan-editor.js` 拷进 webview，点击 Markdown 即可打开。见 [`apps/vscode-molan/README.md`](../../apps/vscode-molan/README.md)。
 
-网站发布走仓库根目录 `pnpm molan:publish`（会调用本机 `deploy/upload.sh` 同步到 https://molan.guoyoutech.cn/）。只更新网站、不发商店时，直接运行该上传脚本即可。
+网站发布走仓库根目录 `pnpm molan:publish`（若本机有 `deploy/upload.sh` 会同步到 https://molan.guoyoutech.cn/；没有则自动跳过，见 [`deploy.example/README.md`](deploy.example/README.md)）。只发扩展商店：`pnpm molan:publish:extension`。只更新网站、不发商店时，运行本机 `deploy/upload.sh`。

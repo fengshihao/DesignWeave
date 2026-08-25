@@ -19,7 +19,8 @@
     "vscode:molan": "node scripts/run-bash.mjs scripts/vscode-molan.sh",
     "vscode:molan:package": "node scripts/run-bash.mjs scripts/vscode-molan.sh package",
     "vscode:molan:install": "node scripts/run-bash.mjs scripts/vscode-molan.sh install",
-    "molan:publish": "node scripts/run-bash.mjs scripts/molan-publish.sh"
+    "molan:publish": "node scripts/run-bash.mjs scripts/molan-publish.sh",
+    "molan:publish:extension": "node scripts/run-bash.mjs scripts/molan-publish.sh --skip-site"
   },
   "engines": {
     "node": ">=20"
