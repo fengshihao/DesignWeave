@@ -1,7 +1,8 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, cpSync, mkdtempSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = join(root, "..", "..");
@@ -35,9 +36,10 @@ assert(!existsSync(join(root, "media/vditor/dist/js/graphviz")), "graphviz must 
 assert(!existsSync(join(root, "media/vditor/dist/js/abcjs")), "abcjs must be stripped");
 assert(!existsSync(join(root, "media/vditor/dist/js/markmap")), "markmap must be stripped");
 assert(existsSync(join(root, "out/extension.js")), "compiled extension.js");
-assert(existsSync(join(root, "out/markdownEditorProvider.js")), "compiled provider");
 
-const js = readFileSync(join(root, "out/markdownEditorProvider.js"), "utf8");
+const js = readFileSync(join(root, "out/extension.js"), "utf8");
+assert(!js.includes('require("@designweave/molan-host")'), "molan-host must be bundled, not a runtime require");
+assert(!js.includes('require("@designweave/molan-protocol")'), "molan-protocol must not be a runtime require");
 assert(js.includes("molan.markdownEditor"), "compiled viewType");
 assert(js.includes("molan-host-vscode"), "webview host class");
 assert(js.includes("__MOLAN_VDITOR_CDN__"), "vditor cdn injection");
@@ -227,5 +229,73 @@ assert(
   pkg.vsce?.baseImagesUrl === "https://molan.guoyoutech.cn",
   "vsce baseImagesUrl must point at molan.guoyoutech.cn so Marketplace screenshots resolve",
 );
+
+{
+  const dir = mkdtempSync(join(tmpdir(), "molan-ext-"));
+  try {
+    cpSync(join(root, "out/extension.js"), join(dir, "extension.js"));
+    writeFileSync(
+      join(dir, "vscode.cjs"),
+      `module.exports = {
+  window: {
+    showWarningMessage() {},
+    showInformationMessage() {},
+    registerCustomEditorProvider() { return { dispose() {} }; },
+    tabGroups: { activeTabGroup: { tabs: [] } },
+    activeTextEditor: undefined,
+  },
+  commands: { registerCommand() { return { dispose() {} }; } },
+  workspace: {
+    getConfiguration() { return { get() { return {}; }, update() { return Promise.resolve(); } }; },
+    workspaceFolders: [],
+    fs: {},
+  },
+  Uri: {
+    joinPath() { return { fsPath: "", path: "", scheme: "file", toString() { return ""; } }; },
+    parse(s) { return { fsPath: String(s), path: String(s), toString() { return String(s); } }; },
+  },
+  ConfigurationTarget: { Global: 1 },
+  EventEmitter: class {
+    constructor() { this.event = () => ({ dispose() {} }); }
+    fire() {}
+    dispose() {}
+  },
+};
+`,
+    );
+    writeFileSync(
+      join(dir, "run.cjs"),
+      `const Module = require("module");
+const path = require("path");
+const orig = Module._resolveFilename;
+Module._resolveFilename = function (request, parent, isMain, options) {
+  if (request === "vscode") return path.join(__dirname, "vscode.cjs");
+  return orig.call(this, request, parent, isMain, options);
+};
+const ext = require("./extension.js");
+if (typeof ext.activate !== "function") throw new Error("activate missing");
+const subscriptions = [];
+ext.activate({
+  subscriptions,
+  extensionUri: { fsPath: __dirname, path: __dirname, toString() { return "file://" + __dirname; } },
+  extensionPath: __dirname,
+});
+if (!subscriptions.length) throw new Error("activate registered nothing");
+console.log("isolated-activate-ok");
+`,
+    );
+    const result = spawnSync(process.execPath, [join(dir, "run.cjs")], {
+      encoding: "utf8",
+      cwd: dir,
+      env: { ...process.env, NODE_PATH: "" },
+    });
+    assert(
+      result.status === 0 && (result.stdout || "").includes("isolated-activate-ok"),
+      `extension must load without workspace molan-host: ${result.stderr || result.stdout || result.status}`,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 console.log("molan-markdown extension check ok");

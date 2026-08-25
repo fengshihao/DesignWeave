@@ -40,3 +40,6 @@ jobs:
 
       - name: Unit tests
         run: pnpm test
+
+      - name: VS Code extension bundle check
+        run: pnpm --filter molan-markdown check

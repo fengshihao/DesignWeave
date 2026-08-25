@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.1.18
+
+- 修复 VS Code / Cursor 安装后打开 Markdown 一直转圈：把 `molan-host` 打进扩展包
+- 复制原文、流程图代码、代码块在 webview 无剪贴板权限时降级；流程图源码可从 Markdown 恢复
+- 导出菜单可用 Esc 关闭；主要功能按钮增加自动化回归
+
 ## 0.1.17
 
 - 修复复制流程图：Mermaid HTML 标签不再污染 canvas，PNG 可正常写入剪贴板

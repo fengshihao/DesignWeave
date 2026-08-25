@@ -24,15 +24,15 @@ pnpm molan:publish          # 网站 + Open VSX；打开 VS Code 商店管理页
 `.vsix` 落在 `apps/vscode-molan/`。也可手动安装：
 
 ```bash
-code --install-extension apps/vscode-molan/molan-markdown-0.1.6.vsix
+code --install-extension apps/vscode-molan/molan-markdown-0.1.18.vsix
 # Cursor：
-cursor --install-extension apps/vscode-molan/molan-markdown-0.1.6.vsix
+cursor --install-extension apps/vscode-molan/molan-markdown-0.1.18.vsix
 ```
 
 ## 实现要点
 
 - 自定义编辑器 viewType：`molan.markdownEditor`，`priority: default`
-- 与浏览器工作室共用 `tools/markdown-viewer` 的 `molan.css` + `molan-editor.js`；编译时拷贝进扩展
+- 与浏览器工作室共用 `molan.css` + `molan-editor.js`（编译时拷进 `media/`）；扩展入口 esbuild 打包，内含 `molan-host` / `molan-protocol`，`.vsix` 不依赖 workspace `node_modules`
 - 内置裁剪后的 Vditor 3.10.9（Lute + Mermaid + KaTeX + highlight），不依赖外网 CDN
 - 打开默认预览：先加载 `method.min.js` + 预载 Lute；点「编辑」再加载完整 `index.min.js`
 - 撤销由 Vditor 处理；VS Code 负责脏状态、保存、热退出备份
