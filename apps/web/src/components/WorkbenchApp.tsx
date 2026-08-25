@@ -338,7 +338,7 @@ function ProjectPaper(props: {
   const [title, setTitle] = useState("");
   const [meta, setMeta] = useState<RequirementMeta | null>(null);
   const [files, setFiles] = useState<Array<{ path: string; name: string; isDir: boolean }>>([]);
-  const [currentPath, setCurrentPath] = useState("README.md");
+  const [currentPath, setCurrentPath] = useState("PRD.md");
   const [content, setContent] = useState("");
   const [etag, setEtag] = useState("");
   const [lock, setLock] = useState<ProjectLockInfo>(null);
@@ -443,9 +443,11 @@ function ProjectPaper(props: {
     const startPath =
       remembered && tree.files.some((f) => f.path === remembered && !f.isDir)
         ? remembered
-        : tree.files.some((f) => f.path === "README.md")
+        : tree.files.some((f) => f.path === "PRD.md")
+          ? "PRD.md"
+          : tree.files.some((f) => f.path === "README.md")
           ? "README.md"
-          : tree.files.find((f) => !f.isDir)?.path || "README.md";
+          : tree.files.find((f) => !f.isDir)?.path || "PRD.md";
     const file = await api.readFile(id, startPath);
     setCurrentPath(file.path);
     setContent(file.content);
@@ -958,7 +960,7 @@ function ProjectPaper(props: {
                       setImportText("");
                       setShowImport(false);
                       await refreshTree();
-                      await openFile("README.md", true);
+                      await openFile("PRD.md", true);
                       await refreshVersions();
                     })
                     .catch((e) => setError(e instanceof Error ? e.message : "导入失败"));

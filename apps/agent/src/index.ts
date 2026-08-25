@@ -465,7 +465,7 @@ app.put("/v1/requirements/:id/prd", (req, res) => {
   try {
     assertWritable(req.params.id, req.user!, String(req.body?.clientId || "") || undefined);
     const content = String(req.body?.content ?? "");
-    const file = writeDocFile(req.params.id, "README.md", content);
+    const file = writeDocFile(req.params.id, "PRD.md", content);
     res.json({ prd: file.content });
   } catch (err) {
     res.status(statusOf(err, 404)).json({
@@ -592,7 +592,7 @@ app.put("/v1/requirements/:id/files", (req, res) => {
       req.user!,
       String(req.body?.clientId || req.query.clientId || "") || undefined
     );
-    const rel = typeof req.query.path === "string" ? req.query.path : "README.md";
+    const rel = typeof req.query.path === "string" ? req.query.path : "PRD.md";
     const content = String(req.body?.content ?? "");
     const ifMatch = req.header("if-match") || undefined;
     const file = writeDocFile(req.params.id, rel, content, ifMatch);
@@ -633,8 +633,8 @@ app.post("/v1/requirements/:id/versions", (req, res) => {
     const custom = String(req.body?.message || "").trim();
     const files = changedFiles(meta.vaultPath);
     const named =
-      files.find((f) => /(^|\/)README\.md$/i.test(f)) ||
       files.find((f) => /(^|\/)PRD\.md$/i.test(f)) ||
+      files.find((f) => /(^|\/)README\.md$/i.test(f)) ||
       files.find((f) => /(^|\/)调研\.md$/.test(f)) ||
       files.find((f) => f.endsWith(".md") && !f.endsWith("meta.md")) ||
       files[0];
@@ -662,7 +662,7 @@ app.get("/v1/requirements/:id/versions/:sha/files", (req, res) => {
     res.status(404).json({ error: "工程不存在" });
     return;
   }
-  const rel = typeof req.query.path === "string" ? req.query.path : "README.md";
+  const rel = typeof req.query.path === "string" ? req.query.path : "PRD.md";
   const content = readFileAt(meta.vaultPath, req.params.sha, rel);
   if (content === null) {
     res.status(404).json({ error: "这一版里还没有这篇" });
@@ -683,7 +683,7 @@ app.post("/v1/requirements/:id/versions/:sha/restore", (req, res) => {
       req.user!,
       String(req.body?.clientId || "") || undefined
     );
-    const rel = typeof req.body?.path === "string" ? req.body.path : "README.md";
+    const rel = typeof req.body?.path === "string" ? req.body.path : "PRD.md";
     restoreFile(meta.vaultPath, req.params.sha, rel);
     const file = readDocFile(req.params.id, rel);
     res.json({

@@ -369,12 +369,17 @@ export function getRequirementBundle(id: string) {
   const meta = getRequirement(id);
   if (!meta) return null;
   const versions = listVersions(meta.vaultPath, 1);
-  const readme = path.join(meta.vaultPath, "README.md");
   const gaps = path.join(meta.vaultPath, "gaps.md");
   const original = path.join(meta.vaultPath, "import", "original.md");
+  const prdPath = path.join(meta.vaultPath, "PRD.md");
+  const readmePath = path.join(meta.vaultPath, "README.md");
   return {
     requirement: meta,
-    prd: fs.existsSync(readme) ? fs.readFileSync(readme, "utf8") : "",
+    prd: fs.existsSync(prdPath)
+      ? fs.readFileSync(prdPath, "utf8")
+      : fs.existsSync(readmePath)
+        ? fs.readFileSync(readmePath, "utf8")
+        : "",
     gaps: fs.existsSync(gaps) ? fs.readFileSync(gaps, "utf8") : "",
     originalImport: fs.existsSync(original) ? fs.readFileSync(original, "utf8") : null,
     uncommitted: isDirty(meta.vaultPath),
@@ -399,18 +404,13 @@ export function writeVaultMarkdown(id: string, rel: string, content: string): vo
 }
 
 export function readPrdMarkdown(id: string): string {
-  const readme = readVaultMarkdown(id, "README.md");
-  if (readme) return readme;
-  return readVaultMarkdown(id, "PRD.md");
+  const prd = readVaultMarkdown(id, "PRD.md");
+  if (prd) return prd;
+  return readVaultMarkdown(id, "README.md");
 }
 
 export function writePrdMarkdown(id: string, content: string): void {
-  const meta = getRequirement(id);
-  if (!meta) throw new Error("需求不存在");
-  const target = fs.existsSync(path.join(meta.vaultPath, "README.md"))
-    ? "README.md"
-    : "PRD.md";
-  writeVaultMarkdown(id, target, content);
+  writeVaultMarkdown(id, "PRD.md", content);
 }
 
 export function readGapsMarkdown(id: string): string {

@@ -59,7 +59,7 @@ function codeRootsForRun(meta: RequirementMeta, mode: WorkbenchMode, message: st
     mode,
     title: meta.title,
     message,
-    readme: readVaultFile(meta, "README.md"),
+    readme: readVaultFile(meta, "PRD.md"),
     approved,
   });
 }
@@ -139,16 +139,7 @@ function audienceOf(userId: string): { role: AppRole; label: string } {
 function vaultDocInventory(projectId: string): string {
   const files = listDocTree(projectId).filter((f) => !f.isDir);
   const names = new Set(files.map((f) => f.path));
-  const core = [
-    "README.md",
-    "01-背景与目标.md",
-    "02-用户故事.md",
-    "03-交互与体验.md",
-    "04-规格与约束.md",
-    "05-验收.md",
-    "gaps.md",
-    "调研.md",
-  ];
+  const core = ["PRD.md", "gaps.md", "调研.md"];
   const lines = core.map((p) => `- ${p}${names.has(p) ? "（已有）" : "（还没有）"}`);
   const extra = files.filter((f) => !core.includes(f.path)).map((f) => f.path);
   if (extra.length) lines.push(`- 其他：${extra.join("、")}`);
@@ -185,15 +176,15 @@ function systemPrompt(
 
   const modeHint =
     mode === "clarify"
-      ? `档位：检查清晰度。只读文档包（导入路径还要对照 import/original.md）。按检查表标清晰 / 缺失 / 含糊，写入 gaps.md，一次追问 1～3 个问题。人答完写回对应篇，不要只留在对话里。
+      ? `档位：检查清晰度。只读 PRD.md（导入路径还要对照 import/original.md）。按检查表标清晰 / 缺失 / 含糊，写入 gaps.md，一次追问 1～3 个问题。人答完写回 PRD.md 对应章节，不要只留在对话里。
 检查表：背景与用户、目标与非目标、至少 1 条完整用户故事、至少 1 条主流程、入口、规格与 OEM 约束、整包验收。
 「清晰」≠「能开发」。标准是无歧义、可开始设计讨论。占位符、纯「等」「看情况」、用户故事缺验收、主流程有头无尾、规格和故事打架，都不算过。
 全部过关才把 meta.md 的 clarity 改成 ready、phase 改成 ready。没过关不要改成 ready。`
       : mode === "feasibility"
         ? `档位：可行性。只读本轮选中的代码目录，只把结论写进「调研.md」（用了哪些、为什么、已有能力 / 缺口 / 风险 / 建议）。不要改业务代码。发送时若仍有 P0 缺口，必须先问。`
         : mode === "grill"
-          ? `档位：拷问。追问矛盾、缺口、隐含假设。把问题写入 gaps.md。确认过的内容写回 01–05 对应篇。`
-          : `档位：共创。根据对方的话更新文档包对应篇，每次只问 1～3 个关键问题，未决写入 gaps.md。`;
+          ? `档位：拷问。追问矛盾、缺口、隐含假设。把问题写入 gaps.md。确认过的内容写回 PRD.md 对应章节。`
+          : `档位：共创。根据对方的话更新 PRD.md 对应章节，每次只问 1～3 个关键问题，未决写入 gaps.md。`;
 
   return `
 你是 DesignWeave 工作台里的文档助手。这一轮由${audience.label}托付。
@@ -209,12 +200,13 @@ ${codeHint}
 ${vaultDocInventory(meta.id)}
 
 ## 每一轮都是冷启动
-你并没有预先读过这个产品。动手前先 Read / Glob 文档仓，至少覆盖存在的 README.md、01–05、gaps.md、调研.md。
+你并没有预先读过这个产品。动手前先 Read / Glob 文档仓，至少覆盖 PRD.md、gaps.md（若有）、调研.md（若有）。
 若同一主题已经有调研章节或阶段性结论：先写明「已经有什么」，再只补缺口或纠正过时判断，不要整篇重写。
 
 ## 硬规则
 - 禁止修改代码目录里的任何文件。代码目录只用来 Read / Glob / Grep。
-- 只写文档仓：README.md、01–05、gaps.md、调研.md、meta.md、import/ 下的说明。不要再把整包写进单文件 PRD.md。
+- 只写文档仓：PRD.md 是产品经理的主文件；你可创建并维护 gaps.md、调研.md、README.md 等辅助文件，以及 meta.md、import/ 下的说明。
+- 产品经理只改 PRD.md；不要把整包拆成多个 01–05 文件，除非用户明确要求。
 - 进行中就可以把章节落到磁盘；不要等全部写完才第一次 Write。
 - 不要输出「请把下面粘贴到文件」——直接用工具写文件。
 - 问产品问题消歧，不问「要用哪个 Git 仓库」。
@@ -332,10 +324,7 @@ ${selectedDirs.length ? selectedDirs.map((r) => `- \`${r}\``).join("\n") : "- �
     fileWritten(runId, "gaps.md");
     hint(runId, "已把拷问写进 gaps.md");
   } else {
-    const target = fs.existsSync(path.join(meta.vaultPath, "01-背景与目标.md"))
-      ? "01-背景与目标.md"
-      : "README.md";
-    const prdPath = path.join(meta.vaultPath, target);
+    const prdPath = path.join(meta.vaultPath, "PRD.md");
     const prev = fs.existsSync(prdPath) ? fs.readFileSync(prdPath, "utf8") : `# ${meta.title}\n`;
     const extra = `
 ## 共创补充（演示 · ${stamp}）
@@ -345,8 +334,8 @@ ${message}
 （演示模式记下了这句话。接上真实模型后会按章节写入对应篇。）
 `;
     fs.writeFileSync(prdPath, `${prev.trim()}\n${extra}\n`, "utf8");
-    fileWritten(runId, target);
-    hint(runId, `已把这一轮写进 ${target}`);
+    fileWritten(runId, "PRD.md");
+    hint(runId, "已把这一轮写进 PRD.md");
   }
 
   await sleep(300, signal);

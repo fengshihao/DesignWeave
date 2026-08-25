@@ -11,9 +11,9 @@ import {
   writeMetaFile,
   readMetaFile,
 } from "./projectMeta.js";
-import { copyPrdPack, PRD_PACK_FILES } from "./prdPack.js";
+import { copyPrdPack, PRD_FILE, PRD_PACK_FILES } from "./prdPack.js";
 import {
-  assignChunkFile,
+  assignChunkSection,
   normalizeImportedPrd,
   splitMarkdownChunks,
 } from "./importNormalize.js";
@@ -69,7 +69,7 @@ updatedAt: 2026-01-01T00:00:00.000Z
   assert.equal(parsed.clarity, "pending");
 });
 
-test("标准文档包从模板落地，不含 arch/qa，默认 README", () => {
+test("标准文档包从模板落地，只有 PRD.md，不含 arch/qa", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "dw-pack-"));
   try {
     copyPrdPack(dir, {
@@ -85,9 +85,12 @@ test("标准文档包从模板落地，不含 arch/qa，默认 README", () => {
     for (const file of PRD_PACK_FILES) {
       assert.ok(fs.existsSync(path.join(dir, file)), file);
     }
-    const readme = fs.readFileSync(path.join(dir, "README.md"), "utf8");
-    assert.match(readme, /^# 负一屏天气卡片/m);
-    assert.match(fs.readFileSync(path.join(dir, "02-用户故事.md"), "utf8"), /作为：/);
+    const prd = fs.readFileSync(path.join(dir, PRD_FILE), "utf8");
+    assert.match(prd, /^# 负一屏天气卡片/m);
+    assert.match(prd, /## 用户故事/);
+    assert.match(prd, /作为：/);
+    assert.equal(fs.existsSync(path.join(dir, "README.md")), false);
+    assert.equal(fs.existsSync(path.join(dir, "gaps.md")), false);
     assert.equal(fs.existsSync(path.join(dir, "arch")), false);
     assert.equal(fs.existsSync(path.join(dir, "qa")), false);
     assert.equal(fs.existsSync(path.join(dir, "调研.md")), false);
@@ -97,7 +100,7 @@ test("标准文档包从模板落地，不含 arch/qa，默认 README", () => {
   }
 });
 
-test("导入按文档包拆写，对不上的进 gaps，原文进 import/original.md", () => {
+test("导入按章节合并进 PRD.md，对不上的进 gaps，原文进 import/original.md", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "dw-import-"));
   try {
     const original = `# 夜间模式
@@ -122,25 +125,27 @@ test("导入按文档包拆写，对不上的进 gaps，原文进 import/origina
       original,
       createdAt: "2026-08-22T00:00:00.000Z",
     });
+    const prd = fs.readFileSync(path.join(dir, PRD_FILE), "utf8");
     assert.equal(fs.readFileSync(path.join(dir, "import/original.md"), "utf8").includes("供应商内部备忘"), true);
-    assert.match(fs.readFileSync(path.join(dir, "01-背景与目标.md"), "utf8"), /设置页太亮/);
-    assert.match(fs.readFileSync(path.join(dir, "02-用户故事.md"), "utf8"), /一键关灯/);
+    assert.match(prd, /设置页太亮/);
+    assert.match(prd, /一键关灯/);
     assert.match(fs.readFileSync(path.join(dir, "gaps.md"), "utf8"), /完全对不上的附录/);
     assert.equal(result.unmatched.some((c) => c.title.includes("完全对不上")), true);
     assert.match(fs.readFileSync(path.join(dir, "meta.md"), "utf8"), /source: import/);
-    assert.match(fs.readFileSync(path.join(dir, "03-交互与体验.md"), "utf8"), /（待补充/);
+    assert.match(prd, /## 交互与体验/);
+    assert.match(prd, /（待补充/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test("标题分块能对上文档包文件", () => {
-  assert.equal(assignChunkFile("背景与问题"), "01-背景与目标.md");
-  assert.equal(assignChunkFile("US-001 夜间"), "02-用户故事.md");
-  assert.equal(assignChunkFile("入口与信息架构"), "03-交互与体验.md");
-  assert.equal(assignChunkFile("权限与合规"), "04-规格与约束.md");
-  assert.equal(assignChunkFile("发布门槛"), "05-验收.md");
-  assert.equal(assignChunkFile("供应商内部备忘"), null);
+test("标题分块能对上 PRD 章节", () => {
+  assert.equal(assignChunkSection("背景与问题"), "背景与目标");
+  assert.equal(assignChunkSection("US-001 夜间"), "用户故事");
+  assert.equal(assignChunkSection("入口与信息架构"), "交互与体验");
+  assert.equal(assignChunkSection("权限与合规"), "规格与约束");
+  assert.equal(assignChunkSection("发布门槛"), "验收");
+  assert.equal(assignChunkSection("供应商内部备忘"), null);
   assert.equal(splitMarkdownChunks("## 背景\n\nhello").length, 1);
 });
 

@@ -322,12 +322,12 @@ export const api = {
       body: JSON.stringify({ message, clientId }),
     }),
 
-  readVersionFile: (id: string, sha: string, filePath = "README.md") =>
+  readVersionFile: (id: string, sha: string, filePath = "PRD.md") =>
     request<{ path: string; content: string; version: string }>(
       `/v1/requirements/${id}/versions/${sha}/files?path=${encodeURIComponent(filePath)}`
     ),
 
-  restoreFile: (id: string, sha: string, filePath = "README.md", clientId?: string) =>
+  restoreFile: (id: string, sha: string, filePath = "PRD.md", clientId?: string) =>
     request<{ path: string; content: string; uncommitted: boolean; etag?: string }>(
       `/v1/requirements/${id}/versions/${sha}/restore`,
       { method: "POST", body: JSON.stringify({ path: filePath, clientId }) }
