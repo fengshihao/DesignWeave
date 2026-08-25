@@ -26,10 +26,13 @@ test("molan-editor.js 导出 MolanEditor.create", () => {
   assert.match(src, /TYPE_FONTS/);
   assert.match(src, /notoSerif/);
   assert.match(src, /--reader-font/);
+  assert.match(src, /typeFontToggle/);
+  assert.match(src, /fontsOpen/);
+  assert.match(src, /function setTypeFontsOpen/);
   assert.match(src, /data-type-font/);
   assert.match(src, /type-row-fonts/);
   assert.match(src, /function scheduleTypeFontPreviews/);
-  assert.match(src, /afterTypeMenuOpened/);
+  assert.doesNotMatch(src, /function afterTypeMenuOpened/);
   assert.doesNotMatch(src, /TYPE_FONT_ORDER\.forEach\(loadReaderFont\)/);
   assert.doesNotMatch(src, /editModeBtn/);
 });
@@ -49,6 +52,8 @@ test("molan.css 含四主题变量", () => {
   assert.match(css, /--reader-heading/);
   assert.match(css, /\.type-fonts/);
   assert.match(css, /\.type-row-fonts/);
+  assert.match(css, /\.type-font-toggle/);
+  assert.match(css, /\.type-fonts\[hidden\]/);
   {
     const prefsIn = css.match(/@keyframes molan-prefs-in \{[\s\S]*?\n    \}/);
     assert.ok(prefsIn, "extract molan-prefs-in");

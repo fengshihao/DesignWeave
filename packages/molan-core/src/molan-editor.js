@@ -3432,6 +3432,7 @@
 
   const typeState = {
     open: false,
+    fontsOpen: false,
     animToken: 0,
     values: { ...TYPE_DEFAULTS },
   };
@@ -3545,6 +3546,11 @@
     input.style.setProperty("--pct", `${pct}%`);
   }
 
+  function typeFontLabel(id) {
+    const key = TYPE_FONT_I18N[normalizeTypeFont(id)];
+    return key ? t(key) : id;
+  }
+
   function paintTypeFontFaces(box) {
     if (!box) return;
     box.querySelectorAll("[data-type-font]").forEach((btn) => {
@@ -3559,35 +3565,13 @@
     });
   }
 
-  function afterTypeMenuOpened(token, fn) {
-    const menu = document.getElementById("typeMenu");
-    const run = () => {
-      if (token !== typeFontPreviewToken || !typeIsOpen()) return;
-      fn();
-    };
-    if (!menu || prefersReducedMotion()) {
-      run();
-      return;
-    }
-    let done = false;
-    const finish = (e) => {
-      if (e && e.target && e.target !== menu) return;
-      if (done) return;
-      done = true;
-      menu.removeEventListener("animationend", finish);
-      run();
-    };
-    menu.addEventListener("animationend", finish);
-    window.setTimeout(() => finish({ target: menu }), 480);
-  }
-
   function scheduleTypeFontPreviews() {
-    if (isVscodeHost()) return;
+    if (!typeState.fontsOpen || isVscodeHost()) return;
     const token = ++typeFontPreviewToken;
     const ids = TYPE_FONT_ORDER.filter((id) => TYPE_FONTS[id]?.google);
     let i = 0;
     const run = () => {
-      if (token !== typeFontPreviewToken || !typeIsOpen()) return;
+      if (token !== typeFontPreviewToken || !typeIsOpen() || !typeState.fontsOpen) return;
       const id = ids[i++];
       if (!id) return;
       loadReaderFont(id, () => {
@@ -3599,14 +3583,15 @@
       });
     };
     const next = () => {
-      if (token !== typeFontPreviewToken || !typeIsOpen()) return;
-      if (typeof requestIdleCallback === "function") requestIdleCallback(run, { timeout: 1200 });
-      else setTimeout(run, 120);
+      if (token !== typeFontPreviewToken || !typeIsOpen() || !typeState.fontsOpen) return;
+      if (typeof requestIdleCallback === "function") requestIdleCallback(run, { timeout: 400 });
+      else setTimeout(run, 80);
     };
-    afterTypeMenuOpened(token, next);
+    next();
   }
 
   function ensureTypeFontButtons(menu) {
+    if (!typeState.fontsOpen) return;
     const box = menu?.querySelector(".type-fonts");
     if (!box) return;
     const ids = TYPE_FONT_ORDER.filter((id) => Object.prototype.hasOwnProperty.call(TYPE_FONTS, id));
@@ -3621,10 +3606,22 @@
     paintTypeFontFaces(box);
   }
 
+  function setTypeFontsOpen(open) {
+    const next = !!open;
+    if (typeState.fontsOpen === next) {
+      if (next) scheduleTypeFontPreviews();
+      return;
+    }
+    typeState.fontsOpen = next;
+    if (!next) typeFontPreviewToken += 1;
+    paintTypeControls();
+    if (next) scheduleTypeFontPreviews();
+  }
+
   function paintTypeControls() {
     const menu = document.getElementById("typeMenu");
     if (!menu) return;
-    ensureTypeFontButtons(menu);
+    if (typeState.fontsOpen) ensureTypeFontButtons(menu);
     Object.keys(TYPE_RANGES).forEach((key) => {
       const input = menu.querySelector(`[data-type-key="${key}"]`);
       const label = menu.querySelector(`[data-type-val="${key}"]`);
@@ -3635,6 +3632,14 @@
       }
       if (label) label.textContent = formatTypeValue(key, value);
     });
+    const fontLabel = menu.querySelector("[data-type-font-label]");
+    if (fontLabel) fontLabel.textContent = typeFontLabel(typeState.values.font);
+    const toggle = menu.querySelector("#typeFontToggle");
+    if (toggle) toggle.setAttribute("aria-expanded", typeState.fontsOpen ? "true" : "false");
+    const row = menu.querySelector(".type-row-fonts");
+    if (row) row.classList.toggle("is-open", typeState.fontsOpen);
+    const box = menu.querySelector(".type-fonts");
+    if (box) box.hidden = !typeState.fontsOpen;
     menu.querySelectorAll("[data-type-font]").forEach((btn) => {
       btn.setAttribute("aria-checked", btn.getAttribute("data-type-font") === typeState.values.font ? "true" : "false");
     });
@@ -3743,6 +3748,10 @@
     });
     const fonts = menu.querySelector(".type-fonts");
     if (fonts) fonts.setAttribute("aria-label", t("typeFont"));
+    const toggle = menu.querySelector("#typeFontToggle");
+    if (toggle) toggle.setAttribute("aria-label", t("typeFont"));
+    const fontLabel = menu.querySelector("[data-type-font-label]");
+    if (fontLabel) fontLabel.textContent = typeFontLabel(typeState.values.font);
     const reset = menu.querySelector("#typeReset");
     if (reset) reset.textContent = t("typeReset");
   }
@@ -3757,20 +3766,20 @@
     typeState.animToken += 1;
     const already = typeIsOpen();
     typeState.open = true;
+    paintTypeControls();
     menu.hidden = false;
     btn.setAttribute("aria-expanded", "true");
     btn.classList.add("is-on");
-    paintTypeControls();
     if (!already) {
       menu.classList.remove("is-out", "is-open");
       void menu.offsetWidth;
       menu.classList.add("is-open");
     }
-    scheduleTypeFontPreviews();
   }
 
   function closeType() {
     typeFontPreviewToken += 1;
+    typeState.fontsOpen = false;
     const menu = document.getElementById("typeMenu");
     const btn = document.getElementById("typeBtn");
     if (!menu || menu.hidden || menu.classList.contains("is-out")) {
@@ -3853,10 +3862,11 @@
           <input type="range" data-type-key="tracking" min="${TYPE_RANGES.tracking.min}" max="${TYPE_RANGES.tracking.max}" step="${TYPE_RANGES.tracking.step}" />
         </label>
         <div class="type-row type-row-fonts">
-          <span class="type-row-head">
+          <button type="button" class="type-font-toggle" id="typeFontToggle" aria-expanded="false" aria-controls="typeFonts">
             <span data-type-name="font" data-i18n="typeFont">字体</span>
-          </span>
-          <div class="type-fonts" role="radiogroup" aria-label="字体"></div>
+            <span class="type-val" data-type-font-label>跟随主题</span>
+          </button>
+          <div class="type-fonts" id="typeFonts" hidden role="radiogroup" aria-label="字体"></div>
         </div>
         <button type="button" class="type-reset" id="typeReset" data-i18n="typeReset">恢复默认</button>
       `;
@@ -3867,6 +3877,9 @@
           setTypeValue(input.getAttribute("data-type-key"), input.value, false);
         });
         input.addEventListener("change", () => persistType());
+      });
+      menu.querySelector("#typeFontToggle")?.addEventListener("click", () => {
+        setTypeFontsOpen(!typeState.fontsOpen);
       });
       menu.querySelector(".type-fonts")?.addEventListener("click", (e) => {
         const btn = e.target.closest("[data-type-font]");
