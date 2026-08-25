@@ -5582,6 +5582,7 @@
           hint: { delay: 400 },
           toolbar: [
             "bold", "italic", "link",
+            "table",
             "edit-mode", "outline",
           ],
           toolbarConfig: { pin: true, hide: false },

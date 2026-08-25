@@ -61,6 +61,11 @@ fi
 VERSION="$(node -p "require('${EXT_DIR}/package.json').version")"
 echo "==> 墨览 ${VERSION}"
 
+echo "==> 0/4 跑测试（发布前必须通过）"
+pnpm test
+pnpm test:molan
+pnpm --filter molan-markdown check
+
 if command -v git >/dev/null 2>&1 && git -C "${ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   local_ahead="$(git -C "${ROOT}" rev-list --count "@{upstream}..HEAD" 2>/dev/null || echo 0)"
   if [[ "${local_ahead}" != "0" ]]; then

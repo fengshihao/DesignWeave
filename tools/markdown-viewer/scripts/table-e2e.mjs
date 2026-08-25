@@ -104,7 +104,11 @@ const harness = `<!DOCTYPE html>
     }).then((api) => {
       window.__molan = api;
       return api.setValue(["# 表格自测", "", "点这里插入表格。", ""].join("\\n"), true);
-    }).then(() => {
+    }).then(async () => {
+      for (let i = 0; i < 120; i++) {
+        if (document.querySelector(".vditor-toolbar [data-type='table']")) break;
+        await new Promise((r) => setTimeout(r, 100));
+      }
       document.documentElement.dataset.ready = "1";
     }).catch((err) => {
       document.documentElement.dataset.ready = "error";
@@ -169,7 +173,12 @@ async function main() {
     const tablesBefore = await page.evaluate(() => document.querySelectorAll(".vditor-ir table").length);
     assert(tablesBefore === 0, "打开编辑器时还没有表格");
 
-    await page.click(".vditor-toolbar [data-type='table']");
+    await page.evaluate(() => {
+      const btn = document.querySelector(".vditor-toolbar [data-type='table']");
+      if (!btn) throw new Error("table toolbar button missing");
+      btn.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true }));
+      btn.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
     await page.waitForSelector("#molanTablePicker:not([hidden])", { timeout: 5000 });
     await shot("01-picker");
     const tablesAfterClick = await page.evaluate(() => document.querySelectorAll(".vditor-ir table").length);
