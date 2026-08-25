@@ -455,20 +455,22 @@
     }
 
     .prefs-menu.is-open {
-      animation: molan-prefs-in 0.2s var(--ease) both;
+      animation: molan-prefs-in 0.42s var(--ease) both;
     }
 
     .prefs-menu.is-out {
-      animation: molan-prefs-out 0.14s ease both;
+      animation: molan-prefs-out 0.22s ease both;
     }
 
     @keyframes molan-prefs-in {
       from {
         opacity: 0;
-        transform: translateY(-6px) scale(0.98);
+        filter: blur(8px);
+        transform: translateY(-10px) rotate(4deg) scale(0.84);
       }
       to {
         opacity: 1;
+        filter: blur(0);
         transform: none;
       }
     }
@@ -476,11 +478,13 @@
     @keyframes molan-prefs-out {
       from {
         opacity: 1;
+        filter: blur(0);
         transform: none;
       }
       to {
         opacity: 0;
-        transform: translateY(-4px) scale(0.98);
+        filter: blur(5px);
+        transform: translateY(-8px) rotate(3deg) scale(0.9);
       }
     }
 
@@ -1541,6 +1545,7 @@
       background: var(--paper-lift);
       border: 1px solid var(--hairline-strong);
       box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
       color: var(--ink-soft);
       flex-wrap: nowrap;
       max-width: calc(100% - 28px);
@@ -1553,11 +1558,11 @@
     }
 
     .molan-find-bar.is-open {
-      animation: molan-prefs-in 0.2s var(--ease) both;
+      animation: molan-prefs-in 0.42s var(--ease) both;
     }
 
     .molan-find-bar.is-out {
-      animation: molan-prefs-out 0.14s ease both;
+      animation: molan-prefs-out 0.22s ease both;
     }
 
     html[dir="rtl"] .molan-find-bar {
@@ -1736,6 +1741,7 @@
       background: var(--paper-lift);
       border: 1px solid var(--hairline-strong);
       box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
       color: var(--ink-soft);
       transform-origin: 88% 0%;
     }
@@ -1746,11 +1752,11 @@
     }
 
     .type-menu.is-open {
-      animation: molan-prefs-in 0.2s var(--ease) both;
+      animation: molan-prefs-in 0.42s var(--ease) both;
     }
 
     .type-menu.is-out {
-      animation: molan-prefs-out 0.14s ease both;
+      animation: molan-prefs-out 0.22s ease both;
     }
 
     html[dir="rtl"] .type-menu,
@@ -1772,6 +1778,7 @@
       background: var(--paper-lift);
       border: 1px solid var(--hairline-strong);
       box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
       color: var(--ink-soft);
       transform-origin: 88% 0%;
     }
@@ -1782,11 +1789,11 @@
     }
 
     .theme-menu.is-open {
-      animation: molan-prefs-in 0.2s var(--ease) both;
+      animation: molan-prefs-in 0.42s var(--ease) both;
     }
 
     .theme-menu.is-out {
-      animation: molan-prefs-out 0.14s ease both;
+      animation: molan-prefs-out 0.22s ease both;
     }
 
     .theme-menu .type-head {

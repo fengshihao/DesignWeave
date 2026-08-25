@@ -3559,6 +3559,28 @@
     });
   }
 
+  function afterTypeMenuOpened(token, fn) {
+    const menu = document.getElementById("typeMenu");
+    const run = () => {
+      if (token !== typeFontPreviewToken || !typeIsOpen()) return;
+      fn();
+    };
+    if (!menu || prefersReducedMotion()) {
+      run();
+      return;
+    }
+    let done = false;
+    const finish = (e) => {
+      if (e && e.target && e.target !== menu) return;
+      if (done) return;
+      done = true;
+      menu.removeEventListener("animationend", finish);
+      run();
+    };
+    menu.addEventListener("animationend", finish);
+    window.setTimeout(() => finish({ target: menu }), 480);
+  }
+
   function scheduleTypeFontPreviews() {
     if (isVscodeHost()) return;
     const token = ++typeFontPreviewToken;
@@ -3578,10 +3600,10 @@
     };
     const next = () => {
       if (token !== typeFontPreviewToken || !typeIsOpen()) return;
-      if (typeof requestIdleCallback === "function") requestIdleCallback(run, { timeout: 600 });
-      else setTimeout(run, 80);
+      if (typeof requestIdleCallback === "function") requestIdleCallback(run, { timeout: 1200 });
+      else setTimeout(run, 120);
     };
-    next();
+    afterTypeMenuOpened(token, next);
   }
 
   function ensureTypeFontButtons(menu) {
