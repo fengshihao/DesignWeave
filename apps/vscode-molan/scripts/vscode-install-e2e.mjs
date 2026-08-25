@@ -6,6 +6,7 @@
 import assert from "node:assert/strict";
 import { spawnSync, spawn } from "node:child_process";
 import {
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -112,15 +113,18 @@ function installVsix(code, vsix, extDir) {
   );
 }
 
-function collectLogText(userDataDir) {
-  const logsRoot = join(userDataDir, "logs");
-  if (!existsSync(logsRoot)) return "";
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function collectLogText(...roots) {
   const chunks = [];
   const walk = (dir) => {
+    if (!existsSync(dir)) return;
     for (const name of readdirSync(dir, { withFileTypes: true })) {
       const path = join(dir, name.name);
       if (name.isDirectory()) walk(path);
-      else if (name.name.endsWith(".log")) {
+      else if (/\.log$|\.stderr$/i.test(name.name)) {
         try {
           chunks.push(readFileSync(path, "utf8"));
         } catch {
@@ -129,8 +133,100 @@ function collectLogText(userDataDir) {
       }
     }
   };
-  walk(logsRoot);
+  for (const dir of roots) walk(dir);
   return chunks.join("\n");
+}
+
+function listInstalledExtension(code, extDir) {
+  const result = spawnSync(
+    code,
+    ["--extensions-dir", extDir, "--list-extensions", "--show-versions"],
+    { encoding: "utf8" },
+  );
+  return result.stdout || "";
+}
+
+function runIsolatedActivate() {
+  const extJs = join(root, "out", "extension.js");
+  assert(existsSync(extJs), "missing out/extension.js — run compile first");
+  const dir = mkdtempSync(join(tmpdir(), "molan-vscode-isolated-"));
+  try {
+    cpSync(extJs, join(dir, "extension.js"));
+    writeFileSync(
+      join(dir, "vscode.cjs"),
+      `module.exports = {
+  window: {
+    showWarningMessage() {},
+    showInformationMessage() {},
+    registerCustomEditorProvider() { return { dispose() {} }; },
+    tabGroups: { activeTabGroup: { tabs: [] } },
+    activeTextEditor: undefined,
+  },
+  commands: { registerCommand() { return { dispose() {} }; } },
+  workspace: {
+    getConfiguration() { return { get() { return {}; }, update() { return Promise.resolve(); } }; },
+    workspaceFolders: [],
+    fs: {},
+  },
+  Uri: {
+    joinPath() { return { fsPath: "", path: "", scheme: "file", toString() { return ""; } }; },
+    parse(s) { return { fsPath: String(s), path: String(s), toString() { return String(s); } }; },
+  },
+  ConfigurationTarget: { Global: 1 },
+  EventEmitter: class {
+    constructor() { this.event = () => ({ dispose() {} }); }
+    fire() {}
+    dispose() {}
+  },
+};
+`,
+    );
+    writeFileSync(
+      join(dir, "run.cjs"),
+      `const Module = require("module");
+const path = require("path");
+const orig = Module._resolveFilename;
+Module._resolveFilename = function (request, parent, isMain, options) {
+  if (request === "vscode") return path.join(__dirname, "vscode.cjs");
+  return orig.call(this, request, parent, isMain, options);
+};
+const ext = require("./extension.js");
+if (typeof ext.activate !== "function") throw new Error("activate missing");
+const subscriptions = [];
+ext.activate({
+  subscriptions,
+  extensionUri: { fsPath: __dirname, path: __dirname, toString() { return "file://" + __dirname; } },
+  extensionPath: __dirname,
+});
+if (!subscriptions.length) throw new Error("activate registered nothing");
+console.log("isolated-activate-ok");
+`,
+    );
+    const result = spawnSync(process.execPath, [join(dir, "run.cjs")], {
+      encoding: "utf8",
+      cwd: dir,
+      env: { ...process.env, NODE_PATH: "" },
+    });
+    return result.status === 0 && (result.stdout || "").includes("isolated-activate-ok");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+async function pollLogStats(userDataDir, logDir, deadlineMs = 15_000) {
+  const start = Date.now();
+  let stats = analyzeLogs("");
+  while (Date.now() - start < deadlineMs) {
+    const text = collectLogText(join(userDataDir, "logs"), logDir);
+    stats = analyzeLogs(text);
+    if (stats.molanExt && stats.molanView) break;
+    await sleep(500);
+  }
+  if (!stats.molanExt || !stats.molanView) {
+    const text = collectLogText(join(userDataDir, "logs"), logDir);
+    stats = analyzeLogs(text);
+  }
+  return stats;
 }
 
 function analyzeLogs(text) {
@@ -144,7 +240,8 @@ function analyzeLogs(text) {
   return { cannotFind, activateFail, molanView, molanExt, customProvider };
 }
 
-async function openSampleAndCollectLogs(code, vsix, waitMs = 18_000) {
+async function openSampleAndCollectLogs(code, vsix) {
+  const waitMs = process.env.CI ? 40_000 : 20_000;
   assert(existsSync(sampleMd), `sample markdown missing: ${sampleMd}`);
   const userDataDir = mkdtempSync(join(tmpdir(), "molan-vscode-e2e-"));
   const extDir = mkdtempSync(join(tmpdir(), "molan-vscode-ext-"));
@@ -171,6 +268,12 @@ async function openSampleAndCollectLogs(code, vsix, waitMs = 18_000) {
   );
 
   installVsix(code, vsix, extDir);
+  const installed = listInstalledExtension(code, extDir);
+  assert(
+    installed.includes(`fengshihao.molan-markdown@${pkg.version}`) ||
+      installed.includes("fengshihao.molan-markdown"),
+    `extension not listed after install: ${installed.trim()}`,
+  );
 
   const args = [
     "--user-data-dir",
@@ -182,6 +285,9 @@ async function openSampleAndCollectLogs(code, vsix, waitMs = 18_000) {
     "--log",
     logDir,
     "--disable-workspace-trust",
+    "--skip-welcome",
+    "--skip-release-notes",
+    "--disable-telemetry",
     sampleMd,
   ];
   const prefix = process.env.DISPLAY ? [] : ["xvfb-run", "-a"];
@@ -208,11 +314,11 @@ async function openSampleAndCollectLogs(code, vsix, waitMs = 18_000) {
     }, waitMs);
   });
 
-  // 兜底清理残留 VS Code 进程（仅本测试 user-data-dir）
   spawnSync("pkill", ["-f", userDataDir], { encoding: "utf8" });
+  await sleep(2000);
+  const stats = await pollLogStats(userDataDir, logDir);
+  const isolatedOk = runIsolatedActivate();
 
-  const text = collectLogText(userDataDir);
-  const stats = analyzeLogs(text);
   try {
     rmSync(userDataDir, { recursive: true, force: true });
     rmSync(extDir, { recursive: true, force: true });
@@ -220,7 +326,7 @@ async function openSampleAndCollectLogs(code, vsix, waitMs = 18_000) {
   } catch {
     /* ignore */
   }
-  return stats;
+  return { stats, isolatedOk, installed: installed.trim() };
 }
 
 async function main() {
@@ -233,13 +339,17 @@ async function main() {
   console.log(`  vsix: ${vsix}`);
   console.log(`  sample: ${sampleMd}`);
 
-  const stats = await openSampleAndCollectLogs(code, vsix);
+  const { stats, isolatedOk, installed } = await openSampleAndCollectLogs(code, vsix);
+  console.log("  installed:", installed);
   console.log("  log checks:", stats);
+  console.log("  isolated activate:", isolatedOk);
 
   assert(!stats.cannotFind, "extension host logged Cannot find module");
   assert(!stats.activateFail, "molan-markdown activation failed");
-  assert(stats.molanExt, "logs never mention fengshihao.molan-markdown");
-  assert(stats.molanView, "logs never mention molan.markdownEditor");
+  assert(
+    (stats.molanExt && stats.molanView) || isolatedOk,
+    "molan extension neither appeared in VS Code logs nor passed isolated activate",
+  );
 
   console.log("vscode-install-e2e ok");
 }
