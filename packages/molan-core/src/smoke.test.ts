@@ -86,6 +86,11 @@ test("复制流程图前会去掉会污染 canvas 的 foreignObject", () => {
   assert.match(src, /async function copySvgAsPng/);
   assert.match(src, /svgToPngBlob,/);
   assert.match(src, /clone\.querySelectorAll\("foreignObject, script"\)/);
+  assert.match(src, /function bakeCssCustomProperties/);
+  assert.match(src, /function inlineComputedSvgStyles/);
+  assert.match(src, /function insertDiagramBackground/);
+  assert.match(src, /actorLineColor/);
+  assert.match(src, /ctx\.fillStyle = diagramBackgroundColor\(\)/);
 });
 
 test("文本复制有 clipboard API 降级和流程图源码回退", () => {

@@ -254,6 +254,82 @@ async function main() {
     await sleep(250);
     const theme = await page.evaluate(() => document.documentElement.getAttribute("data-theme"));
     assert(theme === "hack", `切换终端主题，实际 data-theme=${theme}`);
+
+    await page.evaluate(async () => {
+      await window.__molan.setValue(
+        "# 时序\n\n```mermaid\nsequenceDiagram\n  participant U as 用户\n  participant S as 服务\n  U->>S: 请求\n  alt 失败\n    S-->>U: 错误\n  else 成功\n    S-->>U: 完成\n  end\n```\n",
+        true,
+      );
+    });
+    await page.waitForSelector(".language-mermaid svg", { timeout: 25000 });
+    await sleep(700);
+    const themeCopy = await page.evaluate(async () => {
+      const svg = document.querySelector(".language-mermaid svg");
+      if (!svg) return { ok: false, error: "no svg" };
+      const sample = svg.querySelector("rect.actor, .actor-line, line, rect");
+      let liveStroke = "";
+      let liveFill = "";
+      try {
+        if (sample) {
+          const cs = getComputedStyle(sample);
+          liveStroke = cs.stroke || "";
+          liveFill = cs.fill || "";
+        }
+      } catch (_) { /* ignore */ }
+      const blob = await window.MolanEditor.svgToPngBlob(svg);
+      const bitmap = await createImageBitmap(blob);
+      const canvas = document.createElement("canvas");
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(bitmap, 0, 0);
+      const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const parseRgb = (value) => {
+        const m = String(value).match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i);
+        return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+      };
+      const near = (pixel, target, tol) => (
+        Math.abs(pixel[0] - target[0]) <= tol
+        && Math.abs(pixel[1] - target[1]) <= tol
+        && Math.abs(pixel[2] - target[2]) <= tol
+      );
+      let greenish = 0;
+      let mermaidBlue = 0;
+      let white = 0;
+      let matchedLive = 0;
+      const liveColors = [parseRgb(liveStroke), parseRgb(liveFill)].filter(Boolean);
+      const mermaidDarkBlue = [129, 177, 219];
+      for (let i = 0; i < data.length; i += 16) {
+        const px = [data[i], data[i + 1], data[i + 2]];
+        const a = data[i + 3];
+        if (a < 128) continue;
+        if (px[1] > px[0] + 18 && px[1] > px[2] + 8 && px[1] > 70) greenish += 1;
+        if (near(px, mermaidDarkBlue, 22) && px[2] > px[0] + 30) mermaidBlue += 1;
+        if (px[0] > 240 && px[1] > 240 && px[2] > 240) white += 1;
+        if (liveColors.some((c) => near(px, c, 28))) matchedLive += 1;
+      }
+      return {
+        ok: true,
+        size: blob.size,
+        liveStroke,
+        liveFill,
+        greenish,
+        mermaidBlue,
+        white,
+        matchedLive,
+        samples: data.length / 16,
+      };
+    });
+    assert(themeCopy.ok, `终端主题时序图应能导出 PNG，实际 ${themeCopy.error || ""}`);
+    assert(themeCopy.size > 100, `终端主题 PNG 不应为空，实际 ${themeCopy.size} bytes`);
+    assert(
+      themeCopy.greenish > themeCopy.mermaidBlue,
+      `复制图应保留终端绿而不是 Mermaid 默认蓝，greenish=${themeCopy.greenish} mermaidBlue=${themeCopy.mermaidBlue} stroke=${themeCopy.liveStroke}`,
+    );
+    assert(
+      themeCopy.matchedLive > 8 || themeCopy.greenish > 8,
+      `复制图应出现页面上的主题色，matchedLive=${themeCopy.matchedLive} greenish=${themeCopy.greenish} white=${themeCopy.white}`,
+    );
   } catch (err) {
     failures.push(err.stack || String(err));
   } finally {

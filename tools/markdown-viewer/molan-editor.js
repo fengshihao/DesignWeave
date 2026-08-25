@@ -214,11 +214,32 @@
     }
   }
 
+  function diagramPaperColors() {
+    const paper = cssVar("--paper", "#f4efe6");
+    return {
+      paper,
+      paperDeep: cssVar("--paper-deep", "#ebe4d6"),
+      paperLift: cssVar("--paper-lift", "#ffffff"),
+      ink: cssVar("--ink", "#1c1914"),
+      inkSoft: cssVar("--ink-soft", "#6b5e4e"),
+      accent: cssVar("--accent", "#d4773b"),
+      onAccent: cssVar("--on-accent", "#fff8f1"),
+      tableBg: cssVar("--table-bg", "#ffffff"),
+      diagramCard: cssVar("--diagram-card", paper),
+      danger: cssVar("--danger", "#c45c4a"),
+    };
+  }
+
+  function diagramBackgroundColor() {
+    return diagramPaperColors().diagramCard;
+  }
+
   function getMermaidOpts() {
     const inlineReader = document.documentElement.style.getPropertyValue("--reader-font").trim();
     const font = (inlineReader || cssVar("--font-ui", '"DM Sans", sans-serif')).replace(/"/g, "");
     const themeName = document.documentElement.getAttribute("data-theme") || "night";
     const dark = themeName === "night" || themeName === "hack";
+    const c = diagramPaperColors();
     return {
       startOnLoad: false,
       theme: dark ? "dark" : "base",
@@ -226,19 +247,38 @@
       flowchart: { htmlLabels: true, useMaxWidth: true },
       themeVariables: {
         darkMode: dark,
-        primaryColor: cssVar("--paper", "#f4efe6"),
-        primaryTextColor: cssVar("--ink", "#1c1914"),
-        primaryBorderColor: cssVar("--accent", "#d4773b"),
-        lineColor: cssVar("--ink-soft", "#6b5e4e"),
-        secondaryColor: cssVar("--paper-deep", "#ebe4d6"),
-        tertiaryColor: cssVar("--table-bg", "#ffffff"),
-        background: cssVar("--paper-lift", "#ffffff"),
-        mainBkg: cssVar("--paper", "#f4efe6"),
-        nodeBorder: cssVar("--accent", "#d4773b"),
-        clusterBkg: cssVar("--paper-deep", "#ebe4d6"),
-        titleColor: cssVar("--ink", "#1c1914"),
-        edgeLabelBackground: cssVar("--paper-lift", "#faf7f1"),
+        primaryColor: c.paper,
+        primaryTextColor: c.ink,
+        primaryBorderColor: c.accent,
+        lineColor: c.inkSoft,
+        secondaryColor: c.paperDeep,
+        tertiaryColor: c.tableBg,
+        background: c.diagramCard,
+        mainBkg: c.paper,
+        nodeBorder: c.accent,
+        clusterBkg: c.paperDeep,
+        titleColor: c.ink,
+        textColor: c.ink,
+        edgeLabelBackground: c.paperLift,
         fontFamily: font,
+        actorBkg: c.paperDeep,
+        actorBorder: c.accent,
+        actorTextColor: c.ink,
+        actorLineColor: c.accent,
+        signalColor: c.inkSoft,
+        signalTextColor: c.ink,
+        labelBoxBkgColor: c.paperDeep,
+        labelBoxBorderColor: c.accent,
+        labelTextColor: c.ink,
+        loopTextColor: c.ink,
+        noteBkgColor: c.paperLift,
+        noteTextColor: c.ink,
+        noteBorderColor: c.accent,
+        activationBkgColor: c.paperLift,
+        activationBorderColor: c.accent,
+        sequenceNumberColor: c.onAccent,
+        errorBkgColor: c.danger,
+        errorTextColor: c.ink,
       },
       themeCSS: `
         /* molan-theme:${themeName} */
@@ -825,6 +865,115 @@
     });
   }
 
+  function collectCssCustomProperties(el, into) {
+    if (!el) return;
+    try {
+      const cs = getComputedStyle(el);
+      for (const name of cs) {
+        if (!name.startsWith("--")) continue;
+        const value = cs.getPropertyValue(name).trim();
+        if (value) into.set(name, value);
+      }
+    } catch (_) { /* ignore */ }
+  }
+
+  function bakeCssCustomProperties(liveSvg, cloneSvg) {
+    const vars = new Map();
+    collectCssCustomProperties(document.documentElement, vars);
+    collectCssCustomProperties(document.body, vars);
+    let node = liveSvg;
+    while (node && node !== document.documentElement) {
+      collectCssCustomProperties(node, vars);
+      node = node.parentElement;
+    }
+    for (const [name, value] of vars) {
+      cloneSvg.style.setProperty(name, value);
+    }
+  }
+
+  function resolveCssVarsInText(css, cloneSvg) {
+    return String(css || "").replace(/var\(\s*(--[\w-]+)\s*(?:,\s*((?:[^()]+|\([^()]*\))*))?\)/g, (match, name, fallback) => {
+      const baked = cloneSvg.style.getPropertyValue(name).trim();
+      if (baked) return baked;
+      const fromDoc = cssVar(name, "");
+      if (fromDoc) return fromDoc;
+      const fb = String(fallback || "").trim();
+      return fb || match;
+    });
+  }
+
+  function resolveCssVarsInClone(cloneSvg) {
+    cloneSvg.querySelectorAll("style").forEach((style) => {
+      style.textContent = resolveCssVarsInText(style.textContent, cloneSvg);
+    });
+    cloneSvg.querySelectorAll("[style]").forEach((el) => {
+      const next = resolveCssVarsInText(el.getAttribute("style"), cloneSvg);
+      if (next) el.setAttribute("style", next);
+      else el.removeAttribute("style");
+    });
+  }
+
+  const SVG_PAINT_TAGS = new Set([
+    "rect", "circle", "ellipse", "polygon", "polyline", "path", "line",
+    "text", "tspan", "textpath", "use",
+  ]);
+  const SVG_PAINT_PROPS = [
+    "fill", "stroke", "stroke-width", "stroke-dasharray", "stroke-linecap", "stroke-linejoin",
+    "stroke-miterlimit", "stroke-opacity", "fill-opacity", "opacity", "color",
+    "font-family", "font-size", "font-weight", "font-style",
+    "text-anchor", "dominant-baseline", "alignment-baseline", "letter-spacing",
+    "paint-order", "vector-effect",
+  ];
+
+  function inlineComputedSvgStyles(liveRoot, cloneRoot) {
+    const liveEls = [liveRoot, ...liveRoot.querySelectorAll("*")];
+    const cloneEls = [cloneRoot, ...cloneRoot.querySelectorAll("*")];
+    const limit = Math.min(liveEls.length, cloneEls.length);
+    for (let i = 0; i < limit; i++) {
+      const live = liveEls[i];
+      const clone = cloneEls[i];
+      const tag = (live.tagName || "").toLowerCase();
+      if (!clone || tag === "style" || tag === "script" || tag === "defs") continue;
+      let cs;
+      try { cs = getComputedStyle(live); } catch (_) { continue; }
+      const paint = SVG_PAINT_TAGS.has(tag);
+      if (paint) {
+        for (const prop of SVG_PAINT_PROPS) {
+          const value = cs.getPropertyValue(prop);
+          if (!value || value === "auto") continue;
+          clone.style.setProperty(prop, value);
+        }
+      } else {
+        const fontFamily = cs.getPropertyValue("font-family");
+        const fontSize = cs.getPropertyValue("font-size");
+        if (fontFamily) clone.style.setProperty("font-family", fontFamily);
+        if (fontSize) clone.style.setProperty("font-size", fontSize);
+      }
+      const vis = cs.getPropertyValue("visibility");
+      if (vis === "hidden") clone.style.setProperty("visibility", "hidden");
+      const display = cs.getPropertyValue("display");
+      if (display === "none") clone.style.setProperty("display", "none");
+    }
+  }
+
+  function insertDiagramBackground(cloneSvg) {
+    const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    bg.setAttribute("class", "molan-diagram-bg");
+    bg.setAttribute("x", "0");
+    bg.setAttribute("y", "0");
+    bg.setAttribute("width", "100%");
+    bg.setAttribute("height", "100%");
+    bg.setAttribute("fill", diagramBackgroundColor());
+    const kids = Array.from(cloneSvg.childNodes);
+    const firstGraphic = kids.find((n) => {
+      if (n.nodeType !== 1) return false;
+      const tag = n.tagName.toLowerCase();
+      return tag !== "style" && tag !== "defs" && tag !== "title" && tag !== "desc" && tag !== "metadata";
+    });
+    if (firstGraphic) cloneSvg.insertBefore(bg, firstGraphic);
+    else cloneSvg.appendChild(bg);
+  }
+
   function svgImageHref(el) {
     return el.getAttribute("href")
       || el.getAttributeNS?.("http://www.w3.org/1999/xlink", "href")
@@ -853,6 +1002,7 @@
   }
 
   // Chrome 把带 foreignObject / 跨域资源的 SVG 画进 canvas 后会污染画布，toBlob 直接抛 SecurityError。
+  // 独立 SVG 不会继承页面主题变量，复制前要把计算色和 CSS 变量烘焙进去，否则会掉回 Mermaid 默认暗色。
   async function sanitizeSvgForCanvas(svg) {
     const clone = svg.cloneNode(true);
     clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
@@ -866,10 +1016,14 @@
     clone.style.width = `${size.width}px`;
     clone.style.height = `${size.height}px`;
     clone.style.maxWidth = "none";
+    bakeCssCustomProperties(svg, clone);
+    inlineComputedSvgStyles(svg, clone);
+    resolveCssVarsInClone(clone);
     const liveFos = svg.querySelectorAll("foreignObject");
     const cloneFos = clone.querySelectorAll("foreignObject");
     cloneFos.forEach((fo, i) => replaceForeignObjectWithText(liveFos[i] || fo, fo));
     clone.querySelectorAll("foreignObject, script").forEach((el) => el.remove());
+    insertDiagramBackground(clone);
     stripTaintingCss(clone);
     await inlineSvgImages(clone);
     const serialized = new XMLSerializer().serializeToString(clone);
@@ -919,7 +1073,7 @@
     canvas.height = Math.max(1, Math.floor(h * scale));
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("canvas 2d unavailable");
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = diagramBackgroundColor();
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     return canvasToPngBlob(canvas);
