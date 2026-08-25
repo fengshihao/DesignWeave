@@ -23,12 +23,42 @@ const repoRoot = join(root, "..", "..");
 const sampleMd = join(repoRoot, "tools", "markdown-viewer", "demo", "实例演示.md");
 const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 
-function latestVsix() {
-  const files = readdirSync(root)
+function listVsix() {
+  return readdirSync(root)
     .filter((name) => name.startsWith("molan-markdown-") && name.endsWith(".vsix"))
     .map((name) => join(root, name))
     .sort((a, b) => b.localeCompare(a));
-  assert(files.length, "missing molan-markdown-*.vsix — run pnpm --filter molan-markdown package");
+}
+
+function packageVsix() {
+  console.log("vscode-install-e2e: 未找到 .vsix，正在打包…");
+  const result = spawnSync(
+    "npx",
+    [
+      "--yes",
+      "@vscode/vsce",
+      "package",
+      "--no-dependencies",
+      "--baseContentUrl",
+      "https://github.com/fengshihao/DesignWeave/blob/main/apps/vscode-molan",
+      "--baseImagesUrl",
+      "https://molan.guoyoutech.cn",
+    ],
+    { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+  );
+  assert(
+    result.status === 0,
+    `vsce package failed: ${result.stderr || result.stdout || result.status}`,
+  );
+}
+
+function latestVsix() {
+  let files = listVsix();
+  if (!files.length) {
+    packageVsix();
+    files = listVsix();
+  }
+  assert(files.length, "missing molan-markdown-*.vsix after package");
   return files[0];
 }
 
