@@ -7,6 +7,7 @@ import { createRequire } from "node:module";
 import { mkdirSync, readdirSync, unlinkSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { ensureZod } from "./ensure-deps.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = join(root, "..", "..");
@@ -28,25 +29,8 @@ function loadEsbuild() {
   throw new Error("找不到 esbuild。请先在仓库根目录 pnpm install");
 }
 
-function resolveZod() {
-  const probes = [
-    join(root, "package.json"),
-    join(repoRoot, "packages", "molan-protocol", "package.json"),
-    join(repoRoot, "packages", "molan-host", "package.json"),
-    join(repoRoot, "package.json"),
-  ];
-  for (const pkg of probes) {
-    try {
-      return createRequire(pkg).resolve("zod");
-    } catch {
-      /* try next */
-    }
-  }
-  throw new Error("找不到 zod。请在仓库根目录运行 pnpm install 后再编译墨览扩展");
-}
-
 const esbuild = loadEsbuild();
-const zodEntry = resolveZod();
+const zodEntry = ensureZod();
 mkdirSync(join(root, "out"), { recursive: true });
 
 const options = {

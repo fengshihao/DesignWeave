@@ -150,10 +150,10 @@
   "scripts": {
     "sync-media": "node ./scripts/sync-media.mjs",
     "bundle": "node ./scripts/bundle.mjs",
-    "compile": "pnpm --filter @designweave/molan-protocol build && pnpm --filter @designweave/molan-core build && pnpm --filter @designweave/molan-host build && node ./scripts/sync-media.mjs && tsc -p ./ --noEmit && node ./scripts/bundle.mjs",
+    "compile": "node ./scripts/ensure-deps.mjs && pnpm --filter @designweave/molan-protocol build && pnpm --filter @designweave/molan-core build && pnpm --filter @designweave/molan-host build && node ./scripts/sync-media.mjs && tsc -p ./ --noEmit && node ./scripts/bundle.mjs",
     "watch": "node ./scripts/bundle.mjs --watch",
     "typecheck": "tsc -p ./ --noEmit",
-    "check": "pnpm compile && node ./scripts/check.mjs",
+    "check": "pnpm compile && node ./scripts/check.mjs && node ./scripts/zod-compile.test.mjs",
     "package": "pnpm compile && npx --yes @vscode/vsce package --no-dependencies --baseContentUrl https://github.com/fengshihao/DesignWeave/blob/main/apps/vscode-molan --baseImagesUrl https://molan.guoyoutech.cn",
     "publish": "pnpm compile && npx --yes @vscode/vsce publish --no-dependencies --baseContentUrl https://github.com/fengshihao/DesignWeave/blob/main/apps/vscode-molan --baseImagesUrl https://molan.guoyoutech.cn"
   },
