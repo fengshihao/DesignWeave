@@ -3608,6 +3608,10 @@
 
     .lightbox.open { display: flex; }
 
+    .lightbox.is-preparing .lightbox-stage {
+      visibility: hidden;
+    }
+
     .lightbox-panel {
       position: relative;
       width: min(96vw, 1400px);
@@ -3683,6 +3687,8 @@
       margin: 0;
       user-select: none;
       pointer-events: none;
+      shape-rendering: geometricPrecision;
+      text-rendering: geometricPrecision;
     }
 
     .vditor-counter {
@@ -4211,10 +4217,12 @@
       will-change: transform;
     }
     .molan-mermaid-editor-preview svg {
-      max-width: 100%;
-      max-height: 100%;
+      max-width: none;
+      max-height: none;
       height: auto;
       pointer-events: none;
+      shape-rendering: geometricPrecision;
+      text-rendering: geometricPrecision;
     }
     .molan-mermaid-editor-preview:has(svg) {
       cursor: grab;

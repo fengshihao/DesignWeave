@@ -464,6 +464,79 @@
       .catch(() => {});
   }
 
+  function svgNaturalSize(svg) {
+    const vb = svg?.viewBox?.baseVal;
+    if (vb && vb.width > 0 && vb.height > 0) {
+      return { width: vb.width, height: vb.height };
+    }
+    const rawW = svg?.getAttribute?.("width") || "";
+    const rawH = svg?.getAttribute?.("height") || "";
+    const w = parseFloat(rawW);
+    const h = parseFloat(rawH);
+    if (Number.isFinite(w) && w > 0 && Number.isFinite(h) && h > 0 && !/%/.test(rawW) && !/%/.test(rawH)) {
+      return { width: w, height: h };
+    }
+    try {
+      const box = svg.getBBox();
+      if (box.width > 0 && box.height > 0) {
+        return { width: box.width, height: box.height };
+      }
+    } catch (_) { /* ignore */ }
+    const rect = svg.getBoundingClientRect();
+    return {
+      width: rect.width > 0 ? rect.width : 1,
+      height: rect.height > 0 ? rect.height : 1,
+    };
+  }
+
+  function ensureSvgViewBox(svg, natural) {
+    if (!svg.getAttribute("viewBox") && natural.width > 0 && natural.height > 0) {
+      svg.setAttribute("viewBox", `0 0 ${natural.width} ${natural.height}`);
+    }
+  }
+
+  function storeSvgNaturalSize(svg, natural) {
+    svg.dataset.molanNaturalW = String(natural.width);
+    svg.dataset.molanNaturalH = String(natural.height);
+  }
+
+  function readSvgNaturalSize(svg) {
+    const w = parseFloat(svg.dataset.molanNaturalW || "");
+    const h = parseFloat(svg.dataset.molanNaturalH || "");
+    if (Number.isFinite(w) && w > 0 && Number.isFinite(h) && h > 0) {
+      return { width: w, height: h };
+    }
+    return svgNaturalSize(svg);
+  }
+
+  function setSvgDisplaySize(svg, width, height) {
+    svg.setAttribute("width", String(width));
+    svg.setAttribute("height", String(height));
+    svg.style.width = `${width}px`;
+    svg.style.height = `${height}px`;
+    svg.style.maxWidth = "none";
+    svg.style.maxHeight = "none";
+  }
+
+  function computeSvgFitDisplay(natural, maxW, maxH, insetFactor = 0.94) {
+    const fit = Math.min(maxW / natural.width, maxH / natural.height, 1) * insetFactor;
+    return {
+      width: Math.max(1, natural.width * fit),
+      height: Math.max(1, natural.height * fit),
+    };
+  }
+
+  function fitSvgToBox(svg, boxWidth, boxHeight, inset = 40) {
+    const natural = svgNaturalSize(svg);
+    ensureSvgViewBox(svg, natural);
+    storeSvgNaturalSize(svg, natural);
+    const maxW = Math.max(80, boxWidth - inset * 2);
+    const maxH = Math.max(80, boxHeight - inset * 2);
+    const display = computeSvgFitDisplay(readSvgNaturalSize(svg), maxW, maxH);
+    setSvgDisplaySize(svg, display.width, display.height);
+    return display;
+  }
+
   function initLightbox() {
     const lightbox = document.getElementById("lightbox");
     const lightboxStage = document.getElementById("lightboxStage");
@@ -484,7 +557,7 @@
       };
     }
 
-    let lightboxScale = 1;
+    let lightboxUserScale = 1;
     let lightboxPanX = 0;
     let lightboxPanY = 0;
     let lightboxDragging = false;
@@ -497,10 +570,10 @@
     }
 
     function closeLightbox() {
-      lightbox.classList.remove("open");
+      lightbox.classList.remove("open", "is-preparing");
       lightbox.setAttribute("aria-hidden", "true");
       lightboxCanvas.innerHTML = "";
-      lightboxScale = 1;
+      lightboxUserScale = 1;
       lightboxPanX = 0;
       lightboxPanY = 0;
       lightboxDragging = false;
@@ -512,62 +585,28 @@
 
     function applyLightboxTransform() {
       lightboxCanvas.style.transform =
-        `translate(${lightboxPanX}px, ${lightboxPanY}px) scale(${lightboxScale})`;
-    }
-
-    function lightboxSvgNaturalSize(svg) {
-      const vb = svg.viewBox?.baseVal;
-      if (vb && vb.width > 0 && vb.height > 0) {
-        return { width: vb.width, height: vb.height };
-      }
-      const w = parseFloat(svg.getAttribute("width"));
-      const h = parseFloat(svg.getAttribute("height"));
-      if (Number.isFinite(w) && w > 0 && Number.isFinite(h) && h > 0) {
-        return { width: w, height: h };
-      }
-      try {
-        const box = svg.getBBox();
-        if (box.width > 0 && box.height > 0) {
-          return { width: box.width, height: box.height };
-        }
-      } catch (_) { /* ignore */ }
-      const rect = svg.getBoundingClientRect();
-      return {
-        width: rect.width > 0 ? rect.width : 1,
-        height: rect.height > 0 ? rect.height : 1,
-      };
+        `translate(${lightboxPanX}px, ${lightboxPanY}px) scale(${lightboxUserScale})`;
     }
 
     function prepareLightboxSvg(clone) {
       clone.removeAttribute("style");
-      const natural = lightboxSvgNaturalSize(clone);
-      clone.setAttribute("width", String(natural.width));
-      clone.setAttribute("height", String(natural.height));
-      clone.style.width = `${natural.width}px`;
-      clone.style.height = `${natural.height}px`;
-      clone.style.maxWidth = "none";
+      const natural = svgNaturalSize(clone);
+      ensureSvgViewBox(clone, natural);
+      storeSvgNaturalSize(clone, natural);
     }
 
     function fitLightboxView() {
       const svg = lightboxCanvas.querySelector("svg");
       if (!svg) {
-        lightboxScale = 1;
+        lightboxUserScale = 1;
         lightboxPanX = 0;
         lightboxPanY = 0;
         applyLightboxTransform();
         return;
       }
-      lightboxScale = 1;
-      lightboxPanX = 0;
-      lightboxPanY = 0;
-      applyLightboxTransform();
       const stage = lightboxStage.getBoundingClientRect();
-      const inset = 40;
-      const maxW = Math.max(120, stage.width - inset * 2);
-      const maxH = Math.max(120, stage.height - inset * 2);
-      const natural = lightboxSvgNaturalSize(svg);
-      const fit = Math.min(maxW / natural.width, maxH / natural.height, 1) * 0.94;
-      lightboxScale = Math.max(0.35, Math.min(fit, 1));
+      fitSvgToBox(svg, stage.width, stage.height);
+      lightboxUserScale = 1;
       lightboxPanX = 0;
       lightboxPanY = 0;
       applyLightboxTransform();
@@ -589,9 +628,11 @@
       const clone = svg.cloneNode(true);
       prepareLightboxSvg(clone);
       lightboxCanvas.appendChild(clone);
-      lightbox.classList.add("open");
+      lightbox.classList.add("open", "is-preparing");
       lightbox.setAttribute("aria-hidden", "false");
-      requestAnimationFrame(() => requestAnimationFrame(fitLightboxView));
+      void lightboxStage.offsetHeight;
+      fitLightboxView();
+      lightbox.classList.remove("is-preparing");
     }
 
     if (!lightboxBound) {
@@ -601,11 +642,11 @@
         if (e.target === lightbox) closeLightbox();
       });
       lightboxZoomIn?.addEventListener("click", () => {
-        lightboxScale = Math.min(lightboxScale + 0.25, 5);
+        lightboxUserScale = Math.min(lightboxUserScale + 0.25, 5);
         applyLightboxTransform();
       });
       lightboxZoomOut?.addEventListener("click", () => {
-        lightboxScale = Math.max(lightboxScale - 0.25, 0.35);
+        lightboxUserScale = Math.max(lightboxUserScale - 0.25, 0.35);
         applyLightboxTransform();
       });
       lightboxEdit?.addEventListener("click", () => {
@@ -651,14 +692,14 @@
         if (!lightbox.classList.contains("open")) return;
         e.preventDefault();
         const delta = e.deltaY > 0 ? -0.12 : 0.12;
-        const next = Math.min(5, Math.max(0.35, lightboxScale + delta));
+        const next = Math.min(5, Math.max(0.35, lightboxUserScale + delta));
         const rect = lightboxStage.getBoundingClientRect();
         const cx = e.clientX - rect.left - rect.width / 2;
         const cy = e.clientY - rect.top - rect.height / 2;
-        const ratio = next / lightboxScale;
+        const ratio = next / lightboxUserScale;
         lightboxPanX = cx - (cx - lightboxPanX) * ratio;
         lightboxPanY = cy - (cy - lightboxPanY) * ratio;
-        lightboxScale = next;
+        lightboxUserScale = next;
         applyLightboxTransform();
       }, { passive: false });
 
@@ -4094,6 +4135,12 @@
       };
 
       const resetPreviewView = () => {
+        const canvas = preview.querySelector(".molan-mermaid-editor-preview-canvas");
+        const svg = canvas?.querySelector("svg");
+        if (svg) {
+          const rect = preview.getBoundingClientRect();
+          fitSvgToBox(svg, rect.width, rect.height, 24);
+        }
         previewScale = 1;
         previewPanX = 0;
         previewPanY = 0;
@@ -4147,6 +4194,7 @@
           if (seq !== previewSeq) return;
           preview.classList.remove("is-error");
           preview.innerHTML = `<div class="molan-mermaid-editor-preview-canvas">${svg}</div>`;
+          void preview.offsetHeight;
           resetPreviewView();
         } catch (err) {
           if (seq !== previewSeq) return;
