@@ -12,10 +12,12 @@ declare global {
       create(options: Record<string, unknown>): Promise<EditorApi>;
       toast(msg: string): void;
       countWords(text: string): number;
+      copyText?(text: string): Promise<void>;
       find?: { open(): void; next(): void; prev(): void };
     };
     __MOLAN_VDITOR_CDN__?: string;
     __MOLAN_LINK_BASE__?: string;
+    __molanHostCopyText?: (text: string) => Promise<void>;
   }
   function acquireVsCodeApi(): { postMessage(msg: unknown): void };
 }
@@ -24,6 +26,9 @@ function bootVscodeBridge() {
   const vscode = acquireVsCodeApi();
   const toast = (msg: string) => window.MolanEditor.toast(msg);
   const countWords = (text: string) => window.MolanEditor.countWords(text);
+  window.__molanHostCopyText = async (text) => {
+    vscode.postMessage({ type: "copyText", value: text });
+  };
 
   let editorReady: Promise<EditorApi> | null = null;
 
@@ -79,7 +84,9 @@ function bootVscodeBridge() {
   document.getElementById("copyBtn")?.addEventListener("click", async () => {
     if (!bridge.editorApi) return;
     try {
-      await navigator.clipboard.writeText(bridge.editorApi.getValue());
+      const copy = window.MolanEditor.copyText;
+      if (typeof copy === "function") await copy(bridge.editorApi.getValue());
+      else await navigator.clipboard.writeText(bridge.editorApi.getValue());
       const copyBtn = document.getElementById("copyBtn");
       copyBtn?.classList.remove("is-pulse");
       void copyBtn?.offsetWidth;

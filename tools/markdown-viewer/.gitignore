@@ -4,3 +4,5 @@ deploy/
 vendor/
 .table-e2e.html
 .table-e2e-shots/
+.editor-e2e.html
+.buttons-e2e.html

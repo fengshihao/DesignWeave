@@ -80,6 +80,7 @@ export const FrameToHostMessageSchema = z.discriminatedUnion("type", [
   }),
   z.object({ type: z.literal("openRelative"), value: z.string() }),
   z.object({ type: z.literal("openExternal"), value: z.string() }),
+  z.object({ type: z.literal("copyText"), value: z.string() }),
 ]);
 export type FrameToHostMessage = z.infer<typeof FrameToHostMessageSchema>;
 

@@ -1644,7 +1644,9 @@
   copyBtn.addEventListener("click", async () => {
     if (!editorApi) return;
     try {
-      await navigator.clipboard.writeText(editorApi.getValue());
+      const copy = window.MolanEditor?.copyText;
+      if (typeof copy === "function") await copy(editorApi.getValue());
+      else await navigator.clipboard.writeText(editorApi.getValue());
       replayMotion(copyBtn, "is-pulse");
       toast(t("copiedMd"));
     } catch {

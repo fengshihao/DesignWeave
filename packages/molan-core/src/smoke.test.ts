@@ -87,3 +87,16 @@ test("复制流程图前会去掉会污染 canvas 的 foreignObject", () => {
   assert.match(src, /svgToPngBlob,/);
   assert.match(src, /clone\.querySelectorAll\("foreignObject, script"\)/);
 });
+
+test("文本复制有 clipboard API 降级和流程图源码回退", () => {
+  const src = readFileSync(join(root, "src", "molan-editor.js"), "utf8");
+  assert.match(src, /function copyTextToClipboard/);
+  assert.match(src, /document\.execCommand\("copy"\)/);
+  assert.match(src, /__molanHostCopyText/);
+  assert.match(src, /function mermaidCopySource/);
+  assert.match(src, /mermaidCopySource\(shell, getVditor\)/);
+  assert.match(src, /function bindPreviewCodeCopy/);
+  assert.match(src, /vditor-copy/);
+  assert.match(src, /copyText: copyTextToClipboard/);
+  assert.match(src, /mermaidCopySource,/);
+});

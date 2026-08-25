@@ -139,6 +139,10 @@ export class MolanEditorProvider implements vscode.CustomEditorProvider<MolanDoc
       }
       if (msg.type === "openExternal") {
         await vscode.env.openExternal(vscode.Uri.parse(msg.value));
+        return;
+      }
+      if (msg.type === "copyText") {
+        await vscode.env.clipboard.writeText(msg.value);
       }
     });
 

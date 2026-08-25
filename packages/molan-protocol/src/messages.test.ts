@@ -63,4 +63,5 @@ test("parseHostToFrameMessage / parseFrameToHostMessage 安全解析", () => {
   assert.equal(parseHostToFrameMessage({ type: "find" })?.type, "find");
   assert.equal(parseFrameToHostMessage({ type: "theme", theme: "hack" })?.theme, "hack");
   assert.equal(parseFrameToHostMessage({ type: "theme", theme: "bad" }), null);
+  assert.equal(parseFrameToHostMessage({ type: "copyText", value: "abc" })?.type, "copyText");
 });

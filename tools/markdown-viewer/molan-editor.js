@@ -101,6 +101,7 @@
       mermaidSnippetSequence: "时序图",
       mermaidSnippetClass: "类图",
       copyFail: "复制失败",
+      copiedCode: "已复制代码",
       zoomIn: "放大",
       zoomOut: "缩小",
       find: "查找",
@@ -890,20 +891,93 @@
     }
     try {
       const blob = await svgToPngBlob(svg);
-      if (navigator.clipboard && global.ClipboardItem) {
-        await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-        toast(t("copiedDiagramImage"));
-      } else {
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = "diagram.png";
-        a.click();
-        toast(t("copyImageFallback"));
-      }
+      try {
+        if (navigator.clipboard && global.ClipboardItem) {
+          await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+          toast(t("copiedDiagramImage"));
+          return;
+        }
+      } catch (_) { /* 无剪贴板权限时改为下载 */ }
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "diagram.png";
+      a.click();
+      toast(t("copyImageFallback"));
     } catch (err) {
       console.warn(err);
       toast(t("copyImageFail"));
     }
+  }
+
+  async function copyTextToClipboard(text) {
+    const value = String(text ?? "");
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      try {
+        await navigator.clipboard.writeText(value);
+        return;
+      } catch (_) { /* 无权限或非安全上下文时走降级 */ }
+    }
+    const ta = document.createElement("textarea");
+    ta.value = value;
+    ta.setAttribute("readonly", "");
+    ta.setAttribute("aria-hidden", "true");
+    ta.style.cssText = "position:fixed;left:-9999px;top:0;opacity:0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch (_) { /* ignore */ }
+    ta.remove();
+    if (ok) return;
+    if (typeof global.__molanHostCopyText === "function") {
+      await global.__molanHostCopyText(value);
+      return;
+    }
+    throw new Error("clipboard unavailable");
+  }
+
+  function bindPreviewCodeCopy() {
+    if (document.documentElement.dataset.molanCodeCopy === "1") return;
+    document.documentElement.dataset.molanCodeCopy = "1";
+    document.addEventListener("click", async (e) => {
+      const hit = e.target.closest?.(".vditor-copy");
+      if (!hit) return;
+      if (hit.closest(".language-mermaid, .molan-mermaid-shell, .molan-diagram-toolbar")) return;
+      const pre = hit.closest("pre");
+      const code = pre?.querySelector("code");
+      const text = (code?.textContent || "").replace(/\n$/, "");
+      if (!text) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      try {
+        await copyTextToClipboard(text);
+        toast(t("copiedCode"));
+      } catch (err) {
+        console.warn(err);
+        toast(t("copyFail"));
+      }
+    }, true);
+  }
+
+  function mermaidCopySource(shell, getVditor) {
+    let text = getMermaidSourceNear(shell);
+    if (text) return text;
+    const vditor = typeof getVditor === "function" ? getVditor() : null;
+    if (vditor && typeof vditor.getValue === "function") {
+      try {
+        const sources = extractMermaidSources(vditor.getValue());
+        if (sources.length) {
+          const idx = getMermaidShellIndex(shell);
+          return sources[idx] || sources[0] || "";
+        }
+      } catch (_) { /* ignore */ }
+    }
+    const fromMd = mermaidSourcesFromMarkdown();
+    if (fromMd.length) {
+      const idx = getMermaidShellIndex(shell);
+      return fromMd[idx] || fromMd[0] || "";
+    }
+    return "";
   }
 
   function getMermaidSourceNear(previewEl) {
@@ -1043,7 +1117,7 @@
     });
   }
 
-  function watchMermaidIrExpand(vditorRoot, ctx, lightbox) {
+  function watchMermaidIrExpand(vditorRoot, ctx, lightbox, getVditor) {
     const ir = vditorRoot?.querySelector?.(".vditor-ir");
     if (!ir || ir.dataset.molanMermaidExpandGuard) return;
     ir.dataset.molanMermaidExpandGuard = "1";
@@ -1057,14 +1131,14 @@
         node.classList.remove("vditor-ir__node--hidden");
         if (document.getElementById("molanMermaidEditor")) continue;
         const shell = node.querySelector(".vditor-ir__preview") || node;
-        openMermaidEditorFromShell(shell, ctx, lightbox, vditorRoot);
+        openMermaidEditorFromShell(shell, ctx, lightbox, vditorRoot, getVditor);
       }
     });
     observer.observe(ir, { attributes: true, subtree: true, attributeFilter: ["class"] });
   }
 
-  function openMermaidEditorFromShell(shell, ctx, lightbox, vditorRoot) {
-    const source = getMermaidSourceNear(shell);
+  function openMermaidEditorFromShell(shell, ctx, lightbox, vditorRoot, getVditor) {
+    const source = mermaidCopySource(shell, getVditor);
     if (!source) {
       toast(t("noMermaidSource"));
       return;
@@ -2482,9 +2556,9 @@
         toast(t("noMermaidSource"));
         return;
       }
-      openMermaidEditorFromShell(shell, ctx, lightbox, vditorRoot);
+      openMermaidEditorFromShell(shell, ctx, lightbox, vditorRoot, getVditor);
     });
-    watchMermaidIrExpand(vditorRoot, ctx, lightbox);
+    watchMermaidIrExpand(vditorRoot, ctx, lightbox, getVditor);
 
     const blockMermaidIrExpand = (e) => {
       if (e.target.closest("[data-molan-action]")) return;
@@ -2512,7 +2586,7 @@
           lightbox.openFromSvg(shell.querySelector("svg"));
           return;
         }
-        openMermaidEditorFromShell(shell, ctx, lightbox, vditorRoot);
+        openMermaidEditorFromShell(shell, ctx, lightbox, vditorRoot, getVditor);
       }
     };
     vditorRoot.addEventListener("mousedown", blockMermaidPreviewExpand, true);
@@ -2528,7 +2602,7 @@
       const shell = btn.closest(".vditor-ir__preview, pre, .language-mermaid");
       const svg = shell?.querySelector("svg");
       if (action === "edit") {
-        openMermaidEditorFromShell(shell, ctx, lightbox, vditorRoot);
+        openMermaidEditorFromShell(shell, ctx, lightbox, vditorRoot, getVditor);
         return;
       }
       if (action === "zoom") {
@@ -2540,20 +2614,16 @@
         return;
       }
       if (action === "copy-code") {
-        let text = getMermaidSourceNear(shell);
-        const vditor = getVditor();
-        if (!text && vditor) {
-          const m = vditor.getValue().match(/```mermaid\s*([\s\S]*?)```/i);
-          text = m ? m[1].trim() : "";
-        }
+        const text = mermaidCopySource(shell, getVditor);
         if (!text) {
           toast(t("noMermaidSource"));
           return;
         }
         try {
-          await navigator.clipboard.writeText(text);
+          await copyTextToClipboard(text);
           toast(t("copiedMermaidCode"));
-        } catch {
+        } catch (err) {
+          console.warn(err);
           toast(t("copyFail"));
         }
       }
@@ -5369,6 +5439,7 @@
       return markdown;
     });
     bindMermaidInteractions(previewRoot, () => vditor, lightbox, mermaidBridge);
+    bindPreviewCodeCopy();
     watchMermaidPreviews(previewRoot);
     watchTables(previewRoot);
     initFind();
@@ -5540,7 +5611,7 @@
           },
           after: () => {
             applyMermaidTheme();
-            watchMermaidIrExpand(vditorRoot, mermaidBridge, lightbox);
+            watchMermaidIrExpand(vditorRoot, mermaidBridge, lightbox, () => vditor);
             watchMermaidPreviews(previewRoot);
             watchTables(vditorRoot);
             bindTableInsertPicker(vditorRoot, () => vditor);
@@ -6330,6 +6401,8 @@
     buildTableMarkdown,
     svgToPngBlob,
     copySvgAsPng,
+    copyText: copyTextToClipboard,
+    mermaidCopySource,
     find: {
       open: openFind,
       close: closeFind,

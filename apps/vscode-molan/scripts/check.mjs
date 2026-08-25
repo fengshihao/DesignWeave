@@ -72,10 +72,10 @@ assert(html.indexOf('id="molanFindBtn"') < html.indexOf('id="copyBtn"'), "find c
 assert(html.indexOf('id="copyBtn"') < html.indexOf('id="pdfBtn"'), "copy comes before export pdf");
 assert(html.includes("./vendor/vditor/dist/method.min.js"), "html loads local method.min.js");
 assert(html.includes("./vendor/vditor/dist/js/lute/lute.min.js"), "html preloads local lute");
-assert(html.includes("molan-editor.js?v=20260824a"), "studio html cache-busts table editor");
+assert(html.includes("molan-editor.js?v=20260825b"), "studio html cache-busts table editor");
 assert(html.includes("molan.css?v=20260822pg"), "studio html cache-busts table css");
-assert(html.includes("molan-i18n.js?v=20260822pg"), "studio html cache-busts table i18n");
-assert(html.includes("molan-app.js?v=20260822pg"), "studio html cache-busts studio app");
+assert(html.includes("molan-i18n.js?v=20260825b"), "studio html cache-busts table i18n");
+assert(html.includes("molan-app.js?v=20260825b"), "studio html cache-busts studio app");
 assert(html.includes('id="exportMenu"'), "studio has export menu");
 assert(html.includes('data-export="png"'), "studio can export a png");
 assert(!html.includes("cdn.jsdelivr.net"), "html must not load vditor from jsdelivr");
@@ -190,12 +190,16 @@ assert(editorSource.includes("scheduleMermaidThemeRefresh"), "theme switch re-re
 assert(editorSource.includes("onThemeChange"), "theme switch notifies editor to restyle mermaid");
 assert(editorSource.includes("stampMermaidSources"), "preview stamps mermaid source before Vditor wipes it");
 assert(editorSource.includes("preloadLute"), "preloads lute before preview");
-assert(!editorSource.includes("cdn.jsdelivr.net"), "editor must not default to jsdelivr");
+assert(editorSource.includes("function copyTextToClipboard"), "text copy falls back when clipboard API is blocked");
+assert(editorSource.includes("function mermaidCopySource"), "mermaid copy-code can recover source in preview");
+assert(editorSource.includes("function bindPreviewCodeCopy"), "code fence copy uses the same clipboard fallback");
+assert(editorSource.includes("mermaidCopySource(shell, getVditor)"), "mermaid edit recovers source the same way as copy-code");
 
 const bridge = readFileSync(join(root, "media/vscode-bridge.js"), "utf8");
 assert(bridge.includes("await api.setPreview(true)"), "defaults to preview on init");
 assert(bridge.includes("value !== baseline"), "ignores Vditor setValue round-trip");
 assert(bridge.includes("openRelative"), "webview opens relative markdown links");
+assert(bridge.includes("copyText"), "webview asks the extension host to write clipboard as fallback");
 assert(!bridge.includes("pickImage"), "webview does not ask host to pick a local image");
 
 const readme = readFileSync(join(root, "README.md"), "utf8");

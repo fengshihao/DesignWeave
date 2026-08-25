@@ -7,6 +7,7 @@ declare global {
       create(options: Record<string, unknown>): Promise<EditorApi>;
       toast(msg: string): void;
       countWords(text: string): number;
+      copyText?(text: string): Promise<void>;
     };
     __MOLAN_VDITOR_CDN__?: string;
     __MOLAN_LINK_BASE__?: string;
@@ -106,7 +107,9 @@ export function mountInlineHost(root: HTMLElement, callbacks: InlineHostCallback
   const onCopy = async () => {
     if (!bridge.editorApi) return;
     try {
-      await navigator.clipboard.writeText(bridge.editorApi.getValue());
+      const copy = window.MolanEditor.copyText;
+      if (typeof copy === "function") await copy(bridge.editorApi.getValue());
+      else await navigator.clipboard.writeText(bridge.editorApi.getValue());
       const copyBtn = queryInRoot(root, "copyBtn");
       copyBtn?.classList.remove("is-pulse");
       void copyBtn?.offsetWidth;
