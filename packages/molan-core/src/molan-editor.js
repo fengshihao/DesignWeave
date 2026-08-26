@@ -172,6 +172,7 @@
       viewSource: "查看原文",
       sourceTitle: "原文",
       sourceReadonly: "只读",
+      sourceEditable: "可直接编辑 Markdown",
       sourceClose: "关闭原文",
       outlineAria: "大纲",
       outlineCloseAria: "收起大纲",
@@ -1942,20 +1943,35 @@
     return String(text || "").replace(/[`*_~]/g, "").replace(/\s+/g, " ").trim();
   }
 
-  function jumpTextareaToLine(textarea, lineIndex) {
+  function textareaLineMetrics(textarea) {
+    const cs = getComputedStyle(textarea);
+    const lh = parseFloat(cs.lineHeight);
+    const lineHeight = Number.isFinite(lh) && lh > 0 ? lh : (parseFloat(cs.fontSize) || 14) * 1.65;
+    const pad = parseFloat(cs.paddingTop) || 0;
+    return { lineHeight, pad };
+  }
+
+  function jumpTextareaToLine(textarea, lineIndex, viewportOffset) {
     if (!textarea || lineIndex == null || lineIndex < 0) return;
     const value = textarea.value;
     const lines = value.split("\n");
     let pos = 0;
     for (let i = 0; i < lineIndex && i < lines.length; i++) pos += lines[i].length + 1;
     const end = pos + (lines[lineIndex]?.length ?? 0);
-    const cs = getComputedStyle(textarea);
-    const lh = parseFloat(cs.lineHeight);
-    const lineHeight = Number.isFinite(lh) && lh > 0 ? lh : (parseFloat(cs.fontSize) || 14) * 1.65;
-    const pad = parseFloat(cs.paddingTop) || 0;
+    const { lineHeight, pad } = textareaLineMetrics(textarea);
+    const offset = typeof viewportOffset === "number"
+      ? viewportOffset
+      : textarea.clientHeight * 0.28;
     textarea.focus({ preventScroll: true });
     textarea.setSelectionRange(pos, end);
-    textarea.scrollTop = Math.max(0, pad + lineIndex * lineHeight - textarea.clientHeight * 0.28);
+    textarea.scrollTop = Math.max(0, pad + lineIndex * lineHeight - offset);
+  }
+
+  function scrollTextareaToRatio(textarea, ratio) {
+    if (!textarea || typeof ratio !== "number") return;
+    const max = Math.max(0, textarea.scrollHeight - textarea.clientHeight);
+    textarea.focus({ preventScroll: true });
+    textarea.scrollTop = Math.max(0, Math.min(max, max * ratio));
   }
 
   function scrollSourceToHeading(index, title) {
@@ -1972,10 +1988,229 @@
     jumpTextareaToLine(text, hit.line);
   }
 
+  function mdBlockPlainText(text) {
+    return String(text || "")
+      .split("\n")
+      .map((line) => line
+        .replace(/^ {0,3}#{1,6}\s+/, "")
+        .replace(/^ {0,3}([-*+]|\d+[.)])\s+(\[[ xX]\]\s+)?/, "")
+        .replace(/^ {0,3}>\s?/, "")
+        .replace(/[`*_~]/g, "")
+        .trim())
+      .filter(Boolean)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function estimateLineFromRatio(md, ratio) {
+    const lines = String(md || "").split("\n");
+    if (!lines.length) return 0;
+    return Math.round((ratio || 0) * Math.max(0, lines.length - 1));
+  }
+
+  function findMdBlockNearIndex(blocks, key, hintIdx) {
+    if (!blocks.length || !key) return null;
+    const needle = key.slice(0, 48);
+    const order = [];
+    for (let d = 0; d < blocks.length; d += 1) {
+      if (hintIdx - d >= 0) order.push(hintIdx - d);
+      if (d > 0 && hintIdx + d < blocks.length) order.push(hintIdx + d);
+    }
+    for (const i of order) {
+      const plain = mdBlockPlainText(blocks[i].text);
+      if (plain === key) return blocks[i];
+      if (plain && (plain.includes(needle) || key.includes(plain.slice(0, 48)))) return blocks[i];
+    }
+    return null;
+  }
+
+  function findSourceLineByText(md, anchorText, hintLine = 0) {
+    const key = String(anchorText || "").trim();
+    if (!key) return null;
+    const lines = String(md || "").split("\n");
+    const needle = key.slice(0, 48);
+    const order = [];
+    for (let d = 0; d < lines.length; d += 1) {
+      if (hintLine - d >= 0) order.push(hintLine - d);
+      if (d > 0 && hintLine + d < lines.length) order.push(hintLine + d);
+    }
+    for (const i of order) {
+      const plain = mdBlockPlainText(lines[i]);
+      if (plain === key) return i;
+    }
+    for (const i of order) {
+      const plain = mdBlockPlainText(lines[i]);
+      if (plain && (plain.includes(needle) || key.includes(plain.slice(0, 48)))) return i;
+    }
+    return null;
+  }
+
+  function captureSourceReadingSpot() {
+    const { text } = sourceEls();
+    if (!text) return null;
+    const max = Math.max(0, text.scrollHeight - text.clientHeight);
+    const ratio = readingScrollRatio(text);
+    const viewOffset = text.clientHeight * 0.08;
+    const { lineHeight, pad } = textareaLineMetrics(text);
+    const lineIdx = Math.max(0, Math.floor((text.scrollTop - pad + viewOffset) / lineHeight));
+    const md = text.value;
+    const blocks = splitMdBlocks(md);
+    let anchorText = "";
+    let index;
+    for (let i = 0; i < blocks.length; i += 1) {
+      if (lineIdx >= blocks[i].start && lineIdx < blocks[i].end) {
+        anchorText = mdBlockPlainText(blocks[i].text);
+        index = i;
+        break;
+      }
+    }
+    if (!anchorText) {
+      const lines = md.split("\n");
+      anchorText = mdBlockPlainText(lines[lineIdx] || "");
+    }
+    return {
+      text: anchorText,
+      index,
+      probeOffset: viewOffset,
+      offset: viewOffset,
+      scrollerHeight: text.clientHeight,
+      ratio,
+      scrollTop: text.scrollTop,
+      scrollHeight: text.scrollHeight,
+    };
+  }
+
+  function scaledReadingProbeOffset(spot, viewportHeight) {
+    const fallback = viewportHeight * 0.08;
+    if (!spot) return fallback;
+    const raw = typeof spot.probeOffset === "number"
+      ? spot.probeOffset
+      : (typeof spot.offset === "number" ? spot.offset : fallback);
+    if (raw < 0 || raw > viewportHeight * 0.45) return fallback;
+    const fromHeight = spot.scrollerHeight || viewportHeight;
+    return fromHeight > 0 ? raw * (viewportHeight / fromHeight) : fallback;
+  }
+
+  function readingScrollRatio(scroller) {
+    if (!scroller) return 0;
+    const max = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+    if (max <= 0) return 0;
+    return scroller.scrollTop / max;
+  }
+
+  function scrollTopFromSpot(spot, scroller) {
+    if (!spot || !scroller) return null;
+    const max = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+    const ratio = typeof spot.ratio === "number" ? spot.ratio : 0;
+    if (max <= 0) return ratio > 0.005 ? null : 0;
+    if (ratio >= 0 && ratio <= 1) {
+      return Math.max(0, Math.min(max, max * ratio));
+    }
+    if (typeof spot.scrollTop === "number" && spot.scrollHeight > 0) {
+      const scale = scroller.scrollHeight / spot.scrollHeight;
+      return Math.max(0, Math.min(max, spot.scrollTop * scale));
+    }
+    return 0;
+  }
+
+  function keepPreviewFromSourceSpot(spot) {
+    if (!spot) return;
+    const apply = () => {
+      const scroller = readingScroller(true);
+      if (!scroller) return false;
+      const top = scrollTopFromSpot(spot, scroller);
+      if (top == null) return false;
+      scroller.scrollTop = top;
+      return true;
+    };
+    apply();
+    requestAnimationFrame(() => {
+      apply();
+      requestAnimationFrame(apply);
+    });
+    [0, 50, 120, 240, 480, 720].forEach((ms) => window.setTimeout(apply, ms));
+  }
+
+  function scrollSourceToSpot(spot) {
+    const { text } = sourceEls();
+    if (!text || !spot) return;
+    const max = Math.max(0, text.scrollHeight - text.clientHeight);
+    const ratioScroll = max * (spot.ratio || 0);
+    const probeOffset = scaledReadingProbeOffset(spot, text.clientHeight);
+    const md = text.value;
+    const line = estimateLineFromRatio(md, spot.ratio);
+    const { lineHeight, pad } = textareaLineMetrics(text);
+    const lineScroll = Math.max(0, pad + line * lineHeight - probeOffset);
+    let target = Math.abs(lineScroll - ratioScroll) <= text.clientHeight * 0.18
+      ? lineScroll
+      : ratioScroll;
+    const drift = (spot.ratio || 0) * text.clientHeight * 0.028;
+    target = Math.max(0, target - drift);
+    text.focus({ preventScroll: true });
+    text.scrollTop = Math.max(0, Math.min(max, target));
+    const lines = md.split("\n");
+    let pos = 0;
+    for (let i = 0; i < line && i < lines.length; i += 1) pos += lines[i].length + 1;
+    const end = pos + (lines[line]?.length ?? 0);
+    try { text.setSelectionRange(pos, end); } catch (_) { /* ignore */ }
+  }
+
+  function keepSourceReadingSpot(spot) {
+    if (!spot) {
+      const { text } = sourceEls();
+      requestAnimationFrame(() => {
+        try { text?.focus({ preventScroll: true }); } catch (_) { /* ignore */ }
+      });
+      return;
+    }
+    const run = () => scrollSourceToSpot(spot);
+    requestAnimationFrame(() => {
+      run();
+      window.setTimeout(run, 120);
+    });
+  }
+
   let outlineAnimToken = 0;
   let outlineCtx = null;
   let sourceCtx = null;
   let sourceOpen = false;
+  let sourceInputTimer = 0;
+
+  function sourceIsEditable() {
+    return !document.body.classList.contains("is-readonly");
+  }
+
+  function paintSourceEditability() {
+    const { text, hint } = sourceEls();
+    const editable = sourceIsEditable();
+    if (text) {
+      if (editable) text.removeAttribute("readonly");
+      else text.setAttribute("readonly", "");
+    }
+    if (hint) hint.textContent = t(editable ? "sourceEditable" : "sourceReadonly");
+  }
+
+  function commitSourceFromTextarea() {
+    if (!sourceOpen) return;
+    const { text } = sourceEls();
+    if (!text) return;
+    try { sourceCtx?.applyMarkdown?.(text.value, { live: false }); } catch (_) { /* ignore */ }
+  }
+
+  function handleSourceInput() {
+    if (!sourceOpen || !sourceIsEditable()) return;
+    const { text } = sourceEls();
+    if (!text) return;
+    window.clearTimeout(sourceInputTimer);
+    sourceInputTimer = window.setTimeout(() => {
+      if (!sourceOpen) return;
+      try {
+        sourceCtx?.applyMarkdown?.(text.value, { live: true });
+        sourceCtx?.notifyInput?.();
+      } catch (_) { /* ignore */ }
+    }, 220);
+  }
 
   function sourceEls() {
     return {
@@ -1990,19 +2225,19 @@
   }
 
   function applySourceViewI18n() {
-    const { btn, title, hint, close, panel } = sourceEls();
+    const { btn, title, close, panel } = sourceEls();
     const label = t("viewSource");
     if (btn) {
       btn.title = label;
       btn.setAttribute("aria-label", label);
     }
     if (title) title.textContent = t("sourceTitle");
-    if (hint) hint.textContent = t("sourceReadonly");
     if (close) {
       close.title = t("sourceClose");
       close.setAttribute("aria-label", t("sourceClose"));
     }
     if (panel) panel.setAttribute("aria-label", t("sourceTitle"));
+    paintSourceEditability();
   }
 
   function paintSourceBtn(open) {
@@ -2016,6 +2251,7 @@
     if (!text) return;
     const md = sourceCtx?.getMarkdown?.() ?? "";
     if (text.value !== md) text.value = md;
+    paintSourceEditability();
   }
 
   function ensureSourcePanel() {
@@ -2036,10 +2272,15 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
           </button>
         </div>
-        <textarea id="molanSourceText" readonly spellcheck="false" autocomplete="off"></textarea>
+        <textarea id="molanSourceText" spellcheck="false" autocomplete="off"></textarea>
       `;
       editorWrap.appendChild(panel);
       panel.querySelector("#molanSourceClose")?.addEventListener("click", () => closeSourceView());
+    }
+    const sourceText = panel.querySelector("#molanSourceText");
+    if (sourceText && !sourceText.dataset.bound) {
+      sourceText.dataset.bound = "1";
+      sourceText.addEventListener("input", handleSourceInput);
     }
     return panel;
   }
@@ -2051,25 +2292,33 @@
     const panel = ensureSourcePanel();
     const editorWrap = document.getElementById("editorWrap") || document.querySelector(".editor-wrap");
     if (!panel) return;
+    const previewing = sourceCtx?.getPreviewing?.() ?? false;
+    const spot = captureReadingSpot(previewing);
     fillSourceText();
     applySourceViewI18n();
     panel.hidden = false;
     sourceOpen = true;
     editorWrap?.classList.add("is-source-open");
     paintSourceBtn(true);
-    const { text } = sourceEls();
-    requestAnimationFrame(() => {
-      try { text?.focus({ preventScroll: true }); } catch (_) { /* ignore */ }
-    });
+    keepSourceReadingSpot(spot);
   }
 
-  function closeSourceView() {
+  function closeSourceView(opts = {}) {
+    const restorePreview = opts.restorePreview !== false;
+    const previewing = sourceCtx?.getPreviewing?.() ?? false;
+    let spot = null;
+    if (sourceOpen) commitSourceFromTextarea();
+    if (sourceOpen && previewing && restorePreview) {
+      spot = captureSourceReadingSpot();
+    }
     const { panel } = sourceEls();
     const editorWrap = document.getElementById("editorWrap") || document.querySelector(".editor-wrap");
     sourceOpen = false;
+    window.clearTimeout(sourceInputTimer);
     if (panel) panel.hidden = true;
     editorWrap?.classList.remove("is-source-open");
     paintSourceBtn(false);
+    if (spot) keepPreviewFromSourceSpot(spot);
   }
 
   function toggleSourceView() {
@@ -4634,6 +4883,24 @@
     return blocks;
   }
 
+  function findSourceLineForSpot(md, spot) {
+    if (!spot) return null;
+    const blocks = splitMdBlocks(md);
+    if (!blocks.length) return estimateLineFromRatio(md, spot.ratio);
+    const hintIdx = Number.isInteger(spot.index) && spot.index >= 0
+      ? Math.min(spot.index, blocks.length - 1)
+      : Math.round((spot.ratio || 0) * Math.max(0, blocks.length - 1));
+    const key = String(spot.text || "").trim();
+    if (key) {
+      const hit = findMdBlockNearIndex(blocks, key, hintIdx);
+      if (hit) return hit.start;
+      const lineHit = findSourceLineByText(md, key, estimateLineFromRatio(md, spot.ratio));
+      if (lineHit != null) return lineHit;
+    }
+    if (blocks[hintIdx]) return blocks[hintIdx].start;
+    return estimateLineFromRatio(md, spot.ratio);
+  }
+
   function isEmptyMdBlock(text) {
     return !String(text || "").replace(/[\u200b\s]/g, "");
   }
@@ -4752,13 +5019,14 @@
         break;
       }
     }
-    const max = Math.max(1, scroller.scrollHeight - scroller.clientHeight);
-    const rect = hit?.getBoundingClientRect();
+    const probeOffset = y - box.top;
     return {
       text: blockText(hit),
       index: index < 0 ? undefined : index,
-      offset: rect ? rect.top - box.top : 16,
-      ratio: scroller.scrollTop / max,
+      probeOffset,
+      offset: probeOffset,
+      scrollerHeight: box.height,
+      ratio: readingScrollRatio(scroller),
       scrollTop: scroller.scrollTop,
       scrollHeight: scroller.scrollHeight,
     };
@@ -4769,6 +5037,11 @@
     const root = readingContentRoot(previewing);
     const scroller = readingScroller(previewing);
     if (!root || !scroller) return;
+    if (opts.preferRatio) {
+      const top = scrollTopFromSpot(spot, scroller);
+      if (top != null) scroller.scrollTop = top;
+      return;
+    }
     const blocks = topLevelBlocks(root);
     const el = findBlockByText(blocks, spot.text)
       || (Number.isInteger(spot.index) ? blocks[spot.index] : null);
@@ -4781,8 +5054,8 @@
     } else if (typeof spot.scrollTop === "number" && Math.abs((scroller.scrollHeight / Math.max(1, spot.scrollHeight || 0)) - 1) < 0.08) {
       scroller.scrollTop = spot.scrollTop;
     } else {
-      const max = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
-      scroller.scrollTop = max * (spot.ratio || 0);
+      const top = scrollTopFromSpot(spot, scroller);
+      if (top != null) scroller.scrollTop = top;
     }
     if (!previewing && opts.caret && el) {
       const editable = el.closest("[contenteditable='true']");
@@ -5276,10 +5549,10 @@
     activateInsertedBlock(el);
   }
 
-  function keepReadingSpot(previewing, spot) {
+  function keepReadingSpot(previewing, spot, opts = {}) {
     if (!spot) return;
-    const run = (caret) => restoreReadingSpot(previewing, spot, { caret });
-    run(Boolean(!previewing));
+    const run = (caret) => restoreReadingSpot(previewing, spot, { ...opts, caret });
+    run(Boolean(!previewing && !opts.preferRatio));
     requestAnimationFrame(() => {
       run(false);
       requestAnimationFrame(() => run(false));
@@ -6021,6 +6294,10 @@
         }, 400);
       },
       getValue() {
+        if (sourceOpen) {
+          const { text } = sourceEls();
+          if (text) return text.value;
+        }
         if (previewing || !vditor) return markdown;
         clearMolanTableLayout(vditorRoot);
         sweepOrphanIrNodes(irRootOf(vditor));
@@ -6042,12 +6319,17 @@
       async setPreview(on, opts = {}) {
         const want = Boolean(on);
         if (want === previewing) return previewing;
-        const spot = opts.spot || captureReadingSpot(previewing);
+        let spot = opts.spot || captureReadingSpot(previewing);
         if (want) {
           wrap?.classList.remove("is-preparing-edit");
           hideTablePicker();
           hideTableToolbar(document.getElementById("molanTableToolbar"));
           hideFormatBar();
+          if (sourceOpen) {
+            commitSourceFromTextarea();
+            spot = captureSourceReadingSpot() || spot;
+            closeSourceView({ restorePreview: false });
+          }
           if (vditor) {
             try { markdown = api.getValue(); } catch (_) { /* ignore */ }
           }
@@ -6057,6 +6339,11 @@
           if (sourceOpen) fillSourceText();
           notifyPreview();
           return true;
+        }
+        if (sourceOpen) {
+          commitSourceFromTextarea();
+          spot = captureSourceReadingSpot() || spot;
+          closeSourceView({ restorePreview: false });
         }
         const hold = Boolean(opts.holdPreview);
         const previewY = typeof opts.previewScrollTop === "number"
@@ -6117,8 +6404,22 @@
       getVditorRoot: () => vditorRoot,
       getPreviewing: () => previewing,
       getMarkdown: () => {
+        if (sourceOpen) {
+          const { text } = sourceEls();
+          if (text) return text.value;
+        }
         if (previewing || !vditor) return markdown;
         try { return vditor.getValue(); } catch (_) { return markdown; }
+      },
+      applyMarkdown: (next, opts = {}) => {
+        markdown = String(next ?? "");
+        if (opts.live && previewing) {
+          const spot = sourceOpen ? captureSourceReadingSpot() : captureReadingSpot(true);
+          renderLitePreview(markdown, spot);
+        }
+      },
+      notifyInput: () => {
+        try { options.onInput?.(); } catch (_) { /* ignore */ }
       },
       enterEdit: () => api.setPreview(false),
       bootEditor,

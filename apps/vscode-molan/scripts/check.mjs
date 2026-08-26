@@ -152,6 +152,10 @@ assert(editorSource.includes("bindTableInsertPicker"), "table insert size picker
 assert(editorSource.includes("ensureEditorChrome"), "header has source view in reading and editing");
 assert(editorSource.includes("sourceViewBtn"), "header has view-source button");
 assert(editorSource.includes("scrollSourceToHeading"), "outline jumps inside the source panel");
+assert(editorSource.includes("keepSourceReadingSpot"), "source view opens at the current reading position");
+assert(editorSource.includes("keepPreviewFromSourceSpot"), "closing source view restores preview scroll");
+assert(editorSource.includes("handleSourceInput"), "source view accepts markdown edits");
+assert(editorSource.includes("sourceEditable"), "source view shows editable hint");
 assert(!editorSource.includes("editModeBtn"), "old edit-mode switcher is gone");
 assert(editorSource.includes('document.querySelector(".reader-body")'), "outline dock pins to the reader pane");
 assert(editorSource.includes("pinOutlineDock"), "outline button is position-fixed over the reader pane");

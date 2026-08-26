@@ -191,7 +191,9 @@ export function createBridgeCore(options: BridgeCoreOptions) {
   function onEditorInput() {
     if (applyingRemote) return;
     if (readOnlyFeatures && readOnly) return;
-    if (readOnlyFeatures && editorApi?.isPreview?.()) return;
+    const sourceEditing = typeof globalThis.MolanEditor?.source?.isOpen === "function"
+      && globalThis.MolanEditor.source.isOpen();
+    if (readOnlyFeatures && editorApi?.isPreview?.() && !sourceEditing) return;
     scheduleEditorIdleWork();
   }
 
