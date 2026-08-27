@@ -49,6 +49,15 @@ export function createBridgeCore(options: BridgeCoreOptions) {
   let readOnly = false;
   let editorIdleTimer = 0;
 
+  type MolanRuntime = {
+    source?: { isOpen?: () => boolean };
+  };
+
+  function readMolanRuntime(): MolanRuntime | undefined {
+    if (typeof window === "undefined") return undefined;
+    return (window as unknown as { MolanEditor?: MolanRuntime }).MolanEditor;
+  }
+
   function syncModeButton() {
     const { modeBtn } = chrome;
     if (!modeBtn) return;
@@ -191,8 +200,7 @@ export function createBridgeCore(options: BridgeCoreOptions) {
   function onEditorInput() {
     if (applyingRemote) return;
     if (readOnlyFeatures && readOnly) return;
-    const sourceEditing = typeof globalThis.MolanEditor?.source?.isOpen === "function"
-      && globalThis.MolanEditor.source.isOpen();
+    const sourceEditing = readMolanRuntime()?.source?.isOpen?.() === true;
     if (readOnlyFeatures && editorApi?.isPreview?.() && !sourceEditing) return;
     scheduleEditorIdleWork();
   }
