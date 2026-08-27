@@ -25,9 +25,9 @@ pnpm molan:publish:extension # 仅 Open VSX + VS 商店页，不需要 upload.sh
 `.vsix` 落在 `apps/vscode-molan/`。也可手动安装：
 
 ```bash
-code --install-extension apps/vscode-molan/molan-markdown-0.1.19.vsix
+code --install-extension apps/vscode-molan/molan-markdown-0.1.20.vsix
 # Cursor：
-cursor --install-extension apps/vscode-molan/molan-markdown-0.1.19.vsix
+cursor --install-extension apps/vscode-molan/molan-markdown-0.1.20.vsix
 ```
 
 ## 实现要点
