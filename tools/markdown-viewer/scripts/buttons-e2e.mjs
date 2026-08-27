@@ -5,42 +5,16 @@
  *   node tools/markdown-viewer/scripts/buttons-e2e.mjs
  */
 import { spawn } from "node:child_process";
-import { createRequire } from "node:module";
-import { existsSync, writeFileSync, unlinkSync } from "node:fs";
+import { writeFileSync, unlinkSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import http from "node:http";
+import { findChromePath, loadPuppeteer, requireChromePath } from "./e2e-chrome.mjs";
 
-const require = createRequire(import.meta.url);
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = join(root, "..", "..");
 const port = Number(process.env.MOLAN_E2E_PORT || 5513);
-const chrome =
-  process.env.CHROME_PATH
-  || ["/usr/local/bin/google-chrome", "/usr/bin/google-chrome-stable", "/usr/bin/google-chrome", "/usr/bin/chromium"]
-    .find((p) => existsSync(p));
-
-if (!chrome) {
-  console.error("需要 Google Chrome 或 Chromium");
-  process.exit(1);
-}
-
-function loadPuppeteer() {
-  const paths = [
-    "puppeteer-core",
-    join(repoRoot, "node_modules", "puppeteer-core"),
-    "/tmp/molan-rec/node_modules/puppeteer-core",
-  ];
-  for (const p of paths) {
-    try {
-      return require(p);
-    } catch {
-      /* try next */
-    }
-  }
-  console.error("请先安装 puppeteer-core：npm install --prefix /tmp/molan-rec puppeteer-core");
-  process.exit(1);
-}
+const chrome = findChromePath() || requireChromePath();
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -210,7 +184,7 @@ async function main() {
 
   await waitForServer(`http://127.0.0.1:${port}/.buttons-e2e.html`);
 
-  const puppeteer = loadPuppeteer();
+  const puppeteer = loadPuppeteer(repoRoot);
   const browser = await puppeteer.launch({
     executablePath: chrome,
     headless: "new",

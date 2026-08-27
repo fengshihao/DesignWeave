@@ -5,33 +5,23 @@
  *   MOLAN_URL=http://127.0.0.1:5500/ node tools/markdown-viewer/scripts/record-studio-intro.mjs
  */
 import { spawn } from "node:child_process";
-import { createRequire } from "node:module";
 import {
   mkdirSync,
   rmSync,
   writeFileSync,
-  existsSync,
   copyFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
+import { findChromePath, loadPuppeteer, requireChromePath } from "./e2e-chrome.mjs";
 
-const require = createRequire(import.meta.url);
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = join(root, "..", "..");
 const shotsDir = join(root, "shots");
 const gifPath = join(root, "studio-intro.gif");
 const workDir = join(tmpdir(), "molan-studio-intro");
-const chrome =
-  process.env.CHROME_PATH
-  || ["/usr/bin/google-chrome-stable", "/usr/bin/google-chrome", "/usr/bin/chromium"]
-    .find((p) => existsSync(p));
-
-if (!chrome) {
-  console.error("需要 Google Chrome 或 Chromium");
-  process.exit(1);
-}
+const chrome = findChromePath() || requireChromePath();
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -47,29 +37,12 @@ function run(cmd, args) {
   });
 }
 
-function loadPuppeteer() {
-  const paths = [
-    "puppeteer-core",
-    join(repoRoot, "node_modules", "puppeteer-core"),
-    "/tmp/molan-rec/node_modules/puppeteer-core",
-  ];
-  for (const p of paths) {
-    try {
-      return require(p);
-    } catch {
-      /* try next */
-    }
-  }
-  console.error("请先安装 puppeteer-core：npm install --prefix /tmp/molan-rec puppeteer-core");
-  process.exit(1);
-}
-
 const CURSOR_SVG = `<svg viewBox="0 0 24 24" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
   <path d="M4.2 2.8l15.2 9.1-6.9 1.5 3.7 7.4-2.8 1.4-3.7-7.3-5.5 4.7z" fill="#f4efe6" stroke="#1c1914" stroke-width="1.4" stroke-linejoin="round"/>
 </svg>`;
 
 async function main() {
-  const puppeteer = loadPuppeteer();
+  const puppeteer = loadPuppeteer(repoRoot);
   const url = process.env.MOLAN_URL || "http://127.0.0.1:5500/";
   mkdirSync(workDir, { recursive: true });
   mkdirSync(shotsDir, { recursive: true });
