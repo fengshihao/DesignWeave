@@ -560,10 +560,12 @@
   }
 
   function computeSvgFitDisplay(natural, maxW, maxH, insetFactor = 0.94) {
-    const fit = Math.min(maxW / natural.width, maxH / natural.height, 1) * insetFactor;
+    const nw = Math.max(1, natural.width);
+    const nh = Math.max(1, natural.height);
+    const fit = Math.min(maxW / nw, maxH / nh) * insetFactor;
     return {
-      width: Math.max(1, natural.width * fit),
-      height: Math.max(1, natural.height * fit),
+      width: Math.max(1, nw * fit),
+      height: Math.max(1, nh * fit),
     };
   }
 
@@ -576,6 +578,93 @@
     const display = computeSvgFitDisplay(readSvgNaturalSize(svg), maxW, maxH);
     setSvgDisplaySize(svg, display.width, display.height);
     return display;
+  }
+
+  // 克隆进灯箱后若保留原文 id，url(#id) 会解析到文档里那份小图，看起来就一直发糊。
+  function uniquifySvgIds(svg) {
+    if (!svg) return svg;
+    const suffix = `-molan-${Math.random().toString(36).slice(2, 9)}`;
+    const mapped = new Map();
+    const remember = (id) => {
+      if (!id || mapped.has(id)) return;
+      mapped.set(id, `${id}${suffix}`);
+    };
+    remember(svg.getAttribute("id"));
+    svg.querySelectorAll("[id]").forEach((el) => remember(el.getAttribute("id")));
+    if (!mapped.size) return svg;
+    const keys = [...mapped.keys()].sort((a, b) => b.length - a.length);
+    const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const rewrite = (value) => {
+      let next = String(value || "");
+      if (!next) return next;
+      for (const from of keys) {
+        const to = mapped.get(from);
+        if (next === from) {
+          next = to;
+          continue;
+        }
+        const id = escapeRegExp(from);
+        next = next.replace(new RegExp(`url\\((['"]?)#${id}\\1\\)`, "g"), `url($1#${to}$1)`);
+        next = next.replace(new RegExp(`#${id}(?![\\w.-])`, "g"), `#${to}`);
+      }
+      return next;
+    };
+    const apply = (el) => {
+      const id = el.getAttribute("id");
+      if (id && mapped.has(id)) el.setAttribute("id", mapped.get(id));
+      const attrs = el.attributes;
+      if (!attrs) return;
+      for (let i = 0; i < attrs.length; i += 1) {
+        const attr = attrs[i];
+        if (attr.name === "id" || !attr.value || !attr.value.includes("#")) continue;
+        const next = rewrite(attr.value);
+        if (next !== attr.value) el.setAttribute(attr.name, next);
+      }
+    };
+    apply(svg);
+    svg.querySelectorAll("*").forEach(apply);
+    svg.querySelectorAll("style").forEach((style) => {
+      style.textContent = rewrite(style.textContent);
+    });
+    return svg;
+  }
+
+  function vectorizeSvgForeignObjects(svg) {
+    if (!svg) return svg;
+    const fos = Array.from(svg.querySelectorAll("foreignObject"));
+    fos.forEach((fo) => replaceForeignObjectWithText(fo, fo));
+    svg.querySelectorAll("foreignObject").forEach((el) => el.remove());
+    return svg;
+  }
+
+  function placeSvgCanvas(canvas, box, width, height, panX, panY) {
+    if (!canvas || !box) return;
+    const w = Math.max(1, width);
+    const h = Math.max(1, height);
+    canvas.style.inset = "auto";
+    canvas.style.left = `${(box.width - w) / 2 + panX}px`;
+    canvas.style.top = `${(box.height - h) / 2 + panY}px`;
+    canvas.style.right = "auto";
+    canvas.style.bottom = "auto";
+    canvas.style.width = `${w}px`;
+    canvas.style.height = `${h}px`;
+    canvas.style.transform = "none";
+    canvas.style.willChange = "auto";
+    canvas.style.padding = "0";
+  }
+
+  function resetSvgCanvas(canvas) {
+    if (!canvas) return;
+    canvas.style.inset = "";
+    canvas.style.left = "";
+    canvas.style.top = "";
+    canvas.style.right = "";
+    canvas.style.bottom = "";
+    canvas.style.width = "";
+    canvas.style.height = "";
+    canvas.style.transform = "none";
+    canvas.style.willChange = "";
+    canvas.style.padding = "";
   }
 
   function initLightbox() {
@@ -599,6 +688,8 @@
     }
 
     let lightboxUserScale = 1;
+    let lightboxFitW = 1;
+    let lightboxFitH = 1;
     let lightboxPanX = 0;
     let lightboxPanY = 0;
     let lightboxDragging = false;
@@ -615,18 +706,24 @@
       lightbox.setAttribute("aria-hidden", "true");
       lightboxCanvas.innerHTML = "";
       lightboxUserScale = 1;
+      lightboxFitW = 1;
+      lightboxFitH = 1;
       lightboxPanX = 0;
       lightboxPanY = 0;
       lightboxDragging = false;
       lightboxDragOrigin = null;
       lightboxOriginShell = null;
       lightboxStage.classList.remove("is-dragging");
-      applyLightboxTransform();
+      resetSvgCanvas(lightboxCanvas);
     }
 
-    function applyLightboxTransform() {
-      lightboxCanvas.style.transform =
-        `translate(${lightboxPanX}px, ${lightboxPanY}px) scale(${lightboxUserScale})`;
+    function applyLightboxView() {
+      const svg = lightboxCanvas.querySelector("svg");
+      const stage = lightboxStage.getBoundingClientRect();
+      const width = Math.max(1, lightboxFitW * lightboxUserScale);
+      const height = Math.max(1, lightboxFitH * lightboxUserScale);
+      if (svg) setSvgDisplaySize(svg, width, height);
+      placeSvgCanvas(lightboxCanvas, stage, width, height, lightboxPanX, lightboxPanY);
     }
 
     function prepareLightboxSvg(clone) {
@@ -638,19 +735,20 @@
 
     function fitLightboxView() {
       const svg = lightboxCanvas.querySelector("svg");
-      if (!svg) {
-        lightboxUserScale = 1;
-        lightboxPanX = 0;
-        lightboxPanY = 0;
-        applyLightboxTransform();
-        return;
-      }
-      const stage = lightboxStage.getBoundingClientRect();
-      fitSvgToBox(svg, stage.width, stage.height);
       lightboxUserScale = 1;
       lightboxPanX = 0;
       lightboxPanY = 0;
-      applyLightboxTransform();
+      if (!svg) {
+        lightboxFitW = 1;
+        lightboxFitH = 1;
+        applyLightboxView();
+        return;
+      }
+      const stage = lightboxStage.getBoundingClientRect();
+      const display = fitSvgToBox(svg, stage.width, stage.height);
+      lightboxFitW = display.width;
+      lightboxFitH = display.height;
+      applyLightboxView();
     }
 
     function resetLightboxView() {
@@ -668,10 +766,12 @@
       lightboxCanvas.innerHTML = "";
       const clone = svg.cloneNode(true);
       prepareLightboxSvg(clone);
+      uniquifySvgIds(clone);
       lightboxCanvas.appendChild(clone);
       lightbox.classList.add("open", "is-preparing");
       lightbox.setAttribute("aria-hidden", "false");
       void lightboxStage.offsetHeight;
+      vectorizeSvgForeignObjects(clone);
       fitLightboxView();
       lightbox.classList.remove("is-preparing");
     }
@@ -684,11 +784,11 @@
       });
       lightboxZoomIn?.addEventListener("click", () => {
         lightboxUserScale = Math.min(lightboxUserScale + 0.25, 5);
-        applyLightboxTransform();
+        applyLightboxView();
       });
       lightboxZoomOut?.addEventListener("click", () => {
         lightboxUserScale = Math.max(lightboxUserScale - 0.25, 0.35);
-        applyLightboxTransform();
+        applyLightboxView();
       });
       lightboxEdit?.addEventListener("click", () => {
         const shell = lightboxOriginShell;
@@ -718,7 +818,7 @@
         if (!lightboxDragging || !lightboxDragOrigin) return;
         lightboxPanX = lightboxDragOrigin.panX + (e.clientX - lightboxDragOrigin.x);
         lightboxPanY = lightboxDragOrigin.panY + (e.clientY - lightboxDragOrigin.y);
-        applyLightboxTransform();
+        applyLightboxView();
       });
       const endLightboxDrag = (e) => {
         if (!lightboxDragging) return;
@@ -741,7 +841,7 @@
         lightboxPanX = cx - (cx - lightboxPanX) * ratio;
         lightboxPanY = cy - (cy - lightboxPanY) * ratio;
         lightboxUserScale = next;
-        applyLightboxTransform();
+        applyLightboxView();
       }, { passive: false });
 
       document.addEventListener("keydown", (e) => {
@@ -4605,6 +4705,8 @@
       let previewTimer = 0;
       let previewSeq = 0;
       let previewScale = 1;
+      let previewFitW = 1;
+      let previewFitH = 1;
       let previewPanX = 0;
       let previewPanY = 0;
       let previewDragging = false;
@@ -4622,22 +4724,32 @@
       const applyPreviewTransform = () => {
         const canvas = preview.querySelector(".molan-mermaid-editor-preview-canvas");
         if (!canvas) return;
-        canvas.style.transform = `translate(${previewPanX}px, ${previewPanY}px) scale(${previewScale})`;
+        const svg = canvas.querySelector("svg");
+        const rect = preview.getBoundingClientRect();
+        const width = Math.max(1, previewFitW * previewScale);
+        const height = Math.max(1, previewFitH * previewScale);
+        if (svg) setSvgDisplaySize(svg, width, height);
+        placeSvgCanvas(canvas, rect, width, height, previewPanX, previewPanY);
       };
 
       const resetPreviewView = () => {
         const canvas = preview.querySelector(".molan-mermaid-editor-preview-canvas");
         const svg = canvas?.querySelector("svg");
-        if (svg) {
-          const rect = preview.getBoundingClientRect();
-          fitSvgToBox(svg, rect.width, rect.height, 24);
-        }
         previewScale = 1;
         previewPanX = 0;
         previewPanY = 0;
         previewDragging = false;
         previewDragOrigin = null;
         preview.classList.remove("is-dragging");
+        if (svg) {
+          const rect = preview.getBoundingClientRect();
+          const display = fitSvgToBox(svg, rect.width, rect.height, 24);
+          previewFitW = display.width;
+          previewFitH = display.height;
+        } else {
+          previewFitW = 1;
+          previewFitH = 1;
+        }
         applyPreviewTransform();
       };
 
@@ -4686,6 +4798,9 @@
           preview.classList.remove("is-error");
           preview.innerHTML = `<div class="molan-mermaid-editor-preview-canvas">${svg}</div>`;
           void preview.offsetHeight;
+          const liveSvg = preview.querySelector("svg");
+          uniquifySvgIds(liveSvg);
+          vectorizeSvgForeignObjects(liveSvg);
           resetPreviewView();
         } catch (err) {
           if (seq !== previewSeq) return;
