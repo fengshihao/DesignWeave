@@ -17,7 +17,7 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = join(root, "..", "..");
@@ -63,6 +63,35 @@ function latestVsix() {
   return files[0];
 }
 
+function knownEditorBinaries() {
+  const home = homedir();
+  if (process.platform === "darwin") {
+    return [
+      "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code",
+      join(home, "Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"),
+      "/Applications/Cursor.app/Contents/Resources/app/bin/cursor",
+      join(home, "Applications/Cursor.app/Contents/Resources/app/bin/cursor"),
+    ];
+  }
+  if (process.platform === "linux") {
+    return [
+      "/usr/share/code/bin/code",
+      "/usr/bin/code",
+      "/snap/bin/code",
+      join(home, ".cursor", "bin", "cursor"),
+      "/usr/bin/cursor",
+    ];
+  }
+  if (process.platform === "win32") {
+    const localAppData = process.env.LOCALAPPDATA || join(home, "AppData", "Local");
+    return [
+      join(localAppData, "Programs", "Microsoft VS Code", "bin", "code.cmd"),
+      join(localAppData, "Programs", "cursor", "resources", "app", "bin", "cursor.cmd"),
+    ];
+  }
+  return [];
+}
+
 function resolveCodeBinary() {
   const env = process.env.MOLAN_VSCODE_BIN?.trim();
   if (env && existsSync(env)) return env;
@@ -72,6 +101,9 @@ function resolveCodeBinary() {
     const hit = spawnSync("sh", ["-lc", `command -v ${name}`], { encoding: "utf8" });
     const bin = hit.stdout.trim();
     if (hit.status === 0 && bin) return bin;
+  }
+  for (const bin of knownEditorBinaries()) {
+    if (existsSync(bin)) return bin;
   }
   return "";
 }
@@ -290,7 +322,8 @@ async function openSampleAndCollectLogs(code, vsix) {
     "--disable-telemetry",
     sampleMd,
   ];
-  const prefix = process.env.DISPLAY ? [] : ["xvfb-run", "-a"];
+  const prefix =
+    process.platform === "linux" && !process.env.DISPLAY ? ["xvfb-run", "-a"] : [];
   const cmd = prefix.length ? prefix[0] : code;
   const cmdArgs = prefix.length ? [...prefix.slice(1), code, ...args] : args;
 
