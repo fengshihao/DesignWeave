@@ -3734,12 +3734,11 @@
 
     .lightbox-canvas {
       position: absolute;
-      inset: 0;
+      left: 0;
+      top: 0;
       display: flex;
       align-items: center;
       justify-content: center;
-      transform-origin: center center;
-      will-change: transform;
     }
 
     .lightbox-canvas svg {
@@ -4270,13 +4269,11 @@
     }
     .molan-mermaid-editor-preview-canvas {
       position: absolute;
-      inset: 0;
+      left: 0;
+      top: 0;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 12px;
-      transform-origin: center center;
-      will-change: transform;
     }
     .molan-mermaid-editor-preview svg {
       max-width: none;

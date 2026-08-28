@@ -94,6 +94,27 @@ test("流程图编辑器预览只缩放不打开灯箱", () => {
   assert.doesNotMatch(src, /lightbox\?\.openFromSvg/);
 });
 
+test("灯箱大图按 SVG 尺寸缩放，不用 CSS scale，并去掉 foreignObject", () => {
+  const src = readFileSync(join(root, "src", "molan-editor.js"), "utf8");
+  const css = readFileSync(join(root, "src", "molan.css"), "utf8");
+  assert.match(src, /function uniquifySvgIds/);
+  assert.match(src, /function vectorizeSvgForeignObjects/);
+  assert.match(src, /function placeSvgCanvas/);
+  assert.match(src, /function applyLightboxView/);
+  assert.match(src, /uniquifySvgIds\(clone\)/);
+  assert.match(src, /vectorizeSvgForeignObjects\(clone\)/);
+  assert.match(src, /canvas.style.transform = "none"/);
+  assert.doesNotMatch(src, /scale\(\$\{lightboxUserScale\}\)/);
+  assert.doesNotMatch(src, /scale\(\$\{previewScale\}\)/);
+  assert.match(src, /Math.min\(maxW \/ nw, maxH \/ nh\) \* insetFactor/);
+  const lightboxCanvas = css.match(/\.lightbox-canvas \{[\s\S]*?\n    \}/);
+  assert.ok(lightboxCanvas, "extract .lightbox-canvas");
+  assert.doesNotMatch(lightboxCanvas[0], /will-change/);
+  const editorCanvas = css.match(/\.molan-mermaid-editor-preview-canvas \{[\s\S]*?\n    \}/);
+  assert.ok(editorCanvas, "extract .molan-mermaid-editor-preview-canvas");
+  assert.doesNotMatch(editorCanvas[0], /will-change/);
+});
+
 test("复制流程图前会去掉会污染 canvas 的 foreignObject", () => {
   const src = readFileSync(join(root, "src", "molan-editor.js"), "utf8");
   assert.match(src, /function sanitizeSvgForCanvas/);

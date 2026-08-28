@@ -303,6 +303,51 @@ async function main() {
     await page.click('[data-molan-action="zoom"]');
     await page.waitForSelector("#lightbox.open", { timeout: 5000 });
     assert(await page.evaluate(() => document.getElementById("lightbox")?.classList.contains("open")), "放大打开灯箱");
+    const lightboxFit = await page.evaluate(() => {
+      const canvas = document.getElementById("lightboxCanvas");
+      const stage = document.getElementById("lightboxStage");
+      const svg = canvas?.querySelector("svg");
+      const orig = document.querySelector(".language-mermaid svg");
+      if (!canvas || !stage || !svg) return { error: "missing lightbox svg" };
+      const stageRect = stage.getBoundingClientRect();
+      const svgRect = svg.getBoundingClientRect();
+      const origIds = new Set(Array.from(orig?.querySelectorAll("[id]") || []).map((el) => el.id).filter(Boolean));
+      const cloneIds = Array.from(svg.querySelectorAll("[id]")).map((el) => el.id).filter(Boolean);
+      return {
+        transform: canvas.style.transform || "",
+        willChange: getComputedStyle(canvas).willChange,
+        hasScale: /scale\s*\(/i.test(canvas.style.transform || getComputedStyle(canvas).transform || ""),
+        hasFO: !!svg.querySelector("foreignObject"),
+        hasText: !!svg.querySelector("text"),
+        svgW: svgRect.width,
+        svgH: svgRect.height,
+        stageW: stageRect.width,
+        stageH: stageRect.height,
+        idClash: cloneIds.filter((id) => origIds.has(id)),
+      };
+    });
+    assert(!lightboxFit.error, `灯箱 SVG ${lightboxFit.error || ""}`);
+    assert(!lightboxFit.hasScale, `灯箱不应 CSS scale，transform=${lightboxFit.transform}`);
+    assert(lightboxFit.willChange === "auto" || lightboxFit.willChange === "none", `灯箱 will-change=${lightboxFit.willChange}`);
+    assert(!lightboxFit.hasFO, "灯箱标签应变为 SVG text，不再用 foreignObject");
+    assert(lightboxFit.hasText, "灯箱应有 SVG text 标签");
+    assert(lightboxFit.svgW <= lightboxFit.stageW + 2 && lightboxFit.svgH <= lightboxFit.stageH + 2, `灯箱图应适配舞台 ${lightboxFit.svgW}x${lightboxFit.svgH} in ${lightboxFit.stageW}x${lightboxFit.stageH}`);
+    assert(lightboxFit.svgW > 40 && lightboxFit.svgH > 40, `灯箱图不应过小 ${lightboxFit.svgW}x${lightboxFit.svgH}`);
+    assert((lightboxFit.idClash || []).length === 0, `灯箱 SVG id 不应与原文冲突 ${JSON.stringify(lightboxFit.idClash)}`);
+    const beforeZoomW = lightboxFit.svgW;
+    await page.click("#lightboxZoomIn");
+    await sleep(80);
+    const afterZoom = await page.evaluate(() => {
+      const canvas = document.getElementById("lightboxCanvas");
+      const svg = canvas?.querySelector("svg");
+      return {
+        transform: canvas?.style.transform || "",
+        hasScale: /scale\s*\(/i.test(canvas?.style.transform || ""),
+        svgW: svg?.getBoundingClientRect().width || 0,
+      };
+    });
+    assert(!afterZoom.hasScale, `放大后仍不应 CSS scale，transform=${afterZoom.transform}`);
+    assert(afterZoom.svgW > beforeZoomW + 8, `放大应增加 SVG 尺寸 ${beforeZoomW} → ${afterZoom.svgW}`);
     await page.click("#lightboxCopyImage");
     await sleep(400);
     const lightboxToast = await toastText();
@@ -324,6 +369,19 @@ async function main() {
       editorSrc.includes("flowchart TD") && editorSrc.includes("开始"),
       `去掉 data-molan-source 后仍能打开流程图编辑，实际「${editorSrc.slice(0, 80)}」`,
     );
+    await page.waitForSelector(".molan-mermaid-editor-preview svg", { timeout: 8000 });
+    const editorPreview = await page.evaluate(() => {
+      const canvas = document.querySelector(".molan-mermaid-editor-preview-canvas");
+      const svg = canvas?.querySelector("svg");
+      return {
+        transform: canvas?.style.transform || "",
+        hasScale: /scale\s*\(/i.test(canvas?.style.transform || ""),
+        hasFO: !!svg?.querySelector("foreignObject"),
+        hasText: !!svg?.querySelector("text"),
+      };
+    });
+    assert(!editorPreview.hasScale, `编辑预览不应 CSS scale，transform=${editorPreview.transform}`);
+    assert(!editorPreview.hasFO && editorPreview.hasText, "编辑预览标签应变为 SVG text");
     await page.click(".molan-mermaid-editor-cancel");
     await page.waitForFunction(() => !document.getElementById("molanMermaidEditor"), { timeout: 4000 });
     assert(true, "关闭流程图编辑对话框");
