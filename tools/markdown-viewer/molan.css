@@ -3664,8 +3664,16 @@
       align-items: center;
       justify-content: center;
       padding: 24px;
+      background: transparent;
+    }
+
+    .lightbox::before {
+      content: "";
+      position: absolute;
+      inset: 0;
       background: var(--lightbox-dim);
       backdrop-filter: blur(6px);
+      pointer-events: none;
     }
 
     .lightbox.open { display: flex; }
@@ -3676,6 +3684,7 @@
 
     .lightbox-panel {
       position: relative;
+      z-index: 1;
       width: min(96vw, 1400px);
       height: min(90vh, 900px);
       background: var(--surface-solid);
@@ -4128,10 +4137,19 @@
       align-items: center;
       justify-content: center;
       padding: 24px;
+      background: transparent;
+    }
+    .molan-mermaid-editor-mask::before {
+      content: "";
+      position: absolute;
+      inset: 0;
       background: var(--lightbox-dim);
       backdrop-filter: blur(6px);
+      pointer-events: none;
     }
     .molan-mermaid-editor {
+      position: relative;
+      z-index: 1;
       display: flex;
       flex-direction: column;
       width: min(96vw, 1400px);

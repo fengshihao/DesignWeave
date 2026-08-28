@@ -107,6 +107,11 @@ test("灯箱大图按 SVG 尺寸缩放，不用 CSS scale，并去掉 foreignObj
   assert.doesNotMatch(src, /scale\(\$\{lightboxUserScale\}\)/);
   assert.doesNotMatch(src, /scale\(\$\{previewScale\}\)/);
   assert.match(src, /Math.min\(maxW \/ nw, maxH \/ nh\) \* insetFactor/);
+  const lightbox = css.match(/    \.lightbox \{[\s\S]*?\n    \}/);
+  assert.ok(lightbox, "extract .lightbox");
+  assert.doesNotMatch(lightbox[0], /backdrop-filter/);
+  assert.match(css, /\.lightbox::before \{[\s\S]*backdrop-filter: blur\(6px\)/);
+  assert.match(css, /\.molan-mermaid-editor-mask::before \{[\s\S]*backdrop-filter: blur\(6px\)/);
   const lightboxCanvas = css.match(/\.lightbox-canvas \{[\s\S]*?\n    \}/);
   assert.ok(lightboxCanvas, "extract .lightbox-canvas");
   assert.doesNotMatch(lightboxCanvas[0], /will-change/);

@@ -316,6 +316,9 @@ async function main() {
       return {
         transform: canvas.style.transform || "",
         willChange: getComputedStyle(canvas).willChange,
+        lightboxBackdrop: getComputedStyle(document.getElementById("lightbox")).backdropFilter
+          || getComputedStyle(document.getElementById("lightbox")).webkitBackdropFilter
+          || "",
         hasScale: /scale\s*\(/i.test(canvas.style.transform || getComputedStyle(canvas).transform || ""),
         hasFO: !!svg.querySelector("foreignObject"),
         hasText: !!svg.querySelector("text"),
@@ -328,6 +331,7 @@ async function main() {
     });
     assert(!lightboxFit.error, `灯箱 SVG ${lightboxFit.error || ""}`);
     assert(!lightboxFit.hasScale, `灯箱不应 CSS scale，transform=${lightboxFit.transform}`);
+    assert(!/blur/i.test(lightboxFit.lightboxBackdrop || ""), `灯箱本体不应 backdrop-filter，实际 ${lightboxFit.lightboxBackdrop}`);
     assert(lightboxFit.willChange === "auto" || lightboxFit.willChange === "none", `灯箱 will-change=${lightboxFit.willChange}`);
     assert(!lightboxFit.hasFO, "灯箱标签应变为 SVG text，不再用 foreignObject");
     assert(lightboxFit.hasText, "灯箱应有 SVG text 标签");
