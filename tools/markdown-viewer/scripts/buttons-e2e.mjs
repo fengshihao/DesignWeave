@@ -252,6 +252,18 @@ async function main() {
 
     await page.waitForSelector(".language-mermaid svg", { timeout: 25000 });
     await sleep(300);
+    const leftoverSource = await page.evaluate(() => {
+      return Array.from(document.querySelectorAll(".language-mermaid")).flatMap((host) => {
+        if (host.closest(".vditor-ir__marker--pre, .vditor-ir__marker")) return [];
+        return Array.from(host.childNodes)
+          .filter((n) => n.nodeType === 3 && String(n.textContent || "").trim())
+          .map((n) => String(n.textContent).trim());
+      });
+    });
+    assert(
+      leftoverSource.length === 0,
+      `流程图预览不应残留源码，实际 ${JSON.stringify(leftoverSource)}`,
+    );
 
     const fenceCopy = await page.evaluate(async () => {
       const pres = Array.from(document.querySelectorAll("pre"));
@@ -496,7 +508,36 @@ async function main() {
       ["table", "code", "math", "mermaid", "image", "task"].every((id) => insertIds.includes(id)),
       `行首插入菜单项，实际 ${insertIds.join(",")}`,
     );
-    await page.keyboard.press("Escape");
+    const beforeMermaid = await page.$$eval(".language-mermaid svg", (els) => els.length);
+    await page.click('[data-insert-id="mermaid"]');
+    await page.waitForFunction((n) => {
+      const svgs = document.querySelectorAll(".language-mermaid svg").length;
+      return svgs > n && window.__molan?.isPreview?.() === false;
+    }, { timeout: 15000 }, beforeMermaid);
+    await page.waitForFunction(() => {
+      const hosts = Array.from(document.querySelectorAll(".language-mermaid"))
+        .filter((host) => !host.closest(".vditor-ir__marker--pre, .vditor-ir__marker"));
+      return hosts.length > 0 && hosts.every((host) => {
+        if (!host.querySelector("svg")) return false;
+        return !Array.from(host.childNodes).some((n) => n.nodeType === 3 && String(n.textContent || "").trim());
+      });
+    }, { timeout: 8000 });
+    const insertLeftover = await page.evaluate(() => {
+      return Array.from(document.querySelectorAll(".language-mermaid")).flatMap((host) => {
+        if (host.closest(".vditor-ir__marker--pre, .vditor-ir__marker")) return [];
+        return Array.from(host.childNodes)
+          .filter((n) => n.nodeType === 3 && String(n.textContent || "").trim())
+          .map((n) => String(n.textContent).trim());
+      });
+    });
+    assert(
+      insertLeftover.length === 0,
+      `加号插入流程图后不应残留源码，实际 ${JSON.stringify(insertLeftover)}`,
+    );
+    if (await page.evaluate(() => window.__molan.isPreview() === false)) {
+      await page.click("#modeBtn");
+      await page.waitForFunction(() => window.__molan.isPreview() === true, { timeout: 15000 });
+    }
 
     await page.click("#modeBtn");
     await page.waitForFunction(() => window.__molan.isPreview() === false, { timeout: 20000 });

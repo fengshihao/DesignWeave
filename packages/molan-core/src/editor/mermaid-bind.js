@@ -22,7 +22,10 @@
         raf = 0;
         clearTimeout(watchMermaidPreviews._t);
         watchMermaidPreviews._t = setTimeout(() => {
-          enhanceMermaidPreviews(root);
+          const ir = root.querySelector?.(".vditor-ir") || null;
+          const needsPaint = ir && mermaidDisplayHosts(ir).some(mermaidHostNeedsPaint);
+          if (needsPaint) refreshMermaidDiagrams(ir);
+          else enhanceMermaidPreviews(root);
           scheduleFitTables(root);
         }, 120);
       });

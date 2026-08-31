@@ -245,10 +245,18 @@
     const applySnippet = async (snippet, hover) => {
       const piece = String(snippet || "").replace(/^\n+/, "").replace(/\n+$/, "");
       if (!piece) return;
-      maybePreloadMermaid(cdn, piece);
+      const mermaidReady = maybePreloadMermaid(cdn, piece);
       const anchor = hover?.gapRect || hover?.el?.getBoundingClientRect?.();
       const viewportY = anchor ? anchor.top + Math.min(anchor.height || 26, 28) / 2 : null;
       const previewScrollTop = previewBody?.scrollTop;
+      const paintInsertedMermaid = (el) => {
+        if (snippetKind(piece) !== "mermaid") return;
+        const run = () => {
+          captureMermaidSources(el && el.isConnected ? el : vditorRoot);
+          refreshMermaidDiagrams(vditorRoot);
+        };
+        Promise.resolve(mermaidReady).then(run, run);
+      };
       const finish = (el) => {
         let node = el;
         if (!node?.isConnected && vditor) {
@@ -272,12 +280,14 @@
             : hover?.empty ? (hover.index ?? 0) : (hover?.index ?? 0) + 1,
         };
         settleInsertedBlock(node, viewportY);
+        paintInsertedMermaid(node);
         requestAnimationFrame(() => {
           const root = readingContentRoot(false);
           const live = pendingInsert?.el?.isConnected
             ? pendingInsert.el
             : locateInsertedBlock(root, pendingInsert);
           settleInsertedBlock(live, viewportY);
+          paintInsertedMermaid(live);
           if (vditor) {
             try { markdown = vditor.getValue(); } catch (_) { /* ignore */ }
           }

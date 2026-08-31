@@ -66,5 +66,6 @@
   }
 
   function maybePreloadMermaid(cdn, text) {
-    if (markdownHasMermaid(text)) preloadMermaid(cdn);
+    if (markdownHasMermaid(text)) return preloadMermaid(cdn);
+    return Promise.resolve();
   }

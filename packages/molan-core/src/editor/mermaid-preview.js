@@ -81,6 +81,61 @@
   let mermaidRefreshing = false;
   let mermaidRefreshQueued = null;
 
+  function mermaidHostSourceTextNodes(host) {
+    const leftover = [];
+    if (!host) return leftover;
+    const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        if (node.parentElement?.closest("svg, .molan-diagram-toolbar")) return NodeFilter.FILTER_REJECT;
+        return String(node.textContent || "").trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+      },
+    });
+    let n = walker.nextNode();
+    while (n) {
+      leftover.push(n);
+      n = walker.nextNode();
+    }
+    return leftover;
+  }
+
+  function mermaidHostLeftoverNodes(host) {
+    const leftover = mermaidHostSourceTextNodes(host);
+    if (!host) return leftover;
+    host.childNodes.forEach((n) => {
+      if (n.nodeType !== 1) return;
+      if (n.matches?.("svg, .molan-diagram-toolbar")) return;
+      if (n.querySelector("svg")) return;
+      leftover.push(n);
+    });
+    return leftover;
+  }
+
+  function stripMermaidHostSource(host) {
+    if (!host?.querySelector?.("svg")) return false;
+    const leftover = mermaidHostLeftoverNodes(host);
+    leftover.forEach((n) => n.remove());
+    return leftover.length > 0;
+  }
+
+  function applyMermaidSvg(host, svgEl) {
+    const toolbar = host.querySelector(":scope > .molan-diagram-toolbar");
+    host.replaceChildren(svgEl, ...(toolbar ? [toolbar] : []));
+    host.setAttribute("data-processed", "true");
+  }
+
+  function mermaidHostNeedsPaint(host) {
+    if (!host) return false;
+    if (!host.querySelector("svg")) return true;
+    return mermaidHostSourceTextNodes(host).length > 0;
+  }
+
+  function scheduleMermaidReadyRefresh() {
+    if (!mermaidRefreshQueued || mermaidRefreshing) return;
+    const root = mermaidRefreshQueued;
+    mermaidRefreshQueued = null;
+    refreshMermaidDiagrams(root);
+  }
+
   function cleanupMermaidTemp(id) {
     document.getElementById(id)?.remove();
     document.getElementById("d" + id)?.remove();
@@ -115,7 +170,10 @@
   }
 
   async function refreshMermaidDiagrams(root = document) {
-    if (!global.mermaid || typeof mermaid.render !== "function") return;
+    if (!global.mermaid || typeof mermaid.render !== "function") {
+      mermaidRefreshQueued = root;
+      return;
+    }
     if (mermaidRefreshing) {
       mermaidRefreshQueued = root;
       return;
@@ -144,10 +202,7 @@
           wrap.innerHTML = svg;
           const next = wrap.querySelector("svg");
           if (!next) continue;
-          const old = host.querySelector("svg");
-          if (old) old.replaceWith(next);
-          else host.insertBefore(next, host.firstChild);
-          host.setAttribute("data-processed", "true");
+          applyMermaidSvg(host, next);
         } catch (err) {
           console.warn(err);
         }
@@ -219,6 +274,7 @@
     captureMermaidSources(root);
     const codes = root.querySelectorAll(".language-mermaid");
     codes.forEach((code) => {
+      stripMermaidHostSource(code);
       const shell = code.closest(".vditor-ir__preview") || code.closest("pre") || code;
       const source = getMermaidSourceNear(shell);
       if (source) code.setAttribute("data-molan-source", source);

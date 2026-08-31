@@ -285,15 +285,16 @@
   }
 
   function preloadMermaid(cdn) {
-    if (global.mermaid) {
+    const ready = () => {
       applyMermaidTheme();
       patchMermaidInitialize();
+      if (typeof scheduleMermaidReadyRefresh === "function") scheduleMermaidReadyRefresh();
+    };
+    if (global.mermaid) {
+      ready();
       return Promise.resolve();
     }
     return loadScript(`${cdn}/dist/js/mermaid/mermaid.min.js`, "vditorMermaidScript")
-      .then(() => {
-        applyMermaidTheme();
-        patchMermaidInitialize();
-      })
+      .then(ready)
       .catch(() => {});
   }

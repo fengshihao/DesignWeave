@@ -154,6 +154,19 @@ test("复制流程图前会去掉会污染 canvas 的 foreignObject", () => {
   assert.match(src, /ctx\.fillStyle = diagramBackgroundColor\(\)/);
 });
 
+test("流程图插入后立刻刷预览，并清掉节点末尾残留源码", () => {
+  const src = editorSrc();
+  assert.match(src, /function applyMermaidSvg/);
+  assert.match(src, /function stripMermaidHostSource/);
+  assert.match(src, /function mermaidHostNeedsPaint/);
+  assert.match(src, /const paintInsertedMermaid = \(el\) => \{/);
+  assert.match(src, /host\.replaceChildren\(svgEl/);
+  assert.match(src, /n\.matches\?\.\("svg, \.molan-diagram-toolbar"\)/);
+  assert.match(src, /paintInsertedMermaid\(node\)/);
+  assert.match(src, /captureMermaidSources\(el && el\.isConnected \? el : vditorRoot\)/);
+  assert.doesNotMatch(src, /host\.insertBefore\(next, host\.firstChild\)/);
+});
+
 test("文本复制有 clipboard API 降级和流程图源码回退", () => {
   const src = editorSrc();
   assert.match(src, /function copyTextToClipboard/);

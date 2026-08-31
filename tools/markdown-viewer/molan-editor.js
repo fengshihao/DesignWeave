@@ -71,7 +71,8 @@
   }
 
   function maybePreloadMermaid(cdn, text) {
-    if (markdownHasMermaid(text)) preloadMermaid(cdn);
+    if (markdownHasMermaid(text)) return preloadMermaid(cdn);
+    return Promise.resolve();
   }
 
   /* --- i18n: 内置文案回退（MolanI18n 优先） --- */
@@ -495,16 +496,17 @@
   }
 
   function preloadMermaid(cdn) {
-    if (global.mermaid) {
+    const ready = () => {
       applyMermaidTheme();
       patchMermaidInitialize();
+      if (typeof scheduleMermaidReadyRefresh === "function") scheduleMermaidReadyRefresh();
+    };
+    if (global.mermaid) {
+      ready();
       return Promise.resolve();
     }
     return loadScript(`${cdn}/dist/js/mermaid/mermaid.min.js`, "vditorMermaidScript")
-      .then(() => {
-        applyMermaidTheme();
-        patchMermaidInitialize();
-      })
+      .then(ready)
       .catch(() => {});
   }
 
@@ -1321,6 +1323,61 @@
   let mermaidRefreshing = false;
   let mermaidRefreshQueued = null;
 
+  function mermaidHostSourceTextNodes(host) {
+    const leftover = [];
+    if (!host) return leftover;
+    const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        if (node.parentElement?.closest("svg, .molan-diagram-toolbar")) return NodeFilter.FILTER_REJECT;
+        return String(node.textContent || "").trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+      },
+    });
+    let n = walker.nextNode();
+    while (n) {
+      leftover.push(n);
+      n = walker.nextNode();
+    }
+    return leftover;
+  }
+
+  function mermaidHostLeftoverNodes(host) {
+    const leftover = mermaidHostSourceTextNodes(host);
+    if (!host) return leftover;
+    host.childNodes.forEach((n) => {
+      if (n.nodeType !== 1) return;
+      if (n.matches?.("svg, .molan-diagram-toolbar")) return;
+      if (n.querySelector("svg")) return;
+      leftover.push(n);
+    });
+    return leftover;
+  }
+
+  function stripMermaidHostSource(host) {
+    if (!host?.querySelector?.("svg")) return false;
+    const leftover = mermaidHostLeftoverNodes(host);
+    leftover.forEach((n) => n.remove());
+    return leftover.length > 0;
+  }
+
+  function applyMermaidSvg(host, svgEl) {
+    const toolbar = host.querySelector(":scope > .molan-diagram-toolbar");
+    host.replaceChildren(svgEl, ...(toolbar ? [toolbar] : []));
+    host.setAttribute("data-processed", "true");
+  }
+
+  function mermaidHostNeedsPaint(host) {
+    if (!host) return false;
+    if (!host.querySelector("svg")) return true;
+    return mermaidHostSourceTextNodes(host).length > 0;
+  }
+
+  function scheduleMermaidReadyRefresh() {
+    if (!mermaidRefreshQueued || mermaidRefreshing) return;
+    const root = mermaidRefreshQueued;
+    mermaidRefreshQueued = null;
+    refreshMermaidDiagrams(root);
+  }
+
   function cleanupMermaidTemp(id) {
     document.getElementById(id)?.remove();
     document.getElementById("d" + id)?.remove();
@@ -1355,7 +1412,10 @@
   }
 
   async function refreshMermaidDiagrams(root = document) {
-    if (!global.mermaid || typeof mermaid.render !== "function") return;
+    if (!global.mermaid || typeof mermaid.render !== "function") {
+      mermaidRefreshQueued = root;
+      return;
+    }
     if (mermaidRefreshing) {
       mermaidRefreshQueued = root;
       return;
@@ -1384,10 +1444,7 @@
           wrap.innerHTML = svg;
           const next = wrap.querySelector("svg");
           if (!next) continue;
-          const old = host.querySelector("svg");
-          if (old) old.replaceWith(next);
-          else host.insertBefore(next, host.firstChild);
-          host.setAttribute("data-processed", "true");
+          applyMermaidSvg(host, next);
         } catch (err) {
           console.warn(err);
         }
@@ -1459,6 +1516,7 @@
     captureMermaidSources(root);
     const codes = root.querySelectorAll(".language-mermaid");
     codes.forEach((code) => {
+      stripMermaidHostSource(code);
       const shell = code.closest(".vditor-ir__preview") || code.closest("pre") || code;
       const source = getMermaidSourceNear(shell);
       if (source) code.setAttribute("data-molan-source", source);
@@ -3099,7 +3157,10 @@
         raf = 0;
         clearTimeout(watchMermaidPreviews._t);
         watchMermaidPreviews._t = setTimeout(() => {
-          enhanceMermaidPreviews(root);
+          const ir = root.querySelector?.(".vditor-ir") || null;
+          const needsPaint = ir && mermaidDisplayHosts(ir).some(mermaidHostNeedsPaint);
+          if (needsPaint) refreshMermaidDiagrams(ir);
+          else enhanceMermaidPreviews(root);
           scheduleFitTables(root);
         }, 120);
       });
@@ -6344,10 +6405,18 @@
     const applySnippet = async (snippet, hover) => {
       const piece = String(snippet || "").replace(/^\n+/, "").replace(/\n+$/, "");
       if (!piece) return;
-      maybePreloadMermaid(cdn, piece);
+      const mermaidReady = maybePreloadMermaid(cdn, piece);
       const anchor = hover?.gapRect || hover?.el?.getBoundingClientRect?.();
       const viewportY = anchor ? anchor.top + Math.min(anchor.height || 26, 28) / 2 : null;
       const previewScrollTop = previewBody?.scrollTop;
+      const paintInsertedMermaid = (el) => {
+        if (snippetKind(piece) !== "mermaid") return;
+        const run = () => {
+          captureMermaidSources(el && el.isConnected ? el : vditorRoot);
+          refreshMermaidDiagrams(vditorRoot);
+        };
+        Promise.resolve(mermaidReady).then(run, run);
+      };
       const finish = (el) => {
         let node = el;
         if (!node?.isConnected && vditor) {
@@ -6371,12 +6440,14 @@
             : hover?.empty ? (hover.index ?? 0) : (hover?.index ?? 0) + 1,
         };
         settleInsertedBlock(node, viewportY);
+        paintInsertedMermaid(node);
         requestAnimationFrame(() => {
           const root = readingContentRoot(false);
           const live = pendingInsert?.el?.isConnected
             ? pendingInsert.el
             : locateInsertedBlock(root, pendingInsert);
           settleInsertedBlock(live, viewportY);
+          paintInsertedMermaid(live);
           if (vditor) {
             try { markdown = vditor.getValue(); } catch (_) { /* ignore */ }
           }
