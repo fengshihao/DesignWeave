@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- 流程图节点文字不再撑出边框：正文预览在已有 SVG 上收口并换成矢量文字，不整图重跑 Mermaid 布局。Windows / VS Code 高 DPI 下缩放不再把字留在框外。
+- 预览流程图底部不再露出整段 Mermaid 源码：Vditor 还没画完时不再抢先标 `data-processed`，画完后清掉残留文本节点。
+
 ## 0.1.21
 
 - 修复大流程图灯箱打开后停在半清晰：按 SVG 真实尺寸缩放，去掉 CSS scale 合成层

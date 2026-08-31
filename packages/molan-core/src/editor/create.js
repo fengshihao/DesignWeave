@@ -112,12 +112,16 @@
             lastPreviewSource = sourceText;
             const root = previewHost || previewBody;
             stampMermaidSources(root, sourceText);
-            enhanceMermaidPreviews(root);
-            scheduleFitTables(root);
-            if (typeof restoreScroll === "number" && previewBody) {
-              previewBody.scrollTop = restoreScroll;
-            }
-            finishPreview();
+            const finish = () => {
+              if (seq !== previewSeq) return;
+              enhanceMermaidPreviews(root);
+              scheduleFitTables(root);
+              if (typeof restoreScroll === "number" && previewBody) {
+                previewBody.scrollTop = restoreScroll;
+              }
+              finishPreview();
+            };
+            polishOrDrawMermaid(root, sourceText).then(finish, finish);
           },
         });
       };

@@ -6,7 +6,7 @@
   "scripts": {
     "predev": "pnpm --filter @designweave/schema build && pnpm --filter @designweave/prompts build && pnpm --filter @designweave/molan-protocol build && pnpm --filter @designweave/molan-core build && pnpm --filter @designweave/molan-host build",
     "test": "pnpm --filter @designweave/molan-protocol test && pnpm --filter @designweave/molan-host test && pnpm --filter @designweave/molan-core test && pnpm --filter @designweave/agent test",
-    "test:molan": "node tools/markdown-viewer/scripts/editor-e2e.mjs && node tools/markdown-viewer/scripts/buttons-e2e.mjs && node tools/markdown-viewer/scripts/table-e2e.mjs",
+    "test:molan": "node tools/markdown-viewer/scripts/editor-e2e.mjs && node tools/markdown-viewer/scripts/buttons-e2e.mjs && node tools/markdown-viewer/scripts/table-e2e.mjs && node tools/markdown-viewer/scripts/mermaid-e2e.mjs",
     "dev": "node scripts/run-bash.mjs scripts/dev.sh",
     "dev:agent": "pnpm --filter @designweave/agent dev",
     "dev:web": "pnpm --filter @designweave/web dev",

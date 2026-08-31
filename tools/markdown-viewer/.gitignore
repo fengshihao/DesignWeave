@@ -6,3 +6,5 @@ vendor/
 .table-e2e-shots/
 .editor-e2e.html
 .buttons-e2e.html
+.mermaid-e2e.html
+.e2e-shots/

@@ -238,9 +238,28 @@
     return diagramPaperColors().diagramCard;
   }
 
-  function getMermaidOpts() {
+  function mermaidFontFamily() {
     const inlineReader = document.documentElement.style.getPropertyValue("--reader-font").trim();
-    const font = (inlineReader || cssVar("--font-ui", '"DM Sans", sans-serif')).replace(/"/g, "");
+    return inlineReader || cssVar("--font-ui", '"DM Sans", sans-serif');
+  }
+
+  function mermaidFontSizePx() {
+    try {
+      const probe = document.createElement("span");
+      probe.setAttribute("aria-hidden", "true");
+      probe.style.cssText = "position:absolute;left:-9999px;top:0;visibility:hidden;font-size:var(--reader-size,16px)";
+      document.body.appendChild(probe);
+      const px = parseFloat(getComputedStyle(probe).fontSize) || 16;
+      probe.remove();
+      return px;
+    } catch (_) {
+      return 16;
+    }
+  }
+
+  function getMermaidOpts() {
+    const font = mermaidFontFamily();
+    const fontSize = mermaidFontSizePx();
     const themeName = document.documentElement.getAttribute("data-theme") || "night";
     const dark = themeName === "night" || themeName === "hack";
     const c = diagramPaperColors();
@@ -248,9 +267,15 @@
       startOnLoad: false,
       theme: dark ? "dark" : "base",
       securityLevel: "loose",
-      flowchart: { htmlLabels: true, useMaxWidth: true },
+      flowchart: {
+        htmlLabels: true,
+        useMaxWidth: false,
+        padding: 16,
+        wrappingWidth: 240,
+      },
       themeVariables: {
         darkMode: dark,
+        fontSize: `${fontSize}px`,
         primaryColor: c.paper,
         primaryTextColor: c.ink,
         primaryBorderColor: c.accent,
@@ -291,6 +316,12 @@
         .cluster rect {
           rx: 8px;
           ry: 8px;
+        }
+        .nodeLabel, .edgeLabel, .label,
+        foreignObject, foreignObject div, foreignObject span {
+          box-sizing: content-box !important;
+          letter-spacing: 0 !important;
+          line-height: 1.3 !important;
         }
       `,
     };
@@ -638,6 +669,181 @@
     const fos = Array.from(svg.querySelectorAll("foreignObject"));
     fos.forEach((fo) => replaceForeignObjectWithText(fo, fo));
     svg.querySelectorAll("foreignObject").forEach((el) => el.remove());
+    return svg;
+  }
+
+  function whenFontsReady() {
+    try {
+      if (!document.fonts || !document.fonts.ready) return Promise.resolve();
+      return Promise.race([
+        document.fonts.ready,
+        new Promise((resolve) => setTimeout(resolve, 1500)),
+      ]);
+    } catch (_) {
+      return Promise.resolve();
+    }
+  }
+
+  function afterLayout() {
+    return new Promise((resolve) => {
+      if (typeof requestAnimationFrame !== "function") {
+        resolve();
+        return;
+      }
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    });
+  }
+
+  function svgUserFromScreen(svg, dx, dy) {
+    try {
+      const ctm = svg.getScreenCTM();
+      if (!ctm) return { x: dx, y: dy };
+      return { x: dx / (ctm.a || 1), y: dy / (ctm.d || 1) };
+    } catch (_) {
+      return { x: dx, y: dy };
+    }
+  }
+
+  function expandSvgRect(shape, extraW, extraH) {
+    const x = parseFloat(shape.getAttribute("x") || 0);
+    const y = parseFloat(shape.getAttribute("y") || 0);
+    const w = parseFloat(shape.getAttribute("width") || 0);
+    const h = parseFloat(shape.getAttribute("height") || 0);
+    if (!(w > 0 && h > 0)) return;
+    shape.setAttribute("x", String(x - extraW / 2));
+    shape.setAttribute("y", String(y - extraH / 2));
+    shape.setAttribute("width", String(w + extraW));
+    shape.setAttribute("height", String(h + extraH));
+  }
+
+  function expandSvgPolygon(shape, extraW, extraH) {
+    const pts = String(shape.getAttribute("points") || "")
+      .trim()
+      .split(/[\s,]+/)
+      .map(Number)
+      .filter((n) => Number.isFinite(n));
+    if (pts.length < 6) return;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (let i = 0; i < pts.length; i += 2) {
+      minX = Math.min(minX, pts[i]);
+      maxX = Math.max(maxX, pts[i]);
+      minY = Math.min(minY, pts[i + 1]);
+      maxY = Math.max(maxY, pts[i + 1]);
+    }
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+    const bw = Math.max(1, maxX - minX);
+    const bh = Math.max(1, maxY - minY);
+    const sx = (bw + extraW) / bw;
+    const sy = (bh + extraH) / bh;
+    const next = [];
+    for (let i = 0; i < pts.length; i += 2) {
+      next.push(cx + (pts[i] - cx) * sx, cy + (pts[i + 1] - cy) * sy);
+    }
+    shape.setAttribute("points", next.join(" "));
+  }
+
+  function expandSvgCircle(shape, extraW, extraH) {
+    const r = parseFloat(shape.getAttribute("r") || 0);
+    if (!(r > 0)) return;
+    shape.setAttribute("r", String(r + Math.max(extraW, extraH) / 2));
+  }
+
+  function expandSvgEllipse(shape, extraW, extraH) {
+    const rx = parseFloat(shape.getAttribute("rx") || 0);
+    const ry = parseFloat(shape.getAttribute("ry") || 0);
+    if (!(rx > 0 && ry > 0)) return;
+    shape.setAttribute("rx", String(rx + extraW / 2));
+    shape.setAttribute("ry", String(ry + extraH / 2));
+  }
+
+  function expandForeignObjectBox(fo, extraW, extraH) {
+    const x = parseFloat(fo.getAttribute("x") || 0) || 0;
+    const y = parseFloat(fo.getAttribute("y") || 0) || 0;
+    const w = parseFloat(fo.getAttribute("width") || 0) || 0;
+    const h = parseFloat(fo.getAttribute("height") || 0) || 0;
+    fo.setAttribute("x", String(x - extraW / 2));
+    fo.setAttribute("y", String(y - extraH / 2));
+    fo.setAttribute("width", String(Math.max(1, w + extraW)));
+    fo.setAttribute("height", String(Math.max(1, h + extraH)));
+  }
+
+  function fitMermaidDiagramLabels(svg) {
+    if (!svg) return svg;
+    const pad = 6;
+    svg.querySelectorAll("g.node, g.edgeLabel").forEach((node) => {
+      const fo = node.querySelector("foreignObject");
+      if (!fo) return;
+      const label = fo.querySelector(".nodeLabel, .edgeLabel, .label, span, div, p") || fo;
+      const shape = node.querySelector(":scope > rect, :scope > polygon, :scope > circle, :scope > ellipse");
+      let box;
+      try {
+        box = (shape || fo).getBoundingClientRect();
+      } catch (_) {
+        return;
+      }
+      let labelBox;
+      try {
+        labelBox = label.getBoundingClientRect();
+      } catch (_) {
+        return;
+      }
+      if (!(box.width > 0) || !(labelBox.width > 0)) return;
+      const extraScreenW = Math.max(0, labelBox.width + pad * 2 - box.width);
+      const extraScreenH = Math.max(0, labelBox.height + pad * 2 - box.height);
+      if (extraScreenW < 0.6 && extraScreenH < 0.6) return;
+      const extra = svgUserFromScreen(svg, extraScreenW, extraScreenH);
+      const extraW = extra.x;
+      const extraH = extra.y;
+      if (shape) {
+        const tag = shape.tagName.toLowerCase();
+        if (tag === "rect") expandSvgRect(shape, extraW, extraH);
+        else if (tag === "polygon") expandSvgPolygon(shape, extraW, extraH);
+        else if (tag === "circle") expandSvgCircle(shape, extraW, extraH);
+        else if (tag === "ellipse") expandSvgEllipse(shape, extraW, extraH);
+      }
+      expandForeignObjectBox(fo, extraW, extraH);
+    });
+    return svg;
+  }
+
+  function syncMermaidSvgBox(svg) {
+    if (!svg) return svg;
+    try {
+      const box = svg.getBBox();
+      if (!(box.width > 0 && box.height > 0)) return svg;
+      const pad = 4;
+      const x = box.x - pad;
+      const y = box.y - pad;
+      const w = box.width + pad * 2;
+      const h = box.height + pad * 2;
+      svg.setAttribute("viewBox", `${x} ${y} ${w} ${h}`);
+      svg.setAttribute("width", String(Math.ceil(w)));
+      svg.setAttribute("height", String(Math.ceil(h)));
+    } catch (_) { /* ignore */ }
+    return svg;
+  }
+
+  function finalizeMermaidSvg(svg) {
+    if (!svg) return svg;
+    if (!svg.querySelector("foreignObject")) return svg;
+    const prevMax = svg.style.maxWidth;
+    const prevWidth = svg.style.width;
+    svg.style.maxWidth = "none";
+    const attrW = svg.getAttribute("width") || "";
+    if (attrW && !/%/.test(attrW)) svg.style.width = attrW;
+    try {
+      void svg.getBoundingClientRect();
+      fitMermaidDiagramLabels(svg);
+      vectorizeSvgForeignObjects(svg);
+      syncMermaidSvgBox(svg);
+    } finally {
+      svg.style.maxWidth = prevMax;
+      svg.style.width = prevWidth;
+    }
     return svg;
   }
 
@@ -1317,9 +1523,68 @@
     return sources.findIndex((item) => item === source);
   }
 
+  async function polishMermaidSvgs(root = document) {
+    const svgs = Array.from(root.querySelectorAll?.(".language-mermaid svg, .molan-mermaid-shell svg") || [])
+      .filter((svg) => svg.querySelector("foreignObject"));
+    if (svgs.length) {
+      await afterLayout();
+      svgs.forEach((svg) => {
+        try { finalizeMermaidSvg(svg); } catch (_) { /* ignore */ }
+      });
+    }
+    stripMermaidSourceResidue(root);
+  }
+
+  function stripMermaidSourceResidue(root = document) {
+    const hosts = [];
+    if (root?.matches?.(".language-mermaid, .molan-mermaid-shell")) hosts.push(root);
+    root.querySelectorAll?.(".language-mermaid, .molan-mermaid-shell")?.forEach((el) => hosts.push(el));
+    hosts.forEach((host) => {
+      if (!host.querySelector?.("svg")) return;
+      Array.from(host.childNodes).forEach((node) => {
+        if (node.nodeType === 3) {
+          if (String(node.textContent || "").trim()) node.remove();
+          return;
+        }
+        if (node.nodeType !== 1) return;
+        if (node.tagName === "SVG" || node.classList?.contains("molan-diagram-toolbar")) return;
+        if (node.querySelector?.("svg")) return;
+        const text = String(node.textContent || "").trim();
+        if (text && isValidMermaidSource(text)) node.remove();
+      });
+      if (typeof document.createTreeWalker === "function") {
+        const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
+        const doomed = [];
+        let node = walker.nextNode();
+        while (node) {
+          if (String(node.textContent || "").trim()
+            && !node.parentElement?.closest("svg, .molan-diagram-toolbar")) {
+            doomed.push(node);
+          }
+          node = walker.nextNode();
+        }
+        doomed.forEach((item) => item.remove());
+      }
+      host.setAttribute("data-processed", "true");
+    });
+  }
+
+  async function polishOrDrawMermaid(root, sourceText) {
+    const hasChart = () => !!root.querySelector?.(".language-mermaid svg, .molan-mermaid-shell svg");
+    if (hasChart()) {
+      await polishMermaidSvgs(root);
+      return;
+    }
+    if (!markdownHasMermaid(sourceText)) return;
+    const deadline = Date.now() + 2000;
+    while (Date.now() < deadline && !hasChart()) await afterLayout();
+    if (hasChart()) await polishMermaidSvgs(root);
+    else await refreshMermaidDiagrams(root);
+    stripMermaidSourceResidue(root);
+  }
+
   let mermaidRenderSeq = 0;
-  let mermaidRefreshing = false;
-  let mermaidRefreshQueued = null;
+  let mermaidRefreshChain = Promise.resolve();
 
   function cleanupMermaidTemp(id) {
     document.getElementById(id)?.remove();
@@ -1354,53 +1619,54 @@
     });
   }
 
-  async function refreshMermaidDiagrams(root = document) {
+  async function refreshMermaidDiagramsNow(root = document) {
     if (!global.mermaid || typeof mermaid.render !== "function") return;
-    if (mermaidRefreshing) {
-      mermaidRefreshQueued = root;
-      return;
-    }
-    mermaidRefreshing = true;
-    try {
-      applyMermaidTheme();
-      captureMermaidSources(root);
-      const fromMd = mermaidSourcesFromMarkdown();
-      const hosts = mermaidDisplayHosts(root);
-      let sourceIndex = 0;
-      for (let i = 0; i < hosts.length; i += 1) {
-        const host = hosts[i];
-        const preview = host.closest(".vditor-ir__preview") || host;
-        const source = getMermaidSourceNear(preview)
-          || host.getAttribute("data-molan-source")
-          || fromMd[sourceIndex]
-          || fromMd[i]
-          || "";
-        sourceIndex += 1;
-        if (!isValidMermaidSource(source)) continue;
-        host.setAttribute("data-molan-source", source);
-        try {
-          const svg = await renderMermaidSvg(source);
-          const wrap = document.createElement("div");
-          wrap.innerHTML = svg;
-          const next = wrap.querySelector("svg");
-          if (!next) continue;
-          const old = host.querySelector("svg");
-          if (old) old.replaceWith(next);
-          else host.insertBefore(next, host.firstChild);
-          host.setAttribute("data-processed", "true");
-        } catch (err) {
-          console.warn(err);
-        }
-      }
-      enhanceMermaidPreviews(root);
-    } finally {
-      mermaidRefreshing = false;
-      if (mermaidRefreshQueued) {
-        const nextRoot = mermaidRefreshQueued;
-        mermaidRefreshQueued = null;
-        refreshMermaidDiagrams(nextRoot);
+    await whenFontsReady();
+    applyMermaidTheme();
+    captureMermaidSources(root);
+    const fromMd = mermaidSourcesFromMarkdown();
+    const hosts = mermaidDisplayHosts(root);
+    let sourceIndex = 0;
+    const inserted = [];
+    for (let i = 0; i < hosts.length; i += 1) {
+      const host = hosts[i];
+      const preview = host.closest(".vditor-ir__preview") || host;
+      const source = getMermaidSourceNear(preview)
+        || host.getAttribute("data-molan-source")
+        || fromMd[sourceIndex]
+        || fromMd[i]
+        || "";
+      sourceIndex += 1;
+      if (!isValidMermaidSource(source)) continue;
+      host.setAttribute("data-molan-source", source);
+      try {
+        const svg = await renderMermaidSvg(source);
+        const wrap = document.createElement("div");
+        wrap.innerHTML = svg;
+        const next = wrap.querySelector("svg");
+        if (!next) continue;
+        const old = host.querySelector("svg");
+        if (old) old.replaceWith(next);
+        else host.insertBefore(next, host.firstChild);
+        host.setAttribute("data-processed", "true");
+        stripMermaidSourceResidue(host);
+        inserted.push(next);
+      } catch (err) {
+        console.warn(err);
       }
     }
+    await afterLayout();
+    inserted.forEach((svg) => {
+      try { finalizeMermaidSvg(svg); } catch (_) { /* ignore */ }
+    });
+    stripMermaidSourceResidue(root);
+    enhanceMermaidPreviews(root);
+  }
+
+  function refreshMermaidDiagrams(root = document) {
+    const run = () => refreshMermaidDiagramsNow(root);
+    mermaidRefreshChain = mermaidRefreshChain.then(run, run);
+    return mermaidRefreshChain;
   }
 
   function findMermaidPreviewShell(fromEl) {
@@ -3100,6 +3366,11 @@
         clearTimeout(watchMermaidPreviews._t);
         watchMermaidPreviews._t = setTimeout(() => {
           enhanceMermaidPreviews(root);
+          root.querySelectorAll?.(".language-mermaid svg, .molan-mermaid-shell svg")?.forEach((svg) => {
+            if (!svg.querySelector("foreignObject")) return;
+            try { finalizeMermaidSvg(svg); } catch (_) { /* ignore */ }
+          });
+          stripMermaidSourceResidue(root);
           scheduleFitTables(root);
         }, 120);
       });
@@ -4011,10 +4282,14 @@
 
   function setTypeValue(key, raw, persist) {
     const next = clampType(key, raw);
+    const changed = typeState.values[key] !== next;
     typeState.values[key] = next;
     applyTypeVars(typeState.values);
     paintTypeControls();
     if (persist !== false) persistType();
+    if (changed && (key === "size" || key === "tracking")) {
+      try { scheduleMermaidThemeRefresh(); } catch (_) { /* ignore */ }
+    }
   }
 
   function setTypeFont(id, persist) {
@@ -4810,6 +5085,7 @@
           return;
         }
         try {
+          await whenFontsReady();
           applyMermaidTheme();
           const svg = await renderMermaidSvg(text);
           if (seq !== previewSeq) return;
@@ -4818,7 +5094,8 @@
           void preview.offsetHeight;
           const liveSvg = preview.querySelector("svg");
           uniquifySvgIds(liveSvg);
-          vectorizeSvgForeignObjects(liveSvg);
+          await afterLayout();
+          finalizeMermaidSvg(liveSvg);
           resetPreviewView();
         } catch (err) {
           if (seq !== previewSeq) return;
@@ -6211,12 +6488,16 @@
             lastPreviewSource = sourceText;
             const root = previewHost || previewBody;
             stampMermaidSources(root, sourceText);
-            enhanceMermaidPreviews(root);
-            scheduleFitTables(root);
-            if (typeof restoreScroll === "number" && previewBody) {
-              previewBody.scrollTop = restoreScroll;
-            }
-            finishPreview();
+            const finish = () => {
+              if (seq !== previewSeq) return;
+              enhanceMermaidPreviews(root);
+              scheduleFitTables(root);
+              if (typeof restoreScroll === "number" && previewBody) {
+                previewBody.scrollTop = restoreScroll;
+              }
+              finishPreview();
+            };
+            polishOrDrawMermaid(root, sourceText).then(finish, finish);
           },
         });
       };

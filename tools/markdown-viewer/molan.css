@@ -3326,6 +3326,40 @@
       max-width: 100%;
       height: auto;
       font-family: var(--reader-font) !important;
+      letter-spacing: 0 !important;
+    }
+
+    /*
+     * 全局 * { box-sizing:border-box; padding:0 } 会让 Mermaid 按 HTML 标签量宽时偏小。
+     * Windows / VS Code webview 再叠加 DPI 缩放时，foreignObject 文字不随 SVG 缩小。
+     * 量宽容器和节点标签都改回 content-box，且不要继承正文字距。
+     */
+    [id^="dmolan-mmd-"] *,
+    [id^="dmermaid"] * {
+      box-sizing: content-box !important;
+    }
+
+    .language-mermaid svg .nodeLabel,
+    .language-mermaid svg .edgeLabel,
+    .language-mermaid svg .label,
+    .language-mermaid svg foreignObject,
+    .language-mermaid svg foreignObject div,
+    .language-mermaid svg foreignObject span,
+    .molan-mermaid-shell svg .nodeLabel,
+    .molan-mermaid-shell svg .edgeLabel,
+    .molan-mermaid-shell svg .label,
+    .molan-mermaid-shell svg foreignObject,
+    .molan-mermaid-shell svg foreignObject div,
+    .molan-mermaid-shell svg foreignObject span,
+    .molan-mermaid-editor-preview svg .nodeLabel,
+    .molan-mermaid-editor-preview svg .edgeLabel,
+    .molan-mermaid-editor-preview svg .label,
+    .molan-mermaid-editor-preview svg foreignObject,
+    .molan-mermaid-editor-preview svg foreignObject div,
+    .molan-mermaid-editor-preview svg foreignObject span {
+      box-sizing: content-box !important;
+      letter-spacing: 0 !important;
+      line-height: 1.3 !important;
     }
 
     /* 预览态：点击图进入观看，不要出现 text caret */

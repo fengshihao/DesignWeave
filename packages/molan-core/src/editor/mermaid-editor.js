@@ -189,6 +189,7 @@
           return;
         }
         try {
+          await whenFontsReady();
           applyMermaidTheme();
           const svg = await renderMermaidSvg(text);
           if (seq !== previewSeq) return;
@@ -197,7 +198,8 @@
           void preview.offsetHeight;
           const liveSvg = preview.querySelector("svg");
           uniquifySvgIds(liveSvg);
-          vectorizeSvgForeignObjects(liveSvg);
+          await afterLayout();
+          finalizeMermaidSvg(liveSvg);
           resetPreviewView();
         } catch (err) {
           if (seq !== previewSeq) return;
