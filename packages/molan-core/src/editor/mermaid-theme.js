@@ -28,9 +28,28 @@
     return diagramPaperColors().diagramCard;
   }
 
-  function getMermaidOpts() {
+  function mermaidFontFamily() {
     const inlineReader = document.documentElement.style.getPropertyValue("--reader-font").trim();
-    const font = (inlineReader || cssVar("--font-ui", '"DM Sans", sans-serif')).replace(/"/g, "");
+    return inlineReader || cssVar("--font-ui", '"DM Sans", sans-serif');
+  }
+
+  function mermaidFontSizePx() {
+    try {
+      const probe = document.createElement("span");
+      probe.setAttribute("aria-hidden", "true");
+      probe.style.cssText = "position:absolute;left:-9999px;top:0;visibility:hidden;font-size:var(--reader-size,16px)";
+      document.body.appendChild(probe);
+      const px = parseFloat(getComputedStyle(probe).fontSize) || 16;
+      probe.remove();
+      return px;
+    } catch (_) {
+      return 16;
+    }
+  }
+
+  function getMermaidOpts() {
+    const font = mermaidFontFamily();
+    const fontSize = mermaidFontSizePx();
     const themeName = document.documentElement.getAttribute("data-theme") || "night";
     const dark = themeName === "night" || themeName === "hack";
     const c = diagramPaperColors();
@@ -38,9 +57,15 @@
       startOnLoad: false,
       theme: dark ? "dark" : "base",
       securityLevel: "loose",
-      flowchart: { htmlLabels: true, useMaxWidth: true },
+      flowchart: {
+        htmlLabels: true,
+        useMaxWidth: false,
+        padding: 16,
+        wrappingWidth: 240,
+      },
       themeVariables: {
         darkMode: dark,
+        fontSize: `${fontSize}px`,
         primaryColor: c.paper,
         primaryTextColor: c.ink,
         primaryBorderColor: c.accent,
@@ -81,6 +106,12 @@
         .cluster rect {
           rx: 8px;
           ry: 8px;
+        }
+        .nodeLabel, .edgeLabel, .label,
+        foreignObject, foreignObject div, foreignObject span {
+          box-sizing: content-box !important;
+          letter-spacing: 0 !important;
+          line-height: 1.3 !important;
         }
       `,
     };

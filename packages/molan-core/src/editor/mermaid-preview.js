@@ -77,9 +77,68 @@
     return sources.findIndex((item) => item === source);
   }
 
+  async function polishMermaidSvgs(root = document) {
+    const svgs = Array.from(root.querySelectorAll?.(".language-mermaid svg, .molan-mermaid-shell svg") || [])
+      .filter((svg) => svg.querySelector("foreignObject"));
+    if (svgs.length) {
+      await afterLayout();
+      svgs.forEach((svg) => {
+        try { finalizeMermaidSvg(svg); } catch (_) { /* ignore */ }
+      });
+    }
+    stripMermaidSourceResidue(root);
+  }
+
+  function stripMermaidSourceResidue(root = document) {
+    const hosts = [];
+    if (root?.matches?.(".language-mermaid, .molan-mermaid-shell")) hosts.push(root);
+    root.querySelectorAll?.(".language-mermaid, .molan-mermaid-shell")?.forEach((el) => hosts.push(el));
+    hosts.forEach((host) => {
+      if (!host.querySelector?.("svg")) return;
+      Array.from(host.childNodes).forEach((node) => {
+        if (node.nodeType === 3) {
+          if (String(node.textContent || "").trim()) node.remove();
+          return;
+        }
+        if (node.nodeType !== 1) return;
+        if (node.tagName === "SVG" || node.classList?.contains("molan-diagram-toolbar")) return;
+        if (node.querySelector?.("svg")) return;
+        const text = String(node.textContent || "").trim();
+        if (text && isValidMermaidSource(text)) node.remove();
+      });
+      if (typeof document.createTreeWalker === "function") {
+        const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
+        const doomed = [];
+        let node = walker.nextNode();
+        while (node) {
+          if (String(node.textContent || "").trim()
+            && !node.parentElement?.closest("svg, .molan-diagram-toolbar")) {
+            doomed.push(node);
+          }
+          node = walker.nextNode();
+        }
+        doomed.forEach((item) => item.remove());
+      }
+      host.setAttribute("data-processed", "true");
+    });
+  }
+
+  async function polishOrDrawMermaid(root, sourceText) {
+    const hasChart = () => !!root.querySelector?.(".language-mermaid svg, .molan-mermaid-shell svg");
+    if (hasChart()) {
+      await polishMermaidSvgs(root);
+      return;
+    }
+    if (!markdownHasMermaid(sourceText)) return;
+    const deadline = Date.now() + 2000;
+    while (Date.now() < deadline && !hasChart()) await afterLayout();
+    if (hasChart()) await polishMermaidSvgs(root);
+    else await refreshMermaidDiagrams(root);
+    stripMermaidSourceResidue(root);
+  }
+
   let mermaidRenderSeq = 0;
-  let mermaidRefreshing = false;
-  let mermaidRefreshQueued = null;
+  let mermaidRefreshChain = Promise.resolve();
 
   function cleanupMermaidTemp(id) {
     document.getElementById(id)?.remove();
@@ -114,53 +173,54 @@
     });
   }
 
-  async function refreshMermaidDiagrams(root = document) {
+  async function refreshMermaidDiagramsNow(root = document) {
     if (!global.mermaid || typeof mermaid.render !== "function") return;
-    if (mermaidRefreshing) {
-      mermaidRefreshQueued = root;
-      return;
-    }
-    mermaidRefreshing = true;
-    try {
-      applyMermaidTheme();
-      captureMermaidSources(root);
-      const fromMd = mermaidSourcesFromMarkdown();
-      const hosts = mermaidDisplayHosts(root);
-      let sourceIndex = 0;
-      for (let i = 0; i < hosts.length; i += 1) {
-        const host = hosts[i];
-        const preview = host.closest(".vditor-ir__preview") || host;
-        const source = getMermaidSourceNear(preview)
-          || host.getAttribute("data-molan-source")
-          || fromMd[sourceIndex]
-          || fromMd[i]
-          || "";
-        sourceIndex += 1;
-        if (!isValidMermaidSource(source)) continue;
-        host.setAttribute("data-molan-source", source);
-        try {
-          const svg = await renderMermaidSvg(source);
-          const wrap = document.createElement("div");
-          wrap.innerHTML = svg;
-          const next = wrap.querySelector("svg");
-          if (!next) continue;
-          const old = host.querySelector("svg");
-          if (old) old.replaceWith(next);
-          else host.insertBefore(next, host.firstChild);
-          host.setAttribute("data-processed", "true");
-        } catch (err) {
-          console.warn(err);
-        }
-      }
-      enhanceMermaidPreviews(root);
-    } finally {
-      mermaidRefreshing = false;
-      if (mermaidRefreshQueued) {
-        const nextRoot = mermaidRefreshQueued;
-        mermaidRefreshQueued = null;
-        refreshMermaidDiagrams(nextRoot);
+    await whenFontsReady();
+    applyMermaidTheme();
+    captureMermaidSources(root);
+    const fromMd = mermaidSourcesFromMarkdown();
+    const hosts = mermaidDisplayHosts(root);
+    let sourceIndex = 0;
+    const inserted = [];
+    for (let i = 0; i < hosts.length; i += 1) {
+      const host = hosts[i];
+      const preview = host.closest(".vditor-ir__preview") || host;
+      const source = getMermaidSourceNear(preview)
+        || host.getAttribute("data-molan-source")
+        || fromMd[sourceIndex]
+        || fromMd[i]
+        || "";
+      sourceIndex += 1;
+      if (!isValidMermaidSource(source)) continue;
+      host.setAttribute("data-molan-source", source);
+      try {
+        const svg = await renderMermaidSvg(source);
+        const wrap = document.createElement("div");
+        wrap.innerHTML = svg;
+        const next = wrap.querySelector("svg");
+        if (!next) continue;
+        const old = host.querySelector("svg");
+        if (old) old.replaceWith(next);
+        else host.insertBefore(next, host.firstChild);
+        host.setAttribute("data-processed", "true");
+        stripMermaidSourceResidue(host);
+        inserted.push(next);
+      } catch (err) {
+        console.warn(err);
       }
     }
+    await afterLayout();
+    inserted.forEach((svg) => {
+      try { finalizeMermaidSvg(svg); } catch (_) { /* ignore */ }
+    });
+    stripMermaidSourceResidue(root);
+    enhanceMermaidPreviews(root);
+  }
+
+  function refreshMermaidDiagrams(root = document) {
+    const run = () => refreshMermaidDiagramsNow(root);
+    mermaidRefreshChain = mermaidRefreshChain.then(run, run);
+    return mermaidRefreshChain;
   }
 
   function findMermaidPreviewShell(fromEl) {

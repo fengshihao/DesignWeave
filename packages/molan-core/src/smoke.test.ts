@@ -102,6 +102,35 @@ test("编辑态能修好并删除空任务列表", () => {
   assert.match(src, /event\.key === "Enter"/);
 });
 
+test("流程图节点按实测文字撑开，并去掉 foreignObject，避免 Windows 缩放溢出", () => {
+  const src = editorSrc();
+  const css = readFileSync(join(root, "src", "molan.css"), "utf8");
+  assert.match(src, /function mermaidFontFamily/);
+  assert.match(src, /function mermaidFontSizePx/);
+  assert.match(src, /function fitMermaidDiagramLabels/);
+  assert.match(src, /function finalizeMermaidSvg/);
+  assert.match(src, /function whenFontsReady/);
+  assert.match(src, /useMaxWidth:\s*false/);
+  assert.match(src, /finalizeMermaidSvg\(svg\)/);
+  assert.match(src, /finalizeMermaidSvg\(liveSvg\)/);
+  assert.match(src, /function polishMermaidSvgs/);
+  assert.match(src, /function stripMermaidSourceResidue/);
+  assert.match(src, /function polishOrDrawMermaid/);
+  assert.match(src, /polishOrDrawMermaid\(root, sourceText\)\.then\(finish, finish\)/);
+  assert.match(src, /function refreshMermaidDiagramsNow/);
+  assert.match(src, /stripMermaidSourceResidue\(host\)/);
+  assert.match(src, /stripMermaidSourceResidue\(root\)/);
+  assert.match(src, /mermaidRefreshChain/);
+  {
+    const fn = src.match(/function mermaidFontFamily\(\) \{[\s\S]*?\n  \}/);
+    assert.ok(fn, "extract mermaidFontFamily");
+    assert.equal(fn[0].includes('.replace(/"/g'), false);
+    assert.match(fn[0], /cssVar\("--font-ui"/);
+  }
+  assert.match(css, /\[id\^="dmolan-mmd-"\] \*/);
+  assert.match(css, /box-sizing:\s*content-box\s*!important/);
+});
+
 test("流程图编辑器预览只缩放不打开灯箱", () => {
   const src = editorSrc();
   assert.match(src, /molan-mermaid-editor-zoom-in/);

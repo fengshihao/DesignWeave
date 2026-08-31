@@ -23,6 +23,11 @@
         clearTimeout(watchMermaidPreviews._t);
         watchMermaidPreviews._t = setTimeout(() => {
           enhanceMermaidPreviews(root);
+          root.querySelectorAll?.(".language-mermaid svg, .molan-mermaid-shell svg")?.forEach((svg) => {
+            if (!svg.querySelector("foreignObject")) return;
+            try { finalizeMermaidSvg(svg); } catch (_) { /* ignore */ }
+          });
+          stripMermaidSourceResidue(root);
           scheduleFitTables(root);
         }, 120);
       });

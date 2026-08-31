@@ -304,10 +304,14 @@
 
   function setTypeValue(key, raw, persist) {
     const next = clampType(key, raw);
+    const changed = typeState.values[key] !== next;
     typeState.values[key] = next;
     applyTypeVars(typeState.values);
     paintTypeControls();
     if (persist !== false) persistType();
+    if (changed && (key === "size" || key === "tracking")) {
+      try { scheduleMermaidThemeRefresh(); } catch (_) { /* ignore */ }
+    }
   }
 
   function setTypeFont(id, persist) {
