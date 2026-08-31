@@ -31,7 +31,7 @@ scripts/          录制介绍动画
 molan.css         纸面样式与 Vditor 主题（浏览器与 VS Code 共用）
 molan-i18n.js     界面多语言
 molan-aphorisms.js 开卷一则：无署名短句（中文自撰 + 宋词 + 公版歌词；其他语言哲人句）
-molan-editor.js   编辑器核心：Vditor / Mermaid / 灯箱（共用）
+molan-editor.js   编辑器核心 IIFE（由 `packages/molan-core/src/editor/*` 构建）
 molan-app.js      仅浏览器：选文件夹、侧栏、写回本地
 serve.mjs         本地静态服务（gzip + 缓存头）
 vendor/vditor     裁剪后的 Vditor（`pnpm molan` / 编译扩展时同步，不上 CDN）

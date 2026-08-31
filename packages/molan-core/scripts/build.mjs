@@ -1,6 +1,7 @@
 import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readEditorBody, wrapEditorIife } from "./editor-modules.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const src = join(root, "src");
@@ -9,25 +10,26 @@ const viewer = join(root, "..", "..", "tools", "markdown-viewer");
 
 mkdirSync(dist, { recursive: true });
 
-// 真源在 packages/molan-core/src；若 studio 侧仍有副本则同步回写（过渡期）
+const editorJs = wrapEditorIife(readEditorBody(root));
+writeFileSync(join(dist, "molan-editor.js"), editorJs);
+cpSync(join(src, "molan.css"), join(dist, "molan.css"));
+
+// 工作室仍吃单文件 IIFE；构建产物回写 tools/markdown-viewer
 for (const file of ["molan-editor.js", "molan.css"]) {
-  cpSync(join(src, file), join(dist, file));
+  const from = join(dist, file);
   const studioCopy = join(viewer, file);
   try {
-    const coreContent = readFileSync(join(src, file));
-    const studioContent = readFileSync(studioCopy);
-    if (!coreContent.equals(studioContent)) {
-      cpSync(join(src, file), studioCopy);
-    }
+    const next = readFileSync(from);
+    const prev = readFileSync(studioCopy);
+    if (!next.equals(prev)) cpSync(from, studioCopy);
   } catch {
-    cpSync(join(src, file), studioCopy);
+    cpSync(from, studioCopy);
   }
 }
 
-// 生成类型声明
 writeFileSync(
   join(dist, "index.d.ts"),
   `export type { EditorApi, EditorOptions } from "@designweave/molan-protocol";\n`,
 );
 
-console.log("built @designweave/molan-core → dist/");
+console.log("built @designweave/molan-core → dist/（editor 由 src/editor/* 拼接）");

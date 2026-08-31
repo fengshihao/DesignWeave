@@ -1,13 +1,32 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
+import { EDITOR_MODULES, editorDir, readEditorBody, wrapEditorIife } from "../scripts/editor-modules.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const editorSrc = () => readEditorBody(root);
+
+test("编辑器源码按职责拆模块，构建仍产出单文件 IIFE", () => {
+  const dir = editorDir(root);
+  const listed = new Set(EDITOR_MODULES);
+  const onDisk = readdirSync(dir).filter((name) => name.endsWith(".js"));
+  assert.deepEqual(onDisk.sort(), [...listed].sort(), "src/editor 与模块清单一致");
+  for (const name of EDITOR_MODULES) {
+    const lines = readFileSync(join(dir, name), "utf8").split("\n").length;
+    assert.ok(lines < 700, `${name} 应保持可维护体量，当前 ${lines} 行`);
+  }
+  assert.equal(onDisk.length, EDITOR_MODULES.length);
+  assert.equal(existsSync(join(root, "src", "molan-editor.js")), false, "不再把单文件 IIFE 当源码");
+  const bundled = wrapEditorIife(editorSrc());
+  assert.match(bundled, /^\(function \(global\) \{/m);
+  assert.match(bundled, /\}\)\(window\);\s*$/);
+  assert.match(bundled, /global\.MolanEditor\s*=/);
+});
 
 test("molan-editor.js 导出 MolanEditor.create", () => {
-  const src = readFileSync(join(root, "src", "molan-editor.js"), "utf8");
+  const src = editorSrc();
   assert.match(src, /MolanEditor\.create|global\.MolanEditor\s*=/);
   assert.match(src, /function create\(/);
   assert.match(src, /function exportPdf\(/);
@@ -68,7 +87,7 @@ test("molan.css 含四主题变量", () => {
 });
 
 test("编辑态能修好并删除空任务列表", () => {
-  const src = readFileSync(join(root, "src", "molan-editor.js"), "utf8");
+  const src = editorSrc();
   assert.match(src, /function withMutedIrInput/);
   assert.match(src, /function normalizeInsertedTaskList/);
   assert.match(src, /function taskListIrHtml/);
@@ -84,7 +103,7 @@ test("编辑态能修好并删除空任务列表", () => {
 });
 
 test("流程图编辑器预览只缩放不打开灯箱", () => {
-  const src = readFileSync(join(root, "src", "molan-editor.js"), "utf8");
+  const src = editorSrc();
   assert.match(src, /molan-mermaid-editor-zoom-in/);
   assert.match(src, /molan-mermaid-editor-zoom-out/);
   assert.match(src, /setPreviewScale/);
@@ -95,7 +114,7 @@ test("流程图编辑器预览只缩放不打开灯箱", () => {
 });
 
 test("灯箱大图按 SVG 尺寸缩放，不用 CSS scale，并去掉 foreignObject", () => {
-  const src = readFileSync(join(root, "src", "molan-editor.js"), "utf8");
+  const src = editorSrc();
   const css = readFileSync(join(root, "src", "molan.css"), "utf8");
   assert.match(src, /function uniquifySvgIds/);
   assert.match(src, /function vectorizeSvgForeignObjects/);
@@ -121,7 +140,7 @@ test("灯箱大图按 SVG 尺寸缩放，不用 CSS scale，并去掉 foreignObj
 });
 
 test("复制流程图前会去掉会污染 canvas 的 foreignObject", () => {
-  const src = readFileSync(join(root, "src", "molan-editor.js"), "utf8");
+  const src = editorSrc();
   assert.match(src, /function sanitizeSvgForCanvas/);
   assert.match(src, /function replaceForeignObjectWithText/);
   assert.match(src, /function svgToPngBlob/);
@@ -136,7 +155,7 @@ test("复制流程图前会去掉会污染 canvas 的 foreignObject", () => {
 });
 
 test("文本复制有 clipboard API 降级和流程图源码回退", () => {
-  const src = readFileSync(join(root, "src", "molan-editor.js"), "utf8");
+  const src = editorSrc();
   assert.match(src, /function copyTextToClipboard/);
   assert.match(src, /document\.execCommand\("copy"\)/);
   assert.match(src, /__molanHostCopyText/);

@@ -1,8 +1,9 @@
 /**
  * 墨览编辑器核心：Vditor 初始化、Mermaid 主题、流程图工具条与灯箱。
- * 浏览器工作室与 VSCode 扩展共用。
+ * 源码在 src/editor/*，构建时拼接为 IIFE。浏览器工作室与 VSCode 扩展共用。
  */
 (function (global) {
+  /* --- load: Vditor / Lute / Mermaid 脚本加载 --- */
   function resolveDefaultCdn() {
     try {
       return new URL("vendor/vditor", document.baseURI || location.href).href.replace(/\/$/, "");
@@ -73,6 +74,7 @@
     if (markdownHasMermaid(text)) preloadMermaid(cdn);
   }
 
+  /* --- i18n: 内置文案回退（MolanI18n 优先） --- */
   function t(key, vars) {
     if (global.MolanI18n && typeof global.MolanI18n.t === "function") {
       return global.MolanI18n.t(key, vars);
@@ -206,6 +208,7 @@
     return s;
   }
 
+  /* --- mermaid-theme: 纸面色、toast、Mermaid 主题与预加载 --- */
   function cssVar(name, fallback) {
     try {
       const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -505,6 +508,7 @@
       .catch(() => {});
   }
 
+  /* --- svg-fit: SVG 尺寸、适配与画布 --- */
   function svgNaturalSize(svg) {
     const vb = svg?.viewBox?.baseVal;
     if (vb && vb.width > 0 && vb.height > 0) {
@@ -667,6 +671,7 @@
     canvas.style.padding = "";
   }
 
+  /* --- lightbox: 流程图灯箱 --- */
   function initLightbox() {
     const lightbox = document.getElementById("lightbox");
     const lightboxStage = document.getElementById("lightboxStage");
@@ -861,6 +866,7 @@
     };
   }
 
+  /* --- svg-export: 流程图转 PNG / 复制 --- */
   function diagramSvgSize(svg) {
     const vb = svg?.viewBox?.baseVal;
     if (vb && vb.width > 0 && vb.height > 0) {
@@ -1232,6 +1238,7 @@
     throw new Error("clipboard unavailable");
   }
 
+  /* --- mermaid-preview: 预览区流程图工具条与源码回填 --- */
   function bindPreviewCodeCopy() {
     if (document.documentElement.dataset.molanCodeCopy === "1") return;
     document.documentElement.dataset.molanCodeCopy = "1";
@@ -1479,6 +1486,7 @@
     });
   }
 
+  /* --- table: 表格自适应、工具条与尺寸选择器 --- */
   function contentBoxWidth(el) {
     if (!el) return 0;
     const cs = getComputedStyle(el);
@@ -2004,9 +2012,8 @@
     return path;
   }
 
+  /* --- source: 原文面板 --- */
   const SOURCE_ICON = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 7.5 4.5 12 9 16.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 7.5 19.5 12 15 16.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  const OUTLINE_ICON = '<svg class="icon-outline" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 6h16M8 12h12M8 18h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="4" cy="12" r="1.15" fill="currentColor"/><circle cx="4" cy="18" r="1.15" fill="currentColor"/></svg>';
-  const OUTLINE_CLOSE_ICON = '<svg class="icon-outline-close" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
 
   function scrollToHeading(index) {
     const wrap = document.getElementById("editorWrap") || document.querySelector(".editor-wrap");
@@ -2271,8 +2278,6 @@
     });
   }
 
-  let outlineAnimToken = 0;
-  let outlineCtx = null;
   let sourceCtx = null;
   let sourceOpen = false;
   let sourceInputTimer = 0;
@@ -2425,6 +2430,12 @@
     if (sourceOpen) closeSourceView();
     else openSourceView();
   }
+
+  /* --- outline: 大纲与顶栏 --- */
+  const OUTLINE_ICON = '<svg class="icon-outline" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 6h16M8 12h12M8 18h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="4" cy="12" r="1.15" fill="currentColor"/><circle cx="4" cy="18" r="1.15" fill="currentColor"/></svg>';
+  const OUTLINE_CLOSE_ICON = '<svg class="icon-outline-close" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+  let outlineAnimToken = 0;
+  let outlineCtx = null;
 
   function innerVditor(vditor) {
     return vditor?.vditor || vditor || null;
@@ -2714,6 +2725,7 @@
     }
   }
 
+  /* --- format-bar: 选区格式条与插入表格拾取 --- */
   function hideFormatBar() {
     const bar = document.getElementById("molanFormatBar");
     if (!bar) return;
@@ -3063,6 +3075,7 @@
     }, true);
   }
 
+  /* --- mermaid-bind: 流程图交互绑定与 i18n 刷新 --- */
   function watchMermaidPreviews(rootId = "vditor") {
     const root = typeof rootId === "string" ? document.getElementById(rootId) : rootId;
     if (!root) return;
@@ -3215,6 +3228,7 @@
     }
   }
 
+  /* --- find: 文中查找 --- */
   const findState = {
     open: false,
     query: "",
@@ -3691,6 +3705,7 @@
     document.addEventListener("keydown", handleFindKey, true);
   }
 
+  /* --- type: 排版（字号、行距、字体） --- */
   const TYPE_KEY = "molan-type";
   const TYPE_DEFAULTS = {
     size: 0.98,
@@ -4252,6 +4267,7 @@
     });
   }
 
+  /* --- theme: 纸面主题、顶栏偏好、轻量预览 DOM --- */
   const THEMES = ["xuan", "night", "hack", "rose"];
   const THEME_KEY = "molan-theme";
   const THEME_I18N = { xuan: "themeXuan", night: "themeNight", hack: "themeHack", rose: "themeRose" };
@@ -4489,6 +4505,7 @@
     return { wrap, host, body };
   }
 
+  /* --- image: 插入菜单图标与在线图片地址 --- */
   const INSERT_ICON = {
     table: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="1.5"/><path d="M4 10h16M4 15h16M10 5v14"/></svg>',
     code: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 8 5 12l4 4M15 8l4 4-4 4"/></svg>',
@@ -4602,6 +4619,7 @@
     });
   }
 
+  /* --- mermaid-editor: 流程图源码编辑对话框 --- */
   function openMermaidEditorDialog({ source, onApply }) {
     const MERMAID_SNIPPETS = [
       { key: "mermaidSnippetFlowchart", body: "flowchart TD\n  A[开始] --> B[结束]" },
@@ -4898,6 +4916,7 @@
     });
   }
 
+  /* --- markdown: Markdown 块切分与阅读位置 --- */
   function isFenceLine(line) {
     return /^ {0,3}(`{3,}|~{3,})/.test(line);
   }
@@ -5355,6 +5374,7 @@
     } catch (_) { /* ignore */ }
   }
 
+  /* --- ir: IR 列表守卫与插入后落位 --- */
   const IR_ZWSP = "\u200b";
 
   function withMutedIrInput(vditor, fn) {
@@ -5717,6 +5737,7 @@
     return true;
   }
 
+  /* --- insert: 行首「+」插入块 --- */
   function bindBlockInsert(ctx) {
     const wrap = ctx.getWrap();
     if (!wrap) return { sync() {}, hide() {}, refreshI18n() {} };
@@ -6076,6 +6097,7 @@
     };
   }
 
+  /* --- create: MolanEditor.create --- */
   function create(options = {}) {
     const elementId = options.elementId || "vditor";
     const cdn = options.cdn || DEFAULT_CDN;
@@ -6565,6 +6587,7 @@
     return Promise.resolve(api);
   }
 
+  /* --- export: 导出 PDF/PNG 与 window.MolanEditor --- */
   function applyExportI18n() {
     const btn = document.getElementById("pdfBtn");
     const menu = document.getElementById("exportMenu");
