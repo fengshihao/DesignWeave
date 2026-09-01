@@ -24,13 +24,6 @@ const repoRoot = join(root, "..", "..");
 const sampleMd = join(repoRoot, "tools", "markdown-viewer", "demo", "实例演示.md");
 const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 
-function listVsix() {
-  return readdirSync(root)
-    .filter((name) => name.startsWith("molan-markdown-") && name.endsWith(".vsix"))
-    .map((name) => join(root, name))
-    .sort((a, b) => b.localeCompare(a));
-}
-
 function packageVsix() {
   console.log("vscode-install-e2e: 未找到 .vsix，正在打包…");
   const result = spawnSync(
@@ -54,13 +47,12 @@ function packageVsix() {
 }
 
 function latestVsix() {
-  let files = listVsix();
-  if (!files.length) {
+  const wanted = join(root, `molan-markdown-${pkg.version}.vsix`);
+  if (!existsSync(wanted)) {
     packageVsix();
-    files = listVsix();
   }
-  assert(files.length, "missing molan-markdown-*.vsix after package");
-  return files[0];
+  assert(existsSync(wanted), `missing molan-markdown-${pkg.version}.vsix after package`);
+  return wanted;
 }
 
 function knownEditorBinaries() {
