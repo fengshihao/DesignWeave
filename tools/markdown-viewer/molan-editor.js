@@ -1378,9 +1378,37 @@
     refreshMermaidDiagrams(root);
   }
 
+  function mermaidSandbox() {
+    let box = document.getElementById("molanMermaidSandbox");
+    if (!box) {
+      box = document.createElement("div");
+      box.id = "molanMermaidSandbox";
+      box.setAttribute("aria-hidden", "true");
+      document.body.appendChild(box);
+    }
+    return box;
+  }
+
+  function mermaidRenderOrphan(el) {
+    if (!el || el.nodeType !== 1 || el.id === "molanMermaidSandbox") return false;
+    if (el.closest("#molanMermaidSandbox")) return true;
+    if (!/^(d)?molan-mmd-\d+$/.test(el.id || "")) return false;
+    return !el.closest(".language-mermaid, .molan-mermaid-shell, .molan-mermaid-editor, .vditor-ir__preview");
+  }
+
+  function sweepMermaidRenderOrphans() {
+    document.getElementById("molanMermaidSandbox")?.replaceChildren();
+    document.querySelectorAll("[id^='molan-mmd-'], [id^='dmolan-mmd-']").forEach((el) => {
+      if (mermaidRenderOrphan(el)) el.remove();
+    });
+  }
+
   function cleanupMermaidTemp(id) {
-    document.getElementById(id)?.remove();
-    document.getElementById("d" + id)?.remove();
+    if (id) {
+      document.getElementById(id)?.remove();
+      document.getElementById("d" + id)?.remove();
+    }
+    sweepMermaidRenderOrphans();
   }
 
   function renderMermaidSvg(source) {
@@ -1389,24 +1417,32 @@
     if (!api || typeof api.render !== "function") {
       return Promise.reject(new Error("mermaid.render 不可用"));
     }
-    const done = (svg) => {
+    const sandbox = mermaidSandbox();
+    const finish = (svg) => {
       cleanupMermaidTemp(id);
       return svg;
     };
-    try {
-      const out = api.render(id, source);
-      if (out && typeof out.then === "function") {
-        return out.then((result) => done(typeof result === "string" ? result : result.svg));
+    const fail = (err) => {
+      cleanupMermaidTemp(id);
+      queueMicrotask(() => cleanupMermaidTemp(id));
+      if (typeof requestAnimationFrame === "function") {
+        requestAnimationFrame(() => cleanupMermaidTemp(id));
       }
-      if (typeof out === "string") return Promise.resolve(done(out));
-      if (out && out.svg) return Promise.resolve(done(out.svg));
+      throw err;
+    };
+    try {
+      const out = api.render(id, source, sandbox);
+      if (out && typeof out.then === "function") {
+        return out.then((result) => finish(typeof result === "string" ? result : result.svg), fail);
+      }
+      if (typeof out === "string") return Promise.resolve(finish(out));
+      if (out && out.svg) return Promise.resolve(finish(out.svg));
     } catch (_) { /* mermaid 9 走回调 */ }
     return new Promise((resolve, reject) => {
       try {
-        api.render(id, source, (svg) => resolve(done(svg)));
+        api.render(id, source, (svg) => resolve(finish(svg)));
       } catch (err) {
-        cleanupMermaidTemp(id);
-        reject(err);
+        try { fail(err); } catch (next) { reject(next); }
       }
     });
   }
@@ -1450,6 +1486,7 @@
         }
       }
       enhanceMermaidPreviews(root);
+      sweepMermaidRenderOrphans();
     } finally {
       mermaidRefreshing = false;
       if (mermaidRefreshQueued) {

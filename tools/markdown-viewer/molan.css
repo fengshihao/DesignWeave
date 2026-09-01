@@ -3328,6 +3328,17 @@
       font-family: var(--reader-font) !important;
     }
 
+    /* 离屏可布局沙箱：给 mermaid.render 量尺寸，不要 display:none */
+    #molanMermaidSandbox {
+      position: fixed;
+      left: -100000px;
+      top: 0;
+      width: 960px;
+      height: auto;
+      overflow: visible;
+      pointer-events: none;
+    }
+
     /* 预览态：点击图进入观看，不要出现 text caret */
     .vditor-ir__preview:has(.language-mermaid),
     .vditor-ir__preview:has(.language-mermaid) .language-mermaid {

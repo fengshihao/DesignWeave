@@ -154,6 +154,18 @@ test("复制流程图前会去掉会污染 canvas 的 foreignObject", () => {
   assert.match(src, /ctx\.fillStyle = diagramBackgroundColor\(\)/);
 });
 
+test("Mermaid 语法错误不会把错误卡堆到页面底部", () => {
+  const src = editorSrc();
+  const css = readFileSync(join(root, "src", "molan.css"), "utf8");
+  assert.match(src, /function mermaidSandbox/);
+  assert.match(src, /function sweepMermaidRenderOrphans/);
+  assert.match(src, /api\.render\(id, source, sandbox\)/);
+  assert.match(src, /queueMicrotask\(\(\) => cleanupMermaidTemp\(id\)\)/);
+  assert.match(css, /#molanMermaidSandbox/);
+  assert.match(css, /left:\s*-100000px/);
+  assert.doesNotMatch(css, /\[id\^="dmolan-mmd-"\]/);
+});
+
 test("流程图插入后立刻刷预览，并清掉节点末尾残留源码", () => {
   const src = editorSrc();
   assert.match(src, /function applyMermaidSvg/);
