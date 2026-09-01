@@ -139,6 +139,11 @@ test("灯箱大图按 SVG 尺寸缩放，不用 CSS scale，并去掉 foreignObj
   assert.doesNotMatch(editorCanvas[0], /will-change/);
 });
 
+test("内联流程图预览渲染后也会去掉 foreignObject", () => {
+  const src = editorSrc();
+  assert.match(src, /applyMermaidSvg\(host, next\)[\s\S]*vectorizeSvgForeignObjects\(next\)/);
+});
+
 test("复制流程图前会去掉会污染 canvas 的 foreignObject", () => {
   const src = editorSrc();
   assert.match(src, /function sanitizeSvgForCanvas/);

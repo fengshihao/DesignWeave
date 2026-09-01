@@ -239,6 +239,9 @@
           const next = wrap.querySelector("svg");
           if (!next) continue;
           applyMermaidSvg(host, next);
+          // Windows 上 foreignObject HTML 标签与 SVG 框缩放不一致；灯箱/编辑器已 vectorize，内联预览对齐同一路径。
+          void host.offsetHeight;
+          vectorizeSvgForeignObjects(next);
         } catch (err) {
           console.warn(err);
         }
