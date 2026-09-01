@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "packageManager": "pnpm@8.6.9",
   "scripts": {
-    "predev": "pnpm --filter @designweave/schema build && pnpm --filter @designweave/prompts build && pnpm --filter @designweave/molan-protocol build && pnpm --filter @designweave/molan-core build && pnpm --filter @designweave/molan-host build",
+    "predev": "pnpm --filter @designweave/schema build && pnpm --filter @designweave/prompts build && pnpm --filter @designweave/molan-protocol build && pnpm --filter @designweave/molan-core build && pnpm --filter @designweave/molan-host build && pnpm --filter @designweave/web sync-molan",
     "test": "pnpm --filter @designweave/molan-protocol test && pnpm --filter @designweave/molan-host test && pnpm --filter @designweave/molan-core test && pnpm --filter @designweave/agent test",
     "test:molan": "node tools/markdown-viewer/scripts/editor-e2e.mjs && node tools/markdown-viewer/scripts/buttons-e2e.mjs && node tools/markdown-viewer/scripts/table-e2e.mjs",
     "dev": "node scripts/run-bash.mjs scripts/dev.sh",
