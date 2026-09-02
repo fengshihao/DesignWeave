@@ -24,6 +24,7 @@ export const EDITOR_MODULES = [
   "markdown.js",
   "ir.js",
   "insert.js",
+  "selection.js",
   "create.js",
   "export.js",
 ];

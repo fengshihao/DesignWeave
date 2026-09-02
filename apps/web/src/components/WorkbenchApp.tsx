@@ -504,6 +504,9 @@ function ProjectPaper(props: {
   const [entrustSize, setEntrustSize] = useState<EntrustSize>("collapsed");
   const [entrustWidth, setEntrustWidth] = useState(420);
   const [toast, setToast] = useState("");
+  const [previewFocus, setPreviewFocus] = useState<{ headingPath: string[]; quote: string } | null>(
+    null
+  );
   const { width: railWidth, onWidthChange: onRailWidthChange } = useRailWidth();
 
   activeRunRef.current = activeRun;
@@ -554,8 +557,9 @@ function ProjectPaper(props: {
       setContent(file.content);
       setEtag(file.etag);
       setDirty(false);
-      setHistory(null);
-      rememberFile(id, file.path);
+    setHistory(null);
+    setPreviewFocus(null);
+    rememberFile(id, file.path);
     },
     [dirty, id, readOnly]
   );
@@ -925,8 +929,21 @@ function ProjectPaper(props: {
                 onBlockedEdit={() => {
                   setToast(editBlockedReason || "现在不能编辑。");
                 }}
+                onSelection={(focus) => {
+                  console.debug("[dw-focus]", focus);
+                  setPreviewFocus(focus.quote ? focus : null);
+                }}
               />
             </div>
+            {previewFocus?.quote ? (
+              <div className="preview-focus-chip" role="status">
+                {(previewFocus.headingPath.join(" / ") || "（整篇）") +
+                  " · 「" +
+                  previewFocus.quote.slice(0, 24) +
+                  (previewFocus.quote.length > 24 ? "…" : "") +
+                  "」"}
+              </div>
+            ) : null}
             <EntrustLayer
               size={entrustSize}
               width={entrustWidth}

@@ -1142,6 +1142,30 @@ body:has(.workbench) {
   padding-bottom: 58px;
 }
 
+.preview-focus-chip {
+  position: absolute;
+  left: 16px;
+  bottom: 68px;
+  z-index: 4;
+  max-width: min(520px, calc(100% - 32px));
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  background: var(--paper-lift);
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.4;
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.molan-stage:not(.has-collapsed-entrust) .preview-focus-chip {
+  bottom: 16px;
+}
+
 .entrust {
   background: var(--paper-lift);
   border: 1px solid var(--hairline);
