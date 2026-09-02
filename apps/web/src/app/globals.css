@@ -2016,7 +2016,24 @@ html[data-theme="hack"] .workbench::after {
   font-size: 13px;
 }
 
+.settings-panel {
+  width: min(720px, 92vw);
+}
+
 .settings-panel .code-pick-list {
   margin: 8px 0 12px;
+}
+
+.settings-panel .system-prompt-editor {
+  min-height: 240px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
 }
 

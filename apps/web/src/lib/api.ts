@@ -171,6 +171,20 @@ export const api = {
       body: JSON.stringify({ workspaceRoot }),
     }),
 
+  getSystemPrompt: () =>
+    request<{ text: string; isDefault: boolean }>("/v1/workspace/system-prompt"),
+
+  setSystemPrompt: (text: string) =>
+    request<{ text: string; isDefault: boolean }>("/v1/workspace/system-prompt", {
+      method: "PUT",
+      body: JSON.stringify({ text }),
+    }),
+
+  resetSystemPrompt: () =>
+    request<{ text: string; isDefault: boolean }>("/v1/workspace/system-prompt/reset", {
+      method: "POST",
+    }),
+
   listCodeDirs: () =>
     request<{
       source: string;

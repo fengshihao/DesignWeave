@@ -4,6 +4,7 @@ import { getDb } from "./db.js";
 import { HttpError } from "./httpError.js";
 import { scanClaudeKnownProjects } from "./claudeProjects.js";
 import { canonicalPath, isFsRoot, isPathInside, resolveHostPath } from "./hostPath.js";
+import { ensureSystemPromptFile } from "./systemPrompt.js";
 
 export type ApprovedCodeDir = {
   path: string;
@@ -63,6 +64,7 @@ export function setWorkspaceRoot(raw: string): string {
        ON CONFLICT(key) DO UPDATE SET value = excluded.value`
     )
     .run(abs);
+  ensureSystemPromptFile(abs);
   return abs;
 }
 

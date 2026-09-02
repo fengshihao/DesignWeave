@@ -95,6 +95,12 @@ import {
 } from "./projectLocks.js";
 import { registerWorkbenchRoutes } from "./workbenchRoutes.js";
 import { statusOf } from "./httpError.js";
+import {
+  readSystemPrompt,
+  requirePromptWorkspaceRoot,
+  resetSystemPrompt,
+  writeSystemPrompt,
+} from "./systemPrompt.js";
 
 fs.mkdirSync(workspacesRoot(), { recursive: true });
 getDb();
@@ -333,6 +339,43 @@ app.put("/v1/workspace", requireArchitect, (req, res) => {
   } catch (err) {
     res.status(statusOf(err)).json({
       error: err instanceof Error ? err.message : "没法设定运行根目录",
+    });
+  }
+});
+
+app.get("/v1/workspace/system-prompt", requireArchitect, (_req, res) => {
+  try {
+    const root = requirePromptWorkspaceRoot(getWorkspaceRoot());
+    res.json(readSystemPrompt(root));
+  } catch (err) {
+    res.status(statusOf(err)).json({
+      error: err instanceof Error ? err.message : "读不了系统提示词",
+    });
+  }
+});
+
+app.put("/v1/workspace/system-prompt", requireArchitect, (req, res) => {
+  try {
+    const root = requirePromptWorkspaceRoot(getWorkspaceRoot());
+    if (typeof req.body?.text !== "string") {
+      res.status(400).json({ error: "请提供系统提示词文本。" });
+      return;
+    }
+    res.json(writeSystemPrompt(root, req.body.text));
+  } catch (err) {
+    res.status(statusOf(err)).json({
+      error: err instanceof Error ? err.message : "没法保存系统提示词",
+    });
+  }
+});
+
+app.post("/v1/workspace/system-prompt/reset", requireArchitect, (_req, res) => {
+  try {
+    const root = requirePromptWorkspaceRoot(getWorkspaceRoot());
+    res.json(resetSystemPrompt(root));
+  } catch (err) {
+    res.status(statusOf(err)).json({
+      error: err instanceof Error ? err.message : "没法恢复默认系统提示词",
     });
   }
 });

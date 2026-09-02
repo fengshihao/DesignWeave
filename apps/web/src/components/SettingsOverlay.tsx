@@ -26,9 +26,22 @@ export function SettingsOverlay(props: {
   >([]);
   const [scanError, setScanError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [promptText, setPromptText] = useState("");
+  const [promptSaved, setPromptSaved] = useState("");
+  const [promptIsDefault, setPromptIsDefault] = useState(false);
+  const [promptReady, setPromptReady] = useState(false);
+
+  async function loadPrompt() {
+    const p = await api.getSystemPrompt();
+    setPromptText(p.text);
+    setPromptSaved(p.text);
+    setPromptIsDefault(p.isDefault);
+    setPromptReady(true);
+  }
 
   async function load() {
     setError("");
+    setPromptReady(false);
     try {
       const [w, h, c, scan] = await Promise.all([
         api.workspace(),
@@ -41,6 +54,14 @@ export function SettingsOverlay(props: {
       setConfig(c);
       setDirs(scan.dirs);
       setScanError(scan.error || (!scan.found ? "未找到 ~/.claude.json" : ""));
+      if (w.workspaceRoot) {
+        try {
+          await loadPrompt();
+        } catch (e) {
+          setPromptReady(false);
+          setError(e instanceof Error ? e.message : "读不了系统提示词");
+        }
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "加载失败");
     }
@@ -60,8 +81,46 @@ export function SettingsOverlay(props: {
       const res = await api.setWorkspaceRoot(path);
       setWorkspaceRoot(res.workspaceRoot);
       props.onWorkspaceChange();
+      try {
+        await loadPrompt();
+      } catch (e) {
+        setPromptReady(false);
+        setError(e instanceof Error ? e.message : "读不了系统提示词");
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "没法设定运行根目录");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function savePrompt() {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await api.setSystemPrompt(promptText);
+      setPromptText(res.text);
+      setPromptSaved(res.text);
+      setPromptIsDefault(res.isDefault);
+      setPromptReady(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "没法保存系统提示词");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function restorePrompt() {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await api.resetSystemPrompt();
+      setPromptText(res.text);
+      setPromptSaved(res.text);
+      setPromptIsDefault(res.isDefault);
+      setPromptReady(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "没法恢复默认系统提示词");
     } finally {
       setBusy(false);
     }
@@ -102,6 +161,50 @@ export function SettingsOverlay(props: {
           <button className="btn" type="button" disabled={busy} onClick={() => setPicker(true)}>
             {workspaceRoot ? "重选" : "选择运行根目录"}
           </button>
+        </section>
+
+        <section>
+          <h3>系统提示词</h3>
+          <p className="muted">
+            下一轮托付用这份。硬规则（只写文档仓、不改代码）改不了。
+            {promptReady && promptIsDefault ? " 当前是出厂默认。" : ""}
+          </p>
+          {!workspaceRoot ? (
+            <p className="muted">请先选定运行根目录。</p>
+          ) : promptReady ? (
+            <>
+              <div className="field">
+                <textarea
+                  className="system-prompt-editor"
+                  value={promptText}
+                  onChange={(e) => setPromptText(e.target.value)}
+                  spellCheck={false}
+                  disabled={busy}
+                  aria-label="系统提示词"
+                />
+              </div>
+              <div className="settings-actions">
+                <button
+                  className="btn primary"
+                  type="button"
+                  disabled={busy || promptText === promptSaved}
+                  onClick={() => void savePrompt()}
+                >
+                  保存
+                </button>
+                <button
+                  className="btn ghost"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void restorePrompt()}
+                >
+                  恢复默认
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="muted">还没读到系统提示词。</p>
+          )}
         </section>
 
         <section>
