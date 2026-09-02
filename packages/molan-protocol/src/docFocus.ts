@@ -56,6 +56,53 @@ export function emptyDocFocus(): DocFocus {
   return { headingPath: [], quote: "" };
 }
 
+type HtmlHeading = {
+  level: number;
+  text: string;
+  start: number;
+  end: number;
+};
+
+function listHtmlHeadings(html: string): HtmlHeading[] {
+  const headings: HtmlHeading[] = [];
+  const re = /<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(html))) {
+    const text = stripPreviewText(match[2] || "");
+    if (!text) continue;
+    headings.push({
+      level: Number(match[1]),
+      text,
+      start: match.index,
+      end: match.index + match[0].length,
+    });
+  }
+  return headings;
+}
+
+/**
+ * 点标题选整节：该标题到下一同级/更高级之前的纯文本，路径含祖先 + 自身。
+ * 不依赖 DOM，方便单测「点用户故事」。
+ */
+export function sectionForHeadingInHtml(html: string, headingText: string): DocFocus {
+  const needle = headingText.replace(/\s+/g, " ").trim();
+  if (!needle) return emptyDocFocus();
+  const headings = listHtmlHeadings(html);
+  const idx = headings.findIndex((h) => h.text === needle);
+  if (idx < 0) return emptyDocFocus();
+  const current = headings[idx];
+  let sectionEnd = html.length;
+  for (let i = idx + 1; i < headings.length; i += 1) {
+    if (headings[i].level <= current.level) {
+      sectionEnd = headings[i].start;
+      break;
+    }
+  }
+  const quote = stripPreviewText(html.slice(current.start, sectionEnd));
+  const marks = headings.slice(0, idx + 1).map((h) => ({ level: h.level, text: h.text }));
+  return { headingPath: headingPathFromMarks(marks), quote };
+}
+
 /** 底条 / 气泡芯片：`章节路径 · 「摘录前 24 字…」`。无引文则空串。 */
 export function formatFocusChip(focus: Pick<DocFocus, "headingPath" | "quote">): string {
   const quote = focus.quote.replace(/\s+/g, " ").trim();
