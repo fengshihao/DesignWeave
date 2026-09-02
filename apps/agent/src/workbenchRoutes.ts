@@ -40,11 +40,11 @@ function requireProject(req: Request) {
 }
 
 function parseMode(raw: unknown): WorkbenchMode {
-  const mode = String(raw || "");
+  const mode = String(raw || "coauthor");
   if (mode === "clarify" || mode === "coauthor" || mode === "grill" || mode === "feasibility") {
     return mode;
   }
-  throw new HttpError("档位必须是 检查清晰度 / 共创 / 拷问 / 可行性", 400);
+  return "coauthor";
 }
 
 export function registerWorkbenchRoutes(app: Express): void {

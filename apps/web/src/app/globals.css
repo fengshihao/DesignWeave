@@ -659,39 +659,6 @@ body:has(.workbench) {
   opacity: 0.72;
 }
 
-.mode-switch {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-bottom: 0;
-  flex: 1;
-  min-width: 0;
-}
-
-.mode-switch button {
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--ink-muted);
-  border-radius: 999px;
-  padding: 5px 10px;
-  font-size: 12px;
-}
-
-.mode-switch button:hover:not(:disabled) {
-  background: var(--surface);
-  color: var(--ink-soft);
-}
-
-.mode-switch button[aria-selected="true"] {
-  background: var(--accent-glow);
-  color: var(--accent-deep);
-  border-color: transparent;
-}
-
-.mode-switch button:disabled {
-  opacity: 0.4;
-}
-
 .run-log {
   min-height: 160px;
   max-height: 240px;
@@ -1270,12 +1237,11 @@ body.is-col-resizing iframe {
   border-bottom: 1px solid var(--hairline);
 }
 
-.entrust-mode-chip {
-  font-size: 12px;
+.entrust-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
   color: var(--ink-soft);
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: var(--surface);
 }
 
 .entrust-stream {

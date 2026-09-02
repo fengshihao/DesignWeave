@@ -149,41 +149,28 @@ test("标题分块能对上 PRD 章节", () => {
   assert.equal(splitMarkdownChunks("## 背景\n\nhello").length, 1);
 });
 
-test("清晰度门闩：未就绪只能检查清晰度；可行性还要已批准代码目录", () => {
+test("清晰度门闩不再拦发送，填写中也能托付", () => {
   assert.deepEqual(
-    allowedModes({ phase: "filling", clarity: "pending", hasApprovedCodeDirs: true }),
-    ["clarify"]
+    allowedModes({ phase: "filling", clarity: "pending", hasApprovedCodeDirs: false }),
+    ["clarify", "coauthor", "grill", "feasibility"]
+  );
+  assert.equal(
+    gateWorkbenchMode({
+      mode: "coauthor",
+      phase: "filling",
+      clarity: "pending",
+      hasApprovedCodeDirs: false,
+    }),
+    null
   );
   assert.equal(
     gateWorkbenchMode({
       mode: "feasibility",
       phase: "filling",
       clarity: "pending",
-      hasApprovedCodeDirs: true,
-    }),
-    "先检查清晰度，才能用共创 / 拷问 / 可行性。"
-  );
-  assert.equal(
-    gateWorkbenchMode({
-      mode: "feasibility",
-      phase: "ready",
-      clarity: "ready",
-      hasApprovedCodeDirs: false,
-    }),
-    "架构师还没批准代码目录"
-  );
-  assert.equal(
-    gateWorkbenchMode({
-      mode: "coauthor",
-      phase: "ready",
-      clarity: "ready",
       hasApprovedCodeDirs: false,
     }),
     null
-  );
-  assert.deepEqual(
-    allowedModes({ phase: "ready", clarity: "ready", hasApprovedCodeDirs: true }),
-    ["coauthor", "grill", "feasibility"]
   );
 });
 
