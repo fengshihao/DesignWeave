@@ -48,6 +48,7 @@ import {
   rememberRailWidth,
   type EntrustSize,
 } from "@/lib/remember";
+import { WeaveMark } from "@/components/WeaveMark";
 
 function clientId(): string {
   const key = "dw-workbench-client";
@@ -222,21 +223,6 @@ function useRailWidth() {
     rememberRailWidth(next);
   }, []);
   return { width, onWidthChange };
-}
-
-function WeaveMark() {
-  return (
-    <svg viewBox="0 0 32 32" aria-hidden="true">
-      <rect x="3.5" y="3.5" width="25" height="25" rx="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
-      <path
-        d="M10 11.5c3.2 0 3.2 9 6.4 9s3.2-9 6.4-9M10 20.5c3.2 0 3.2-9 6.4-9s3.2 9 6.4 9"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.55"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
 }
 
 function RailMenuItem(props: {

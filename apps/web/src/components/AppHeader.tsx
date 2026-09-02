@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { logoutAndLeave } from "@/lib/auth-client";
 import type { SessionUser } from "@/lib/api";
+import { WeaveIcon } from "@/components/WeaveMark";
 
 export function AppHeader(props: {
   user: SessionUser;
@@ -15,7 +16,8 @@ export function AppHeader(props: {
   return (
     <header className="topbar">
       <div>
-        <Link href="/" className="brand">
+        <Link href="/" className="brand brand-with-mark">
+          <WeaveIcon size={28} />
           Design<span>Weave</span>
         </Link>
         {props.title ? (

@@ -3,12 +3,23 @@
 import { FormEvent, Suspense, useEffect, useState } from "react";
 import { api, type SessionUser } from "@/lib/api";
 import { WorkbenchApp } from "@/components/WorkbenchApp";
+import { WeaveIcon } from "@/components/WeaveMark";
+
+function AuthBrand() {
+  return (
+    <div className="brand brand-with-mark">
+      <WeaveIcon size={52} />
+      Design<span>Weave</span>
+    </div>
+  );
+}
 
 export default function HomePage() {
   return (
     <Suspense
       fallback={
         <main className="auth-screen">
+          <AuthBrand />
           <p className="muted">正在打开工作台…</p>
         </main>
       }
@@ -55,6 +66,7 @@ function HomeBoot() {
   if (boot === "loading") {
     return (
       <main className="auth-screen">
+        <AuthBrand />
         <p className="muted">正在打开工作台…</p>
       </main>
     );
@@ -87,9 +99,7 @@ function SetupForm(props: { onDone: () => void; error: string }) {
 
   return (
     <main className="auth-screen">
-      <div className="brand">
-        Design<span>Weave</span>
-      </div>
+      <AuthBrand />
       <h1>创建第一个架构师账号</h1>
       <p className="muted">这台工作台还没有人。创建后，你再给产品经理开账号。</p>
       <form onSubmit={onSubmit}>
@@ -152,9 +162,7 @@ function LoginForm(props: { onDone: () => void; error: string }) {
 
   return (
     <main className="auth-screen">
-      <div className="brand">
-        Design<span>Weave</span>
-      </div>
+      <AuthBrand />
       <h1>登录工作台</h1>
       <form onSubmit={onSubmit}>
         <div className="field">

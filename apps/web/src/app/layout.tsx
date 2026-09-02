@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "DesignWeave · 工作台",
-  description: "对照代码做调研、补 PRD。人在墨览里改 Markdown。",
+  description: "给产品 / 设计 / 测试用的 Cursor。圈文档一块，说一句，AI 改 Markdown。",
 };
 
 const themeBoot = `(function(){
