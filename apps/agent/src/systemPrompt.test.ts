@@ -6,7 +6,9 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { HttpError } from "./httpError.js";
 import {
+  appendSystemPromptForRun,
   ensureSystemPromptFile,
+  HARD_RULES,
   NO_WORKSPACE_ROOT,
   readBuiltinSystemPrompt,
   readSystemPrompt,
@@ -88,5 +90,39 @@ test("空文件视为只要硬规则，ensure 不偷偷写回默认", () => {
     assert.equal(got.isDefault, false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("改磁盘上的系统提示词后，append 里能看到新句子", () => {
+  const root = tmpRoot();
+  try {
+    writeSystemPrompt(root, "这是架构师刚写的口味：只改圈住的那一段。\n");
+    const append = appendSystemPromptForRun({ workspaceRoot: root });
+    assert.match(append, /只改圈住的那一段/);
+    assert.match(append, /只写文档仓里的 Markdown/);
+    assert.match(append, /不要假装读过代码/);
+    assert.equal(append.startsWith(HARD_RULES.trim()), true);
+    assert.doesNotMatch(append, /档位：检查清晰度|档位：共创|档位：拷问|档位：可行性/);
+    assert.doesNotMatch(append, /clarity: ready|必须 ready/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("空系统提示词只要硬规则，缺文件则用出厂默认", () => {
+  const emptyRoot = tmpRoot();
+  const missingRoot = tmpRoot();
+  try {
+    writeSystemPrompt(emptyRoot, "");
+    const emptyAppend = appendSystemPromptForRun({ workspaceRoot: emptyRoot });
+    assert.equal(emptyAppend, HARD_RULES.trim());
+    assert.doesNotMatch(emptyAppend, /一次只问 1～3 个关键问题/);
+
+    const missingAppend = appendSystemPromptForRun({ workspaceRoot: missingRoot });
+    assert.match(missingAppend, /一次只问 1～3 个关键问题/);
+    assert.match(missingAppend, /只写文档仓里的 Markdown/);
+  } finally {
+    fs.rmSync(emptyRoot, { recursive: true, force: true });
+    fs.rmSync(missingRoot, { recursive: true, force: true });
   }
 });
