@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   buildWorkbenchUserPrompt,
+  demoWriteRelPath,
   parseWorkbenchFocus,
   quoteAsMarkdown,
 } from "./workbenchPrompt.js";
@@ -63,4 +64,11 @@ test("有选区时 userPrompt 带章节路径和 markdown 引文", () => {
   assert.match(prompt, /> 作为用户我想要一键关灯。/);
   assert.match(prompt, /把验收写成可勾选项/);
   assert.doesNotMatch(prompt, /档位/);
+});
+
+test("演示写回路径听打开的文件，不听旧档位", () => {
+  assert.equal(demoWriteRelPath(null), "PRD.md");
+  assert.equal(demoWriteRelPath({ file: "gaps.md", headingPath: [], quote: "" }), "gaps.md");
+  assert.equal(demoWriteRelPath({ file: "../secret.md", headingPath: [], quote: "" }), "PRD.md");
+  assert.equal(demoWriteRelPath({ file: "code.ts", headingPath: [], quote: "" }), "PRD.md");
 });

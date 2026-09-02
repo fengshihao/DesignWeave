@@ -16,12 +16,11 @@ import {
   getRun,
   isTerminal,
   setRunStatus,
-  type WorkbenchMode,
 } from "./workbenchRuns.js";
 import { setEditing } from "./projectLocks.js";
 import { getWorkspaceRoot } from "./workspaceSettings.js";
 import { appendSystemPromptForRun } from "./systemPrompt.js";
-import { buildWorkbenchUserPrompt, type WorkbenchFocus } from "./workbenchPrompt.js";
+import { buildWorkbenchUserPrompt, demoWriteRelPath, type WorkbenchFocus } from "./workbenchPrompt.js";
 
 const AI_AUTHOR = { name: "AI", email: "ai@designweave.local" };
 
@@ -105,13 +104,6 @@ function finishAssistant(runId: string, started: { value: boolean }): void {
   appendAgui(runId, agui.textEnd(assistantMessageId(runId), "assistant"));
 }
 
-function modeLabel(mode: WorkbenchMode): string {
-  if (mode === "clarify") return "检查清晰度";
-  if (mode === "grill") return "拷问";
-  if (mode === "feasibility") return "可行性";
-  return "共创";
-}
-
 function audienceOf(userId: string): { role: AppRole; label: string } {
   const row = getDb()
     .prepare(`SELECT role FROM user WHERE id = ?`)
@@ -186,8 +178,8 @@ function userPrompt(
 async function runMock(
   runId: string,
   meta: RequirementMeta,
-  mode: WorkbenchMode,
   message: string,
+  focus: WorkbenchFocus | null,
   selectedDirs: string[],
   signal: AbortSignal
 ): Promise<void> {
@@ -203,84 +195,19 @@ async function runMock(
   }
 
   const stamp = new Date().toISOString().replace("T", " ").slice(0, 16);
-  if (mode === "feasibility") {
-    const body = `# 调研
-
-> 演示模式 · ${stamp}
-> 只读了已选代码目录，没有改任何业务代码。
-
-## 产品经理托付
+  const rel = demoWriteRelPath(focus);
+  const target = path.join(meta.vaultPath, rel);
+  const prev = fs.existsSync(target) ? fs.readFileSync(target, "utf8") : `# ${meta.title}\n`;
+  const extra = `
+## 托付补充（演示 · ${stamp}）
 
 ${message}
 
-## 用了哪些代码目录
-
-${selectedDirs.length ? selectedDirs.map((r) => `- \`${r}\``).join("\n") : "- （这一轮没有对上目录；请用产品问题消歧）"}
-
-## 已有能力
-
-（演示）从目录名和现有文档推断，不能当作可行性结论。
-
-## 缺口
-
-- 需要对照真实代码确认入口、权限、机型差异是否已覆盖。
-
-## 建议
-
-配置本机 Claude / API Key 后，再跑一轮可行性。未改任何业务代码。
+（演示模式记下了这句话。接上真实模型后会按对方的话写入对应篇。）
 `;
-    fs.writeFileSync(path.join(meta.vaultPath, "调研.md"), body, "utf8");
-    fileWritten(runId, "调研.md");
-    hint(runId, "已写入 调研.md");
-  } else if (mode === "clarify") {
-    const gapsPath = path.join(meta.vaultPath, "gaps.md");
-    const extra = `# 待补齐
-
-> 检查清晰度（演示 · ${stamp}）
-
-产品经理说：${message}
-
-- [ ] 背景与用户是否无歧义
-- [ ] 目标与非目标是否写清
-- [ ] 至少 1 条完整用户故事（含可勾选验收）
-- [ ] 至少 1 条有头有尾的主流程
-- [ ] 入口
-- [ ] 规格与 OEM 约束
-- [ ] 整包验收
-
-演示模式不会把清晰度标成 ready。接上真实模型后会按检查表写入，并只在全部过关时改 meta.md。
-`;
-    fs.writeFileSync(gapsPath, extra, "utf8");
-    fileWritten(runId, "gaps.md");
-    hint(runId, "已把清晰度缺口写进 gaps.md");
-  } else if (mode === "grill") {
-    const gapsPath = path.join(meta.vaultPath, "gaps.md");
-    const prev = fs.existsSync(gapsPath) ? fs.readFileSync(gapsPath, "utf8") : "# 待补齐\n";
-    const extra = `
-## 拷问（演示 · ${stamp}）
-
-产品经理说：${message}
-
-- [ ] 成功标准是否可观测、可验收？
-- [ ] 范围内外有没有互相打架的句子？
-`;
-    fs.writeFileSync(gapsPath, `${prev.trim()}\n${extra}\n`, "utf8");
-    fileWritten(runId, "gaps.md");
-    hint(runId, "已把拷问写进 gaps.md");
-  } else {
-    const prdPath = path.join(meta.vaultPath, "PRD.md");
-    const prev = fs.existsSync(prdPath) ? fs.readFileSync(prdPath, "utf8") : `# ${meta.title}\n`;
-    const extra = `
-## 共创补充（演示 · ${stamp}）
-
-${message}
-
-（演示模式记下了这句话。接上真实模型后会按章节写入对应篇。）
-`;
-    fs.writeFileSync(prdPath, `${prev.trim()}\n${extra}\n`, "utf8");
-    fileWritten(runId, "PRD.md");
-    hint(runId, "已把这一轮写进 PRD.md");
-  }
+  fs.writeFileSync(target, `${prev.trim()}\n${extra}\n`, "utf8");
+  fileWritten(runId, rel);
+  hint(runId, `已把这一轮写进 ${rel}`);
 
   await sleep(300, signal);
 }
@@ -288,7 +215,6 @@ ${message}
 async function runClaude(
   runId: string,
   meta: RequirementMeta,
-  mode: WorkbenchMode,
   message: string,
   audience: { role: AppRole; label: string },
   focus: WorkbenchFocus | null,
@@ -374,12 +300,11 @@ export async function executeWorkbenchRun(runId: string): Promise<void> {
 
   try {
     if (!config.anthropicApiKey) {
-      await runMock(runId, meta, run.mode, run.message, roots, controller.signal);
+      await runMock(runId, meta, run.message, run.focus, roots, controller.signal);
     } else {
       await runClaude(
         runId,
         meta,
-        run.mode,
         run.message,
         audienceOf(run.userId),
         run.focus,
@@ -395,7 +320,7 @@ export async function executeWorkbenchRun(runId: string): Promise<void> {
     if (isDirty(meta.vaultPath)) {
       const version = commitAll(
         meta.vaultPath,
-        `AI：${modeLabel(run.mode)} ${run.message.slice(0, 40)}`,
+        `AI：托付 ${run.message.slice(0, 40)}`,
         AI_AUTHOR
       );
       versionId = version?.id ?? null;

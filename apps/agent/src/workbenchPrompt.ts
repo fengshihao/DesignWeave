@@ -63,3 +63,13 @@ ${input.message}
 先读文档仓里已有的 Markdown（至少打开的这篇），再用中文说明你在做什么，然后读写文件。有选区就先定位到引文再改。
 `.trim();
 }
+
+/** 演示模式写回哪一篇：听本轮打开的文件，忽略旧档位。 */
+export function demoWriteRelPath(focus?: WorkbenchFocus | null): string {
+  const file = (focus?.file || "PRD.md").replace(/\\/g, "/").replace(/^\/+/, "");
+  if (!file || file.includes("..") || file.startsWith("/") || /^[A-Za-z]:/.test(file)) {
+    return "PRD.md";
+  }
+  if (!/\.(md|markdown|txt)$/i.test(file)) return "PRD.md";
+  return file;
+}

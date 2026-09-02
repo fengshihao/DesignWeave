@@ -805,7 +805,6 @@ function ProjectPaper(props: {
     setBusy(true);
     try {
       const started = await api.startRun(id, {
-        mode: "coauthor",
         message: text,
         clientId: cid,
         focus: {
