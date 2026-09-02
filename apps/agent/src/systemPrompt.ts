@@ -57,3 +57,42 @@ export function writeSystemPrompt(
 export function resetSystemPrompt(workspaceRoot: string): { text: string; isDefault: boolean } {
   return writeSystemPrompt(workspaceRoot, readBuiltinSystemPrompt());
 }
+
+/** 代码里的硬规则。人改不了；四档 / 检查表 / 必须 ready 不要写在这里。 */
+export const HARD_RULES = `## 硬规则
+- 只写文档仓里的 Markdown。禁止修改代码目录里任何文件。
+- 本阶段不要读代码目录，也不要假装读过代码。若代码目录出现在 additionalDirectories 里，只许 Read / Glob / Grep，禁止写入。
+- 先 Read 再改。不要输出「请把下面粘贴到文件」——直接用工具写文件。
+- 始终使用简体中文写文档、报进度、提问。
+- 对方给了选区：优先改该引文所在位置；引文找不到时先问，不要乱改别处。
+- 没有选区：按对方的话处理当前打开的文件，必要时读同仓其它篇。
+- 产品经理主文件默认是 PRD.md。不要把整包拆成多个 01–05 文件，除非对方明确要求。
+- 进行中就可以把章节落到磁盘；不要等全部写完才第一次 Write。
+- 问产品问题消歧，不问「要用哪个 Git 仓库」。
+- 每一轮都是冷启动：动手前先 Read / Glob 文档仓，至少覆盖当前打开的文件，以及 gaps.md、调研.md（若有）。`;
+
+export function loadArchitectPromptText(workspaceRoot: string | null | undefined): string {
+  if (!workspaceRoot?.trim()) return readBuiltinSystemPrompt();
+  return readSystemPrompt(workspaceRoot).text;
+}
+
+export function composeAppendSystemPrompt(opts: {
+  architectPrompt: string;
+  runtime?: string;
+}): string {
+  const parts = [HARD_RULES.trim()];
+  if (opts.architectPrompt.length) parts.push(opts.architectPrompt);
+  const runtime = opts.runtime?.trim();
+  if (runtime) parts.push(runtime);
+  return parts.join("\n\n");
+}
+
+export function appendSystemPromptForRun(opts: {
+  workspaceRoot: string | null | undefined;
+  runtime?: string;
+}): string {
+  return composeAppendSystemPrompt({
+    architectPrompt: loadArchitectPromptText(opts.workspaceRoot),
+    runtime: opts.runtime,
+  });
+}
