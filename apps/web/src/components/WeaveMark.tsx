@@ -28,7 +28,7 @@ export function WeaveMark() {
 
 /** Theme-aware plate: follows --paper / --accent / --ink so a later green paper still fits. */
 export function WeaveIcon({ size = 56 }: { size?: number }) {
-  const clip = `dw-weave-${useId().replace(/:/g, "")}`;
+  const clip = `dw-weave-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   return (
     <svg
       className="weave-icon"
