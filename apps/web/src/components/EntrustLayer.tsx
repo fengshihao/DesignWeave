@@ -9,15 +9,8 @@ import {
   useState,
 } from "react";
 import type { ChatBlock, ChatTurn } from "@designweave/molan-protocol";
-import type { WorkbenchMode, WorkbenchRun } from "@/lib/api";
+import type { WorkbenchRun } from "@/lib/api";
 import type { EntrustSize } from "@/lib/remember";
-
-const MODES: Array<{ id: WorkbenchMode; label: string; hint: string }> = [
-  { id: "clarify", label: "检查清晰度", hint: "这一轮要核对什么？" },
-  { id: "coauthor", label: "共创", hint: "这一轮要写什么？" },
-  { id: "grill", label: "拷问", hint: "你怀疑哪一句站不住？" },
-  { id: "feasibility", label: "可行性", hint: "要对照现有能力问什么？" },
-];
 
 const SIZE_LABEL: Record<EntrustSize, string> = {
   collapsed: "收起",
@@ -67,10 +60,6 @@ export function EntrustLayer(props: {
   width: number;
   onSizeChange: (size: EntrustSize) => void;
   onWidthChange: (width: number) => void;
-  mode: WorkbenchMode;
-  onModeChange: (mode: WorkbenchMode) => void;
-  hasCode: boolean;
-  allowedModes?: WorkbenchMode[];
   turns: ChatTurn[];
   message: string;
   onMessageChange: (value: string) => void;
@@ -89,7 +78,7 @@ export function EntrustLayer(props: {
   const dragRef = useRef<{ pointerId: number; startX: number; startW: number } | null>(null);
   const [showJump, setShowJump] = useState(false);
   const floating = props.size !== "collapsed";
-  const placeholder = MODES.find((m) => m.id === props.mode)?.hint || "托付给 AI…";
+  const placeholder = "说一句，AI 改文档…";
   const canSend = Boolean(props.message.trim()) && !props.aiRunning && !props.busy;
 
   useEffect(() => {
@@ -194,33 +183,7 @@ export function EntrustLayer(props: {
         />
       ) : null}
       <div className={floating ? "entrust-head" : "entrust-bar"}>
-        {floating ? (
-          <div className="mode-switch" role="tablist">
-            {MODES.map((m) => {
-              const allowed = props.allowedModes
-                ? props.allowedModes.includes(m.id)
-                : m.id === "feasibility"
-                  ? props.hasCode
-                  : true;
-              return (
-                <button
-                  key={m.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={props.mode === m.id}
-                  disabled={!allowed}
-                  onClick={() => props.onModeChange(m.id)}
-                >
-                  {m.label}
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          <span className="entrust-mode-chip">
-            {MODES.find((m) => m.id === props.mode)?.label || "托付"}
-          </span>
-        )}
+        <span className="entrust-title">托付</span>
         <button
           className="btn ghost"
           type="button"

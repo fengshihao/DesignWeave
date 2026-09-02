@@ -15,7 +15,6 @@ import {
   type ProjectLockInfo,
   type RequirementMeta,
   type SessionUser,
-  type WorkbenchMode,
   type WorkbenchRun,
 } from "@/lib/api";
 import { MolanFrame, type MolanHandle } from "@/components/MolanFrame";
@@ -66,15 +65,6 @@ function isReady(r: Pick<RequirementMeta, "phase" | "clarity">): boolean {
   return r.clarity === "ready" || r.phase === "ready";
 }
 
-function modesFor(r: RequirementMeta, hasApproved: boolean): WorkbenchMode[] {
-  if (!isReady(r)) return ["clarify"];
-  return hasApproved ? ["coauthor", "grill", "feasibility"] : ["coauthor", "grill"];
-}
-
-function defaultMode(r: RequirementMeta, hasApproved: boolean): WorkbenchMode {
-  return modesFor(r, hasApproved)[0];
-}
-
 export function WorkbenchApp(props: { user: SessionUser }) {
   const router = useRouter();
   const search = useSearchParams();
@@ -85,7 +75,6 @@ export function WorkbenchApp(props: { user: SessionUser }) {
   const [projects, setProjects] = useState<RequirementMeta[]>([]);
   const [orphans, setOrphans] = useState<RequirementMeta[]>([]);
   const [workspaceRootSet, setWorkspaceRootSet] = useState(true);
-  const [hasApprovedCodeDirs, setHasApprovedCodeDirs] = useState(false);
 
   function setQuery(next: { p?: string | null; overlay?: string | null }) {
     const q = new URLSearchParams();
@@ -102,7 +91,6 @@ export function WorkbenchApp(props: { user: SessionUser }) {
     setProjects(list.requirements);
     setOrphans(list.orphans || []);
     setWorkspaceRootSet(list.workspaceRootSet);
-    setHasApprovedCodeDirs(list.hasApprovedCodeDirs);
     return list.requirements;
   }
 
@@ -132,7 +120,6 @@ export function WorkbenchApp(props: { user: SessionUser }) {
           id={projectId}
           user={props.user}
           projects={projects}
-          hasApprovedCodeDirs={hasApprovedCodeDirs}
           onSwitch={(id) => setQuery({ p: id })}
           onCreate={() => setQuery({ overlay: "create" })}
           onSettings={() => (isArchitect ? setQuery({ overlay: "settings" }) : undefined)}
@@ -474,7 +461,6 @@ function ProjectPaper(props: {
   id: string;
   user: SessionUser;
   projects: RequirementMeta[];
-  hasApprovedCodeDirs: boolean;
   onSwitch: (id: string) => void;
   onCreate: () => void;
   onSettings?: () => void;
@@ -497,7 +483,6 @@ function ProjectPaper(props: {
   const [lock, setLock] = useState<ProjectLockInfo>(null);
   const [previewReason, setPreviewReason] = useState("");
   const [activeRun, setActiveRun] = useState<WorkbenchRun | null>(null);
-  const [mode, setMode] = useState<WorkbenchMode>("clarify");
   const [message, setMessage] = useState("");
   const [events, setEvents] = useState<AguiEvent[]>([]);
   const [error, setError] = useState("");
@@ -530,7 +515,6 @@ function ProjectPaper(props: {
   );
   const turns = reduceAguiEvents(events);
   const readOnly = !youHold || aiRunning || Boolean(history);
-  const allowed = meta ? modesFor(meta, props.hasApprovedCodeDirs) : (["clarify"] as WorkbenchMode[]);
   const editBlockedReason = history
     ? "这是旧版，返回纸面后再改。"
     : aiRunning
@@ -607,7 +591,6 @@ function ProjectPaper(props: {
     setEtag(file.etag);
     setDirty(false);
     setHistory(null);
-    setMode(defaultMode(data.requirement, props.hasApprovedCodeDirs));
     const timeline = await api.listRuns(id);
     const historical: AguiEvent[] = [];
     for (const run of [...timeline.runs].reverse()) {
@@ -635,7 +618,7 @@ function ProjectPaper(props: {
     } else if (savedSize) {
       setEntrustSize(savedSize);
     }
-  }, [cid, id, props.hasApprovedCodeDirs]);
+  }, [cid, id]);
 
   useEffect(() => {
     setCid(clientId());
@@ -816,7 +799,7 @@ function ProjectPaper(props: {
     }
     setBusy(true);
     try {
-      const started = await api.startRun(id, { mode, message: text, clientId: cid });
+      const started = await api.startRun(id, { mode: "coauthor", message: text, clientId: cid });
       setMessage("");
       setActiveRun(started.run);
       ingestEvents(
@@ -952,10 +935,6 @@ function ProjectPaper(props: {
                 setEntrustWidth(w);
                 rememberEntrustWidth(id, w);
               }}
-              mode={mode}
-              onModeChange={setMode}
-              hasCode={props.hasApprovedCodeDirs}
-              allowedModes={allowed}
               turns={turns}
               message={message}
               onMessageChange={setMessage}
