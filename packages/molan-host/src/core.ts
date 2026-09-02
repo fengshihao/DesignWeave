@@ -195,6 +195,13 @@ export function createBridgeCore(options: BridgeCoreOptions) {
         post({ type: "previewChange", isPreview: api.isPreview() });
       }
     });
+    api.onSelection?.((focus) => {
+      post({
+        type: "selection",
+        headingPath: focus.headingPath,
+        quote: focus.quote,
+      });
+    });
   }
 
   function onEditorInput() {

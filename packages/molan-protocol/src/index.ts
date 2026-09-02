@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { DocFocus } from "./docFocus.js";
 
 /** 四款纸面主题 */
 export const MolanThemeSchema = z.enum(["night", "hack", "rose", "xuan"]);
@@ -25,6 +26,7 @@ export type EditorOptions = {
   onCounter?: () => void;
   onSave?: () => void;
   onReady?: (api: EditorApi) => void;
+  onSelection?: (focus: DocFocus) => void;
 };
 
 /** 编辑器实例 API（浏览器侧运行时契约） */
@@ -35,6 +37,7 @@ export type EditorApi = {
   isPreview(): boolean;
   focus(): void;
   onPreviewChange(cb: (previewing: boolean) => void): () => void;
+  onSelection?(cb: (focus: DocFocus) => void): () => void;
   getVditor?(): unknown;
 };
 
@@ -81,6 +84,11 @@ export const FrameToHostMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("openRelative"), value: z.string() }),
   z.object({ type: z.literal("openExternal"), value: z.string() }),
   z.object({ type: z.literal("copyText"), value: z.string() }),
+  z.object({
+    type: z.literal("selection"),
+    headingPath: z.array(z.string()),
+    quote: z.string(),
+  }),
 ]);
 export type FrameToHostMessage = z.infer<typeof FrameToHostMessageSchema>;
 
@@ -103,3 +111,11 @@ export function isFrameToHostMessage(data: unknown): data is FrameToHostMessage 
 }
 
 export * from "./run.js";
+export {
+  emptyDocFocus,
+  headingPathForQuoteInHtml,
+  headingPathFromMarks,
+  stripPreviewText,
+  type DocFocus,
+  type HeadingMark,
+} from "./docFocus.js";

@@ -35,6 +35,7 @@ export const MolanFrame = forwardRef<
     onEditingChange: (editing: boolean) => void;
     onBlockedEdit?: () => void;
     onOpenRelative?: (path: string) => void;
+    onSelection?: (focus: { headingPath: string[]; quote: string }) => void;
   }
 >(function MolanFrame(props, ref) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -97,6 +98,7 @@ export const MolanFrame = forwardRef<
           onChange: (dirty) => propsRef.current.onDirtyChange(dirty),
           onPreviewChange: (isPreview) => propsRef.current.onEditingChange(!isPreview),
           onWantEdit: () => propsRef.current.onBlockedEdit?.(),
+          onSelection: (focus) => propsRef.current.onSelection?.(focus),
           onReady: () => {
             readyRef.current = true;
             void sendInit();

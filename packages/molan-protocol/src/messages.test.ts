@@ -64,4 +64,13 @@ test("parseHostToFrameMessage / parseFrameToHostMessage 安全解析", () => {
   assert.equal(parseFrameToHostMessage({ type: "theme", theme: "hack" })?.theme, "hack");
   assert.equal(parseFrameToHostMessage({ type: "theme", theme: "bad" }), null);
   assert.equal(parseFrameToHostMessage({ type: "copyText", value: "abc" })?.type, "copyText");
+  const selection = parseFrameToHostMessage({
+    type: "selection",
+    headingPath: ["用户故事"],
+    quote: "作为用户我想要一键关灯。",
+  });
+  assert.equal(selection?.type, "selection");
+  if (selection?.type === "selection") {
+    assert.deepEqual(selection.headingPath, ["用户故事"]);
+  }
 });

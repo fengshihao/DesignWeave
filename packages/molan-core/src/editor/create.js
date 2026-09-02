@@ -25,6 +25,13 @@
     let previewSeq = 0;
     let muteInput = false;
     const previewListeners = [];
+    const previewSelection = bindPreviewSelection({
+      getRoot: () => previewBody,
+      isPreviewing: () => previewing,
+    });
+    previewSelection.onSelection((focus) => {
+      try { options.onSelection?.(focus); } catch (_) { /* ignore */ }
+    });
     let blockInsert = { sync() {}, hide() {}, refreshI18n() {} };
     let lastPreviewSource = null;
     const mermaidBridge = {
@@ -66,6 +73,7 @@
       previewListeners.forEach((cb) => {
         try { cb(previewing); } catch (_) { /* ignore */ }
       });
+      if (!previewing) previewSelection.clear();
     };
 
     const syncLiteClass = () => {
@@ -441,6 +449,9 @@
           const i = previewListeners.indexOf(cb);
           if (i >= 0) previewListeners.splice(i, 1);
         };
+      },
+      onSelection(cb) {
+        return previewSelection.onSelection(cb);
       },
       getVditor() {
         return vditor;

@@ -42,6 +42,7 @@ function mockEditor(value = "# hello"): EditorApi {
     isPreview: () => preview,
     focus: () => {},
     onPreviewChange: () => () => {},
+    onSelection: () => () => {},
   };
 }
 
@@ -94,4 +95,32 @@ test("createBridgeCore handleSaved 清 dirty", async () => {
   });
   await bridge.handleSaved();
   assert.equal(readerEyebrow.textContent, "已同步");
+});
+
+test("bindEditor 把预览选区转成 selection 消息", () => {
+  const posts: unknown[] = [];
+  let report: ((focus: { headingPath: string[]; quote: string }) => void) | undefined;
+  const api: EditorApi = {
+    ...mockEditor(),
+    onSelection(cb) {
+      report = cb;
+      return () => undefined;
+    },
+  };
+  const bridge = createBridgeCore({
+    chrome: {},
+    post: (msg) => posts.push(msg),
+    toast: () => {},
+    countWords: (t) => t.length,
+    ensureEditor: async () => api,
+  });
+  bridge.bindEditor(api);
+  report?.({ headingPath: ["用户故事"], quote: "作为用户我想要一键关灯。" });
+  const sel = posts.find((m) => (m as { type?: string }).type === "selection") as {
+    headingPath: string[];
+    quote: string;
+  };
+  assert.ok(sel);
+  assert.deepEqual(sel.headingPath, ["用户故事"]);
+  assert.match(sel.quote, /一键关灯/);
 });

@@ -20,6 +20,7 @@ export type InlineHostCallbacks = {
   onPreviewChange: (isPreview: boolean) => void;
   onWantEdit: () => void;
   onReady?: () => void;
+  onSelection?: (focus: { headingPath: string[]; quote: string }) => void;
 };
 
 export type InlineHostHandle = {
@@ -64,6 +65,13 @@ export function mountInlineHost(root: HTMLElement, callbacks: InlineHostCallback
       }
       if (msg.type === "wantEdit") {
         callbacks.onWantEdit();
+        return;
+      }
+      if (msg.type === "selection") {
+        callbacks.onSelection?.({
+          headingPath: msg.headingPath,
+          quote: msg.quote,
+        });
         return;
       }
       if (msg.type === "state") {
