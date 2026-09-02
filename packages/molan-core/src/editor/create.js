@@ -453,6 +453,9 @@
       onSelection(cb) {
         return previewSelection.onSelection(cb);
       },
+      clearSelection() {
+        previewSelection.clear();
+      },
       getVditor() {
         return vditor;
       },

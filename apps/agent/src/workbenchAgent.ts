@@ -21,6 +21,7 @@ import {
 import { setEditing } from "./projectLocks.js";
 import { getWorkspaceRoot } from "./workspaceSettings.js";
 import { appendSystemPromptForRun } from "./systemPrompt.js";
+import { buildWorkbenchUserPrompt, type WorkbenchFocus } from "./workbenchPrompt.js";
 
 const AI_AUTHOR = { name: "AI", email: "ai@designweave.local" };
 
@@ -170,20 +171,16 @@ function systemPrompt(
 
 function userPrompt(
   meta: RequirementMeta,
-  mode: WorkbenchMode,
   message: string,
-  audience: { label: string }
+  focus?: WorkbenchFocus | null
 ): string {
-  return `
-工程：${meta.title}
-档位：${modeLabel(mode)}
-文档仓：${meta.vaultPath}
-
-${audience.label}说：
-${message}
-
-请开始。先读文档仓里已有的 Markdown，再用中文说明你在做什么，然后读写文件。
-`.trim();
+  return buildWorkbenchUserPrompt({
+    title: meta.title,
+    file: focus?.file || "PRD.md",
+    inventory: vaultDocInventory(meta.id),
+    focus,
+    message,
+  });
 }
 
 async function runMock(
@@ -294,6 +291,7 @@ async function runClaude(
   mode: WorkbenchMode,
   message: string,
   audience: { role: AppRole; label: string },
+  focus: WorkbenchFocus | null,
   signal: AbortSignal
 ): Promise<void> {
   let snap = snapshotMtimes(meta.vaultPath);
@@ -302,7 +300,7 @@ async function runClaude(
   let toolSeq = 0;
 
   const q = query({
-    prompt: userPrompt(meta, mode, message, audience),
+    prompt: userPrompt(meta, message, focus),
     options: buildClaudeQueryOptions({
       cwd: meta.vaultPath,
       allowedTools,
@@ -384,6 +382,7 @@ export async function executeWorkbenchRun(runId: string): Promise<void> {
         run.mode,
         run.message,
         audienceOf(run.userId),
+        run.focus,
         controller.signal
       );
     }

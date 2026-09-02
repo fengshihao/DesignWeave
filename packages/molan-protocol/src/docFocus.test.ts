@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { headingPathForQuoteInHtml, headingPathFromMarks } from "./docFocus.js";
+import { formatFocusChip, headingPathForQuoteInHtml, headingPathFromMarks } from "./docFocus.js";
 
 test("标题栈按层级收成路径", () => {
   assert.deepEqual(
@@ -39,4 +39,17 @@ test("用户故事下的一句能解析出该节标题", () => {
 test("引文不在 HTML 里或为空则没有路径", () => {
   assert.deepEqual(headingPathForQuoteInHtml("<h2>用户故事</h2><p>hello</p>", ""), []);
   assert.deepEqual(headingPathForQuoteInHtml("<h2>用户故事</h2><p>hello</p>", "没有这段"), []);
+});
+
+test("芯片文案是章节路径加 24 字摘录", () => {
+  assert.equal(formatFocusChip({ headingPath: [], quote: "" }), "");
+  assert.equal(
+    formatFocusChip({ headingPath: ["用户故事"], quote: "作为用户我想要一键关灯。" }),
+    "用户故事 · 「作为用户我想要一键关灯。」"
+  );
+  const long = "这是一段超过二十四字用来检查芯片摘录是否截断的选中原文";
+  assert.equal(
+    formatFocusChip({ headingPath: ["背景与目标", "问题"], quote: long }),
+    `背景与目标 / 问题 · 「${long.slice(0, 24)}…」`
+  );
 });

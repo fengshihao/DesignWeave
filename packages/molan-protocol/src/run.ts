@@ -27,7 +27,7 @@ export type AguiRole = z.infer<typeof AguiRoleSchema>;
 export const AguiRunResultSchema = z.enum(["success", "error", "cancelled"]);
 export type AguiRunResult = z.infer<typeof AguiRunResultSchema>;
 
-export const CUSTOM_EVENT_NAMES = ["trust", "hint", "file"] as const;
+export const CUSTOM_EVENT_NAMES = ["trust", "hint", "file", "focus"] as const;
 export type CustomEventName = (typeof CUSTOM_EVENT_NAMES)[number];
 
 export const AguiEventSchema = z.object({
@@ -197,6 +197,7 @@ export function summarizeToolInput(
 export type ChatTurn = {
   runId: string;
   you?: string;
+  focus?: { headingPath: string[]; quote: string; file?: string };
   blocks: ChatBlock[];
 };
 
@@ -290,6 +291,22 @@ export function reduceAguiEvents(events: AguiEvent[]): ChatTurn[] {
           const text = str(value.text);
           if (text) {
             turn.blocks.push({ id: `hint-${ev.seq}`, kind: "hint", text });
+          }
+        } else if (ev.name === "focus") {
+          const quote = str(value.quote).replace(/\s+/g, " ").trim();
+          if (quote) {
+            const headingPath = Array.isArray(value.headingPath)
+              ? value.headingPath
+                  .filter((p): p is string => typeof p === "string")
+                  .map((p) => p.replace(/\s+/g, " ").trim())
+                  .filter(Boolean)
+              : [];
+            const file = str(value.file).trim();
+            turn.focus = {
+              headingPath,
+              quote,
+              ...(file ? { file } : {}),
+            };
           }
         } else if (ev.name === "file") {
           const path = str(value.path);

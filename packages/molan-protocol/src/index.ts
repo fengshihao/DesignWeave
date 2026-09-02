@@ -38,6 +38,7 @@ export type EditorApi = {
   focus(): void;
   onPreviewChange(cb: (previewing: boolean) => void): () => void;
   onSelection?(cb: (focus: DocFocus) => void): () => void;
+  clearSelection?(): void;
   getVditor?(): unknown;
 };
 
@@ -59,6 +60,7 @@ export const HostToFrameMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("find") }),
   z.object({ type: z.literal("findNext") }),
   z.object({ type: z.literal("findPrev") }),
+  z.object({ type: z.literal("clearSelection") }),
 ]);
 export type HostToFrameMessage = z.infer<typeof HostToFrameMessageSchema>;
 
@@ -113,6 +115,7 @@ export function isFrameToHostMessage(data: unknown): data is FrameToHostMessage 
 export * from "./run.js";
 export {
   emptyDocFocus,
+  formatFocusChip,
   headingPathForQuoteInHtml,
   headingPathFromMarks,
   stripPreviewText,

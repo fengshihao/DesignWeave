@@ -55,3 +55,12 @@ export function headingPathForQuoteInHtml(html: string, quote: string): string[]
 export function emptyDocFocus(): DocFocus {
   return { headingPath: [], quote: "" };
 }
+
+/** 底条 / 气泡芯片：`章节路径 · 「摘录前 24 字…」`。无引文则空串。 */
+export function formatFocusChip(focus: Pick<DocFocus, "headingPath" | "quote">): string {
+  const quote = focus.quote.replace(/\s+/g, " ").trim();
+  if (!quote) return "";
+  const path = focus.headingPath.map((p) => p.trim()).filter(Boolean).join(" / ") || "（整篇）";
+  const excerpt = quote.slice(0, 24) + (quote.length > 24 ? "…" : "");
+  return `${path} · 「${excerpt}」`;
+}

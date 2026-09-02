@@ -26,6 +26,12 @@ export type ProjectLockInfo = {
   otherDevice: boolean;
 } | null;
 
+export type DocFocus = {
+  file: string;
+  headingPath: string[];
+  quote: string;
+};
+
 export type WorkbenchRun = {
   id: string;
   projectId: string;
@@ -33,6 +39,7 @@ export type WorkbenchRun = {
   userName: string;
   mode: WorkbenchMode;
   message: string;
+  focus?: DocFocus | null;
   status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
   createdAt: string;
   updatedAt: string;
@@ -407,7 +414,10 @@ export const api = {
       method: "POST",
     }),
 
-  startRun: (id: string, body: { mode: WorkbenchMode; message: string; clientId: string }) =>
+  startRun: (
+    id: string,
+    body: { mode: WorkbenchMode; message: string; clientId: string; focus?: DocFocus }
+  ) =>
     request<{
       runId: string;
       run: WorkbenchRun;
