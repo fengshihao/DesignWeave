@@ -21,6 +21,7 @@ export type MolanHandle = {
   getState: () => Promise<MolanState>;
   markSaved: () => void;
   exitEdit: () => void;
+  clearSelection: () => void;
 };
 
 export const MolanFrame = forwardRef<
@@ -71,6 +72,9 @@ export const MolanFrame = forwardRef<
       },
       exitEdit() {
         void handleRef.current?.exitEdit();
+      },
+      clearSelection() {
+        void handleRef.current?.clearSelection();
       },
     }),
     [],

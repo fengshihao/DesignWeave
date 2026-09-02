@@ -3,6 +3,7 @@ import type { Response } from "express";
 import { agui, userMessageId, type AguiEventType } from "@designweave/molan-protocol";
 import { getDb } from "./db.js";
 import { HttpError } from "./httpError.js";
+import { parseWorkbenchFocus, type WorkbenchFocus } from "./workbenchPrompt.js";
 
 export type WorkbenchMode = "clarify" | "coauthor" | "grill" | "feasibility";
 export type RunStatus =
@@ -19,6 +20,7 @@ export type WorkbenchRun = {
   userName: string;
   mode: WorkbenchMode;
   message: string;
+  focus: WorkbenchFocus | null;
   status: RunStatus;
   createdAt: string;
   updatedAt: string;
@@ -61,6 +63,31 @@ export function ensureRunTables(): void {
       created_at TEXT NOT NULL
     );
   `);
+  ensureFocusColumn();
+}
+
+function ensureFocusColumn(): void {
+  const cols = getDb()
+    .prepare(`PRAGMA table_info(workbench_runs)`)
+    .all() as Array<{ name: string }>;
+  if (!cols.some((col) => col.name === "focus")) {
+    getDb().exec(`ALTER TABLE workbench_runs ADD COLUMN focus TEXT`);
+  }
+}
+
+const RUN_COLS = `id, project_id, user_id, user_name, mode, message, focus, status,
+              created_at, updated_at, ended_at, error`;
+
+function parseStoredFocus(raw: unknown): WorkbenchFocus | null {
+  if (raw == null || raw === "") return null;
+  if (typeof raw === "string") {
+    try {
+      return parseWorkbenchFocus(JSON.parse(raw));
+    } catch {
+      return null;
+    }
+  }
+  return parseWorkbenchFocus(raw);
 }
 
 function mapRun(r: {
@@ -70,6 +97,7 @@ function mapRun(r: {
   user_name: string;
   mode: string;
   message: string;
+  focus?: string | null;
   status: string;
   created_at: string;
   updated_at: string;
@@ -83,6 +111,7 @@ function mapRun(r: {
     userName: r.user_name,
     mode: r.mode as WorkbenchMode,
     message: r.message,
+    focus: parseStoredFocus(r.focus),
     status: r.status as RunStatus,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -99,8 +128,7 @@ export function getRun(id: string): WorkbenchRun | null {
   ensureRunTables();
   const r = getDb()
     .prepare(
-      `SELECT id, project_id, user_id, user_name, mode, message, status,
-              created_at, updated_at, ended_at, error
+      `SELECT ${RUN_COLS}
        FROM workbench_runs WHERE id = ?`
     )
     .get(id) as Parameters<typeof mapRun>[0] | undefined;
@@ -111,8 +139,7 @@ export function getActiveRun(projectId: string): WorkbenchRun | null {
   ensureRunTables();
   const r = getDb()
     .prepare(
-      `SELECT id, project_id, user_id, user_name, mode, message, status,
-              created_at, updated_at, ended_at, error
+      `SELECT ${RUN_COLS}
        FROM workbench_runs
        WHERE project_id = ? AND status IN ('queued', 'running')
        ORDER BY created_at DESC LIMIT 1`
@@ -125,8 +152,7 @@ export function listProjectRuns(projectId: string, limit = 20): WorkbenchRun[] {
   ensureRunTables();
   const rows = getDb()
     .prepare(
-      `SELECT id, project_id, user_id, user_name, mode, message, status,
-              created_at, updated_at, ended_at, error
+      `SELECT ${RUN_COLS}
        FROM workbench_runs WHERE project_id = ?
        ORDER BY created_at DESC LIMIT ?`
     )
@@ -152,6 +178,7 @@ export function createRun(input: {
   userName: string;
   mode: WorkbenchMode;
   message: string;
+  focus?: WorkbenchFocus | null;
 }): WorkbenchRun {
   ensureRunTables();
   if (getActiveRun(input.projectId)) {
@@ -159,11 +186,12 @@ export function createRun(input: {
   }
   const now = new Date().toISOString();
   const id = nanoid();
+  const focus = input.focus ?? null;
   getDb()
     .prepare(
       `INSERT INTO workbench_runs
-       (id, project_id, user_id, user_name, mode, message, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?)`
+       (id, project_id, user_id, user_name, mode, message, focus, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)`
     )
     .run(
       id,
@@ -172,11 +200,22 @@ export function createRun(input: {
       input.userName,
       input.mode,
       input.message,
+      focus ? JSON.stringify(focus) : null,
       now,
       now
     );
   const userId = userMessageId(id);
   appendAgui(id, agui.runStarted(input.projectId, input.mode));
+  if (focus?.quote) {
+    appendAgui(
+      id,
+      agui.custom("focus", {
+        file: focus.file,
+        headingPath: focus.headingPath,
+        quote: focus.quote,
+      })
+    );
+  }
   appendAgui(id, agui.textStart(userId, "user"));
   appendAgui(id, agui.textDelta(userId, "user", input.message));
   appendAgui(id, agui.textEnd(userId, "user"));

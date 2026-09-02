@@ -23,6 +23,7 @@ import {
   type WorkbenchMode,
 } from "./workbenchRuns.js";
 import { executeWorkbenchRun } from "./workbenchAgent.js";
+import { parseWorkbenchFocus } from "./workbenchPrompt.js";
 import { gateWorkbenchMode } from "./clarifyGate.js";
 import { hasApprovedCodeDirs } from "./workspaceSettings.js";
 import { patchProjectMeta } from "./requirements.js";
@@ -146,6 +147,7 @@ export function registerWorkbenchRoutes(app: Express): void {
         userName: req.user!.name,
         mode,
         message,
+        focus: parseWorkbenchFocus(req.body?.focus),
       });
       res.status(201).json({ runId: run.id, run, events: listEvents(run.id) });
       void executeWorkbenchRun(run.id);

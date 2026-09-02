@@ -220,3 +220,25 @@ test("agui 工厂发出的载荷能被 toAguiEvent / reduce 吃进去", () => {
   assert.ok(turns[0].blocks.some((b) => b.kind === "hint"));
   assert.ok(turns[0].blocks.some((b) => b.kind === "status"));
 });
+
+test("reduceAguiEvents 把 focus 自定义事件收成气泡引文", () => {
+  const frames = [
+    agui.runStarted("p1", "coauthor"),
+    agui.custom("focus", {
+      file: "PRD.md",
+      headingPath: ["用户故事"],
+      quote: "作为用户我想要一键关灯。",
+    }),
+    agui.textStart("user-r5", "user"),
+    agui.textDelta("user-r5", "user", "把验收写清楚"),
+    agui.textEnd("user-r5", "user"),
+  ];
+  const events = frames.map((frame, i) =>
+    toAguiEvent({ seq: i + 1, type: frame.type, payload: { runId: "r5", ...frame.payload }, runId: "r5" })
+  );
+  const turns = reduceAguiEvents(events);
+  assert.equal(turns[0].you, "把验收写清楚");
+  assert.deepEqual(turns[0].focus?.headingPath, ["用户故事"]);
+  assert.match(turns[0].focus?.quote || "", /一键关灯/);
+  assert.equal(turns[0].focus?.file, "PRD.md");
+});

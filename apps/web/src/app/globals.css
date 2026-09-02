@@ -1142,28 +1142,67 @@ body:has(.workbench) {
   padding-bottom: 58px;
 }
 
-.preview-focus-chip {
-  position: absolute;
-  left: 16px;
-  bottom: 68px;
-  z-index: 4;
-  max-width: min(520px, calc(100% - 32px));
-  padding: 6px 12px;
+.focus-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: min(280px, 46vw);
+  min-width: 0;
+  padding: 3px 6px 3px 10px;
   border-radius: 999px;
   border: 1px solid var(--hairline);
   background: var(--paper-lift);
   color: var(--ink-soft);
   font-size: 12px;
-  line-height: 1.4;
-  box-shadow: var(--shadow);
-  pointer-events: none;
+  line-height: 1.35;
+  flex-shrink: 1;
+}
+
+.focus-chip-text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.molan-stage:not(.has-collapsed-entrust) .preview-focus-chip {
-  bottom: 16px;
+.focus-chip-x {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}
+
+.focus-chip-x:hover {
+  background: var(--hairline);
+}
+
+.bubble-you-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  margin-left: 18%;
+  margin-bottom: 10px;
+}
+
+.bubble-you-wrap .bubble-you {
+  margin-left: 0;
+  margin-bottom: 0;
+}
+
+.bubble-you-wrap .focus-chip {
+  max-width: 100%;
+}
+
+.entrust.is-half .focus-chip,
+.entrust.is-full .focus-chip {
+  max-width: 100%;
+  align-self: flex-start;
 }
 
 .entrust {

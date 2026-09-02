@@ -559,6 +559,7 @@ function ProjectPaper(props: {
       setDirty(false);
     setHistory(null);
     setPreviewFocus(null);
+    molanRef.current?.clearSelection();
     rememberFile(id, file.path);
     },
     [dirty, id, readOnly]
@@ -803,7 +804,16 @@ function ProjectPaper(props: {
     }
     setBusy(true);
     try {
-      const started = await api.startRun(id, { mode: "coauthor", message: text, clientId: cid });
+      const started = await api.startRun(id, {
+        mode: "coauthor",
+        message: text,
+        clientId: cid,
+        focus: {
+          file: currentPath,
+          headingPath: previewFocus?.quote ? previewFocus.headingPath : [],
+          quote: previewFocus?.quote || "",
+        },
+      });
       setMessage("");
       setActiveRun(started.run);
       ingestEvents(
@@ -935,15 +945,6 @@ function ProjectPaper(props: {
                 }}
               />
             </div>
-            {previewFocus?.quote ? (
-              <div className="preview-focus-chip" role="status">
-                {(previewFocus.headingPath.join(" / ") || "（整篇）") +
-                  " · 「" +
-                  previewFocus.quote.slice(0, 24) +
-                  (previewFocus.quote.length > 24 ? "…" : "") +
-                  "」"}
-              </div>
-            ) : null}
             <EntrustLayer
               size={entrustSize}
               width={entrustWidth}
@@ -965,6 +966,11 @@ function ProjectPaper(props: {
               aiRunning={aiRunning}
               busy={busy}
               activeRun={activeRun}
+              focus={previewFocus}
+              onClearFocus={() => {
+                setPreviewFocus(null);
+                molanRef.current?.clearSelection();
+              }}
             />
           </div>
         </section>

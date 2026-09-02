@@ -241,6 +241,10 @@ export function createBridgeCore(options: BridgeCoreOptions) {
       await handleExitEdit();
       return true;
     }
+    if (msg.type === "clearSelection") {
+      editorApi?.clearSelection?.();
+      return true;
+    }
     return false;
   }
 

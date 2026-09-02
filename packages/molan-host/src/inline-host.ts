@@ -28,6 +28,7 @@ export type InlineHostHandle = {
   getState(): Promise<MolanState>;
   markSaved(): Promise<void>;
   exitEdit(): Promise<void>;
+  clearSelection(): Promise<void>;
   dispose(): void;
 };
 
@@ -191,6 +192,9 @@ export function mountInlineHost(root: HTMLElement, callbacks: InlineHostCallback
     },
     exitEdit() {
       return bridge.handleExitEdit();
+    },
+    async clearSelection() {
+      await bridge.handleHostMessage({ type: "clearSelection" });
     },
     dispose() {
       queryInRoot(root, "copyBtn")?.removeEventListener("click", onCopy);

@@ -104,6 +104,10 @@
         };
       },
       clear() {
+        try {
+          const sel = window.getSelection();
+          if (sel && sel.rangeCount) sel.removeAllRanges();
+        } catch (_) { /* ignore */ }
         emit(empty);
       },
       report,

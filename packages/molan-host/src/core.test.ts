@@ -124,3 +124,24 @@ test("bindEditor 把预览选区转成 selection 消息", () => {
   assert.deepEqual(sel.headingPath, ["用户故事"]);
   assert.match(sel.quote, /一键关灯/);
 });
+
+test("handleHostMessage clearSelection 调用编辑器清选区", async () => {
+  let cleared = 0;
+  const api: EditorApi = {
+    ...mockEditor(),
+    clearSelection() {
+      cleared += 1;
+    },
+  };
+  const bridge = createBridgeCore({
+    chrome: {},
+    post: () => {},
+    toast: () => {},
+    countWords: (t) => t.length,
+    ensureEditor: async () => api,
+  });
+  bridge.bindEditor(api);
+  const ok = await bridge.handleHostMessage({ type: "clearSelection" });
+  assert.equal(ok, true);
+  assert.equal(cleared, 1);
+});
