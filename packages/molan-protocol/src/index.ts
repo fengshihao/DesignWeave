@@ -118,6 +118,7 @@ export {
   formatFocusChip,
   headingPathForQuoteInHtml,
   headingPathFromMarks,
+  sectionForHeadingInHtml,
   stripPreviewText,
   type DocFocus,
   type HeadingMark,

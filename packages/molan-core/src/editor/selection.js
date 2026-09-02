@@ -58,10 +58,58 @@
     return a.headingPath.every((part, i) => part === b.headingPath[i]);
   }
 
+  function closestPreviewHeading(root, node) {
+    if (!root || !node) return null;
+    const el = node.nodeType === 1 ? node : node.parentElement;
+    const heading = el && el.closest ? el.closest("h1, h2, h3, h4, h5, h6") : null;
+    if (!heading || !root.contains(heading)) return null;
+    return heading;
+  }
+
+  function sectionRange(root, heading) {
+    const headings = [...root.querySelectorAll("h1, h2, h3, h4, h5, h6")];
+    const startLevel = Number(heading.tagName[1]);
+    let endHeading = null;
+    let seen = false;
+    for (const next of headings) {
+      if (next === heading) {
+        seen = true;
+        continue;
+      }
+      if (!seen) continue;
+      if (Number(next.tagName[1]) <= startLevel) {
+        endHeading = next;
+        break;
+      }
+    }
+    const range = document.createRange();
+    range.setStartBefore(heading);
+    if (endHeading) range.setEndBefore(endHeading);
+    else range.setEnd(root, root.childNodes.length);
+    return range;
+  }
+
+  function selectHeadingSection(root, heading, mute) {
+    const range = sectionRange(root, heading);
+    const sel = window.getSelection();
+    if (!sel) return null;
+    mute();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    const quote = String(range.toString() || "").replace(/\s+/g, " ").trim();
+    if (!quote) return null;
+    return {
+      headingPath: headingPathFromPreviewNode(root, heading),
+      quote,
+    };
+  }
+
   function bindPreviewSelection(opts) {
     const listeners = [];
     let last = { headingPath: [], quote: "" };
     const empty = { headingPath: [], quote: "" };
+    let press = null;
+    let muteCollapsed = false;
 
     const emit = (next) => {
       if (sameFocus(last, next)) return;
@@ -80,17 +128,55 @@
       emit(readPreviewFocus(root, window.getSelection()));
     };
 
-    const onMouseUp = () => report();
+    const onMouseDown = (e) => {
+      if (e.button !== 0 || !opts.isPreviewing()) {
+        press = null;
+        return;
+      }
+      press = {
+        x: e.clientX,
+        y: e.clientY,
+        heading: closestPreviewHeading(opts.getRoot(), e.target),
+      };
+    };
+
+    const onMouseUp = (e) => {
+      const start = press;
+      press = null;
+      if (
+        start &&
+        start.heading &&
+        Math.hypot(e.clientX - start.x, e.clientY - start.y) <= 6
+      ) {
+        const root = opts.getRoot();
+        if (root && opts.isPreviewing() && root.contains(start.heading)) {
+          const focus = selectHeadingSection(root, start.heading, () => {
+            muteCollapsed = true;
+            queueMicrotask(() => {
+              muteCollapsed = false;
+            });
+          });
+          if (focus) {
+            emit(focus);
+            return;
+          }
+        }
+      }
+      report();
+    };
+
     const onSelectionChange = () => {
       if (!opts.isPreviewing()) return;
       const sel = window.getSelection();
       if (!sel || sel.isCollapsed || !String(sel.toString() || "").trim()) {
+        if (muteCollapsed) return;
         emit(empty);
         return;
       }
       report();
     };
 
+    document.addEventListener("mousedown", onMouseDown);
     document.addEventListener("mouseup", onMouseUp);
     document.addEventListener("selectionchange", onSelectionChange);
 
@@ -112,6 +198,7 @@
       },
       report,
       dispose() {
+        document.removeEventListener("mousedown", onMouseDown);
         document.removeEventListener("mouseup", onMouseUp);
         document.removeEventListener("selectionchange", onSelectionChange);
         listeners.length = 0;
