@@ -1,37 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
   <title>DesignWeave</title>
   <defs>
-    <linearGradient id="dw-bg" x1="180" y1="40" x2="860" y2="1000" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#2C3F35"/>
-      <stop offset="0.48" stop-color="#1E2A24"/>
-      <stop offset="1" stop-color="#121916"/>
+    <linearGradient id="dw-bg" x1="160" y1="40" x2="880" y2="1000" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFBF4"/>
+      <stop offset="0.5" stop-color="#F4EFE6"/>
+      <stop offset="1" stop-color="#E8DFD0"/>
     </linearGradient>
-    <linearGradient id="dw-sheen" x1="512" y1="36" x2="512" y2="420" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#F4EFE6" stop-opacity="0.16"/>
+    <radialGradient id="dw-wash" cx="512" cy="480" r="380" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#E8A06A" stop-opacity="0.16"/>
       <stop offset="1" stop-color="#F4EFE6" stop-opacity="0"/>
-    </linearGradient>
-    <radialGradient id="dw-glow" cx="512" cy="520" r="340" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#E0A054" stop-opacity="0.28"/>
-      <stop offset="0.55" stop-color="#D4773B" stop-opacity="0.08"/>
-      <stop offset="1" stop-color="#1E2A24" stop-opacity="0"/>
     </radialGradient>
     <linearGradient id="dw-gold" x1="250" y1="300" x2="780" y2="720" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#F6D7A4"/>
-      <stop offset="0.45" stop-color="#E0A054"/>
+      <stop offset="0" stop-color="#F0C48A"/>
+      <stop offset="0.5" stop-color="#D4773B"/>
       <stop offset="1" stop-color="#B85F28"/>
     </linearGradient>
-    <linearGradient id="dw-gold-edge" x1="250" y1="280" x2="780" y2="700" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FFF4DC"/>
-      <stop offset="1" stop-color="#E8A06A"/>
-    </linearGradient>
-    <linearGradient id="dw-paper" x1="780" y1="280" x2="250" y2="740" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FFFBF4"/>
-      <stop offset="0.55" stop-color="#F0E6D4"/>
-      <stop offset="1" stop-color="#D8CFBE"/>
-    </linearGradient>
-    <linearGradient id="dw-paper-edge" x1="780" y1="260" x2="250" y2="720" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset="1" stop-color="#E8E2D6"/>
+    <linearGradient id="dw-moss" x1="780" y1="280" x2="250" y2="740" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8AAD90"/>
+      <stop offset="0.5" stop-color="#6B8F71"/>
+      <stop offset="1" stop-color="#4E7356"/>
     </linearGradient>
     <clipPath id="dw-tile">
       <rect width="1024" height="1024" rx="229"/>
@@ -40,37 +27,27 @@
       <rect x="512" y="180" width="360" height="660"/>
     </clipPath>
     <filter id="dw-soft" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#0A100D" flood-opacity="0.42"/>
-    </filter>
-    <filter id="dw-soft-lite" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#0A100D" flood-opacity="0.28"/>
+      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#3D3428" flood-opacity="0.16"/>
     </filter>
   </defs>
 
   <g clip-path="url(#dw-tile)">
     <rect width="1024" height="1024" fill="url(#dw-bg)"/>
-    <rect width="1024" height="1024" fill="url(#dw-glow)"/>
-    <rect width="1024" height="1024" fill="url(#dw-sheen)"/>
-    <rect x="28" y="28" width="968" height="968" rx="208" stroke="#0C1210" stroke-opacity="0.42" stroke-width="3"/>
-    <rect x="36" y="36" width="952" height="952" rx="202" stroke="#F4EFE6" stroke-opacity="0.07" stroke-width="2"/>
+    <rect width="1024" height="1024" fill="url(#dw-wash)"/>
+    <rect x="34" y="34" width="956" height="956" rx="204" stroke="#1C1914" stroke-opacity="0.1" stroke-width="3"/>
 
     <!--
-      Two sine ribbons, same geometry as the workbench WeaveMark.
-      Left crossing: gold over paper. Right crossing: paper over gold.
+      Same weave as the workbench mark.
+      Gold over moss on the left; moss over gold on the right.
+      Mid moss + oil-lamp gold on xuan paper — not a dark tile, so later
+      paper themes (green, rose, night) can recast the in-app mark.
     -->
     <g filter="url(#dw-soft)" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M286 656C398 656 398 368 512 368S626 656 738 656" stroke="url(#dw-paper)" stroke-width="86"/>
+      <path d="M286 656C398 656 398 368 512 368S626 656 738 656" stroke="url(#dw-moss)" stroke-width="86"/>
       <path d="M286 368C398 368 398 656 512 656S626 368 738 368" stroke="url(#dw-gold)" stroke-width="86"/>
     </g>
-    <g clip-path="url(#dw-right)" filter="url(#dw-soft-lite)" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M286 656C398 656 398 368 512 368S626 656 738 656" stroke="url(#dw-paper)" stroke-width="86"/>
-    </g>
-    <g stroke-linecap="round" stroke-linejoin="round" opacity="0.55">
-      <path d="M286 368C398 368 398 656 512 656S626 368 738 368" stroke="url(#dw-gold-edge)" stroke-width="28"/>
-      <path d="M286 656C398 656 398 368 512 368S626 656 738 656" stroke="url(#dw-paper-edge)" stroke-width="28"/>
-    </g>
-    <g clip-path="url(#dw-right)" stroke-linecap="round" opacity="0.55">
-      <path d="M286 656C398 656 398 368 512 368S626 656 738 656" stroke="url(#dw-paper-edge)" stroke-width="28"/>
+    <g clip-path="url(#dw-right)" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M286 656C398 656 398 368 512 368S626 656 738 656" stroke="url(#dw-moss)" stroke-width="86"/>
     </g>
   </g>
 </svg>

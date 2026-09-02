@@ -1,3 +1,7 @@
+"use client";
+
+import { useId } from "react";
+
 export function WeaveMark() {
   return (
     <svg viewBox="0 0 32 32" aria-hidden="true">
@@ -22,14 +26,36 @@ export function WeaveMark() {
   );
 }
 
+/** Theme-aware plate: follows --paper / --accent / --ink so a later green paper still fits. */
 export function WeaveIcon({ size = 56 }: { size?: number }) {
+  const clip = `dw-weave-${useId().replace(/:/g, "")}`;
   return (
-    <img
+    <svg
       className="weave-icon"
-      src="/brand/designweave.svg"
       width={size}
       height={size}
-      alt=""
-    />
+      viewBox="0 0 32 32"
+      aria-hidden="true"
+    >
+      <defs>
+        <clipPath id={clip}>
+          <rect x="16" y="6" width="12" height="20" />
+        </clipPath>
+      </defs>
+      <rect className="weave-icon-plate" x="1.2" y="1.2" width="29.6" height="29.6" rx="7" />
+      <path
+        className="weave-icon-weft"
+        d="M8.6 20.6c3.4 0 3.4-9.2 6.8-9.2s3.4 9.2 6.8 9.2"
+      />
+      <path
+        className="weave-icon-warp"
+        d="M8.6 11.4c3.4 0 3.4 9.2 6.8 9.2s3.4-9.2 6.8-9.2"
+      />
+      <path
+        className="weave-icon-weft"
+        clipPath={`url(#${clip})`}
+        d="M8.6 20.6c3.4 0 3.4-9.2 6.8-9.2s3.4 9.2 6.8 9.2"
+      />
+    </svg>
   );
 }

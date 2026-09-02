@@ -248,8 +248,29 @@ button {
 .weave-icon {
   display: block;
   flex-shrink: 0;
-  border-radius: 22%;
-  box-shadow: 0 10px 24px rgba(18, 25, 22, 0.22);
+  overflow: visible;
+}
+
+.weave-icon-plate {
+  fill: var(--paper-lift);
+  stroke: var(--hairline-strong);
+  stroke-width: 1;
+}
+
+.weave-icon-warp,
+.weave-icon-weft {
+  fill: none;
+  stroke-width: 2.45;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.weave-icon-warp {
+  stroke: var(--accent);
+}
+
+.weave-icon-weft {
+  stroke: var(--ink);
 }
 
 .panel {
