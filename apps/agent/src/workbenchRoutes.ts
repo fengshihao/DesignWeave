@@ -26,7 +26,6 @@ import { executeWorkbenchRun } from "./workbenchAgent.js";
 import { parseWorkbenchFocus } from "./workbenchPrompt.js";
 import { gateWorkbenchMode } from "./clarifyGate.js";
 import { hasApprovedCodeDirs } from "./workspaceSettings.js";
-import { patchProjectMeta } from "./requirements.js";
 
 function fail(res: Response, err: unknown): void {
   res.status(statusOf(err)).json({
@@ -40,6 +39,7 @@ function requireProject(req: Request) {
   return meta;
 }
 
+/** API 仍收 mode，只为兼容旧客户端；执行时一律当托付。 */
 function parseMode(raw: unknown): WorkbenchMode {
   const mode = String(raw || "coauthor");
   if (mode === "clarify" || mode === "coauthor" || mode === "grill" || mode === "feasibility") {
@@ -136,9 +136,6 @@ export function registerWorkbenchRoutes(app: Express): void {
       }
       if (isDirty(meta.vaultPath)) {
         throw new HttpError("先记入版本再发给 AI。", 409);
-      }
-      if (mode === "clarify" && meta.phase !== "ready") {
-        patchProjectMeta(meta.id, { phase: "clarifying" });
       }
 
       const run = createRun({

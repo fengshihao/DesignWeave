@@ -416,7 +416,7 @@ export const api = {
 
   startRun: (
     id: string,
-    body: { mode: WorkbenchMode; message: string; clientId: string; focus?: DocFocus }
+    body: { message: string; clientId: string; focus?: DocFocus; mode?: WorkbenchMode }
   ) =>
     request<{
       runId: string;

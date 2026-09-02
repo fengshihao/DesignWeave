@@ -25,6 +25,14 @@ function tmpRoot(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "dw-prompt-"));
 }
 
+test("出厂默认写清有选区改选区、一次问 1～3 个问题", () => {
+  const text = readBuiltinSystemPrompt();
+  assert.match(text, /对方圈了哪一段，就优先改那一段/);
+  assert.match(text, /一次只问 1～3 个关键问题/);
+  assert.match(HARD_RULES, /对方给了选区：优先改该引文所在位置/);
+  assert.doesNotMatch(text, /档位：|检查清晰度|可行性只读代码/);
+});
+
 test("无根目录拒绝读写系统提示词", () => {
   assert.throws(
     () => requirePromptWorkspaceRoot(null),
@@ -120,6 +128,7 @@ test("空系统提示词只要硬规则，缺文件则用出厂默认", () => {
 
     const missingAppend = appendSystemPromptForRun({ workspaceRoot: missingRoot });
     assert.match(missingAppend, /一次只问 1～3 个关键问题/);
+    assert.match(missingAppend, /对方圈了哪一段，就优先改那一段/);
     assert.match(missingAppend, /只写文档仓里的 Markdown/);
   } finally {
     fs.rmSync(emptyRoot, { recursive: true, force: true });
