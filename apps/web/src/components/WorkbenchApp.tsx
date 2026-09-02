@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   api,
@@ -32,10 +40,12 @@ import {
   lastEntrustWidth,
   lastFile,
   lastProjectId,
+  lastRailWidth,
   rememberEntrustSize,
   rememberEntrustWidth,
   rememberFile,
   rememberProject,
+  rememberRailWidth,
   type EntrustSize,
 } from "@/lib/remember";
 
@@ -183,18 +193,17 @@ function EmptyWorkbench(props: {
   onSettings?: () => void;
   onUsers?: () => void;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const { width, onWidthChange } = useRailWidth();
   return (
-    <div className={`workbench-body${collapsed ? " is-left-collapsed" : ""}`}>
+    <div className="workbench-body" style={{ "--rail-w": `${width}px` } as CSSProperties}>
       <Rail
-        collapsed={collapsed}
-        onCollapsed={setCollapsed}
+        width={width}
+        onWidthChange={onWidthChange}
         user={props.user}
         projects={props.projects}
         currentId=""
         files={[]}
         currentPath=""
-        title=""
         clarityLabel=""
         onOpenProject={props.onSwitch}
         onOpenFile={() => undefined}
@@ -215,105 +224,249 @@ function EmptyWorkbench(props: {
   );
 }
 
+const RAIL_MIN = 188;
+const RAIL_MAX = 380;
+
+function useRailWidth() {
+  const [width, setWidth] = useState(() => lastRailWidth() ?? 240);
+  const onWidthChange = useCallback((next: number) => {
+    setWidth(next);
+    rememberRailWidth(next);
+  }, []);
+  return { width, onWidthChange };
+}
+
+function WeaveMark() {
+  return (
+    <svg viewBox="0 0 32 32" aria-hidden="true">
+      <rect x="3.5" y="3.5" width="25" height="25" rx="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <path
+        d="M10 11.5c3.2 0 3.2 9 6.4 9s3.2-9 6.4-9M10 20.5c3.2 0 3.2-9 6.4-9s3.2 9 6.4 9"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.55"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function RailMenuItem(props: {
+  label: string;
+  disabled?: boolean;
+  danger?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      className={`rail-menu-item${props.danger ? " is-danger" : ""}`}
+      disabled={props.disabled}
+      onClick={props.onClick}
+    >
+      {props.label}
+    </button>
+  );
+}
+
+function RailMenu(props: { children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="rail-more" ref={rootRef}>
+      <button
+        type="button"
+        className={`rail-more-btn${open ? " is-on" : ""}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="更多"
+        title="更多"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="6" r="1.6" />
+          <circle cx="12" cy="12" r="1.6" />
+          <circle cx="12" cy="18" r="1.6" />
+        </svg>
+      </button>
+      {open ? (
+        <div
+          className="rail-menu"
+          role="menu"
+          onClick={(e) => {
+            if ((e.target as HTMLElement).closest("button")) setOpen(false);
+          }}
+        >
+          {props.children}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function RailResize(props: { width: number; onWidthChange: (width: number) => void }) {
+  const dragRef = useRef<{ pointerId: number; startX: number; startW: number } | null>(null);
+  const handleRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    return () => {
+      document.body.classList.remove("is-col-resizing");
+    };
+  }, []);
+
+  function endResize(el: HTMLDivElement, pointerId: number) {
+    if (el.hasPointerCapture(pointerId)) el.releasePointerCapture(pointerId);
+    dragRef.current = null;
+    handleRef.current?.classList.remove("is-resizing");
+    document.body.classList.remove("is-col-resizing");
+  }
+
+  function onResizeStart(e: ReactPointerEvent<HTMLDivElement>) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const handle = e.currentTarget;
+    handle.setPointerCapture(e.pointerId);
+    dragRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startW: props.width,
+    };
+    handle.classList.add("is-resizing");
+    document.body.classList.add("is-col-resizing");
+  }
+
+  function onResizeMove(e: ReactPointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    const body = handleRef.current?.closest(".workbench-body");
+    const max = Math.min(RAIL_MAX, Math.floor((body?.clientWidth || 800) * 0.46));
+    const next = Math.min(max, Math.max(RAIL_MIN, drag.startW + (e.clientX - drag.startX)));
+    props.onWidthChange(next);
+  }
+
+  function onResizeEnd(e: ReactPointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    endResize(e.currentTarget, e.pointerId);
+  }
+
+  return (
+    <div
+      ref={handleRef}
+      className="rail-resize"
+      onPointerDown={onResizeStart}
+      onPointerMove={onResizeMove}
+      onPointerUp={onResizeEnd}
+      onPointerCancel={onResizeEnd}
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="拖动调整侧栏宽度"
+      title="拖动调整宽度"
+    />
+  );
+}
+
 function Rail(props: {
-  collapsed: boolean;
-  onCollapsed: (v: boolean) => void;
+  width: number;
+  onWidthChange: (width: number) => void;
   user: SessionUser;
   projects: RequirementMeta[];
   currentId: string;
   files: Array<{ path: string; name: string; isDir: boolean }>;
   currentPath: string;
-  title: string;
   clarityLabel: string;
   onOpenProject: (id: string) => void;
   onOpenFile: (path: string) => void;
   onCreate: () => void;
   onSettings?: () => void;
   onUsers?: () => void;
-  extra?: ReactNode;
+  flags?: ReactNode;
+  cmds?: ReactNode;
 }) {
   const isArchitect = props.user.role === "architect";
-  if (props.collapsed) {
-    return (
-      <aside className="workbench-col workbench-left is-collapsed">
-        <button className="rail-icon" type="button" title="展开" onClick={() => props.onCollapsed(false)}>
-          工
-        </button>
-        <button className="rail-icon" type="button" title="新建" onClick={props.onCreate}>
-          +
-        </button>
-        {isArchitect ? (
-          <button className="rail-icon" type="button" title="设置" onClick={props.onSettings}>
-            ···
-          </button>
-        ) : null}
-      </aside>
-    );
-  }
+  const mark = isArchitect ? (
+    <button className="rail-mark" type="button" title="设置" aria-label="设置" onClick={props.onSettings}>
+      <WeaveMark />
+    </button>
+  ) : (
+    <span className="rail-mark is-static" aria-hidden="true">
+      <WeaveMark />
+    </span>
+  );
   return (
-    <aside className="workbench-col workbench-left">
-      <div className="workbench-brand">
-        <div className="rail-brand-row">
-          <h1>{props.title || "工作台"}</h1>
-          <button className="side-text" type="button" onClick={() => props.onCollapsed(true)}>
-            收起
-          </button>
-        </div>
-        {props.clarityLabel ? <span className="clarity-dot">{props.clarityLabel}</span> : null}
-      </div>
-      <div className="workbench-side-scroll">
-        <div className="workbench-left-head">
-          <span className="side-kicker">工程</span>
-          <button className="side-text" type="button" onClick={props.onCreate}>
-            新建
-          </button>
-        </div>
-        <ul className="project-switch">
-          {props.projects.map((p) => (
-            <li key={p.id}>
-              <button
-                type="button"
-                className={p.id === props.currentId ? "is-current" : ""}
-                onClick={() => props.onOpenProject(p.id)}
-              >
-                {p.title}
-              </button>
-            </li>
-          ))}
-        </ul>
-        {props.files.length ? (
-          <>
-            <div className="workbench-left-head" style={{ marginTop: 16 }}>
-              <span className="side-kicker">文档</span>
+    <div className="workbench-rail">
+      <aside className="workbench-left">
+        <div className="workbench-brand">
+          <div className="rail-brand-row">
+            {mark}
+            <div className="rail-identity">
+              <span className="rail-who">{props.user.name}</span>
+              <span className="rail-meta">
+                {props.user.roleLabel}
+                {props.clarityLabel ? <span className="clarity-dot">{props.clarityLabel}</span> : null}
+              </span>
             </div>
-            <DocTree files={props.files} currentPath={props.currentPath} onOpen={props.onOpenFile} />
-          </>
-        ) : null}
-      </div>
-      <div className="workbench-side-foot">
-        <span>
-          {props.user.name} · {props.user.roleLabel}
-        </span>
-        {props.extra}
-        {isArchitect ? (
-          <>
-            <button className="side-text" type="button" onClick={props.onSettings}>
-              设置
+            <RailMenu>
+              {props.cmds}
+              {isArchitect ? (
+                <RailMenuItem label="用户" onClick={() => props.onUsers?.()} />
+              ) : null}
+              <RailMenuItem label="退出" onClick={() => void logoutAndLeave()} />
+            </RailMenu>
+          </div>
+          {props.flags}
+        </div>
+        <div className="workbench-side-scroll">
+          <div className="workbench-left-head">
+            <span className="side-kicker">工程</span>
+            <button className="side-text" type="button" onClick={props.onCreate}>
+              新建
             </button>
-            <button className="side-text" type="button" onClick={props.onUsers}>
-              用户
-            </button>
-          </>
-        ) : null}
-        <button
-          className="side-text"
-          type="button"
-          onClick={() => void logoutAndLeave()}
-        >
-          退出
-        </button>
-      </div>
-    </aside>
+          </div>
+          <ul className="project-switch">
+            {props.projects.map((p) => (
+              <li key={p.id}>
+                <button
+                  type="button"
+                  className={p.id === props.currentId ? "is-current" : ""}
+                  onClick={() => props.onOpenProject(p.id)}
+                >
+                  {p.title}
+                </button>
+              </li>
+            ))}
+          </ul>
+          {props.files.length ? (
+            <>
+              <div className="workbench-left-head" style={{ marginTop: 16 }}>
+                <span className="side-kicker">文档</span>
+              </div>
+              <DocTree files={props.files} currentPath={props.currentPath} onOpen={props.onOpenFile} />
+            </>
+          ) : null}
+        </div>
+      </aside>
+      <RailResize width={props.width} onWidthChange={props.onWidthChange} />
+    </div>
   );
 }
 
@@ -363,10 +516,10 @@ function ProjectPaper(props: {
   const [gate, setGate] = useState("");
   const [showVersions, setShowVersions] = useState(false);
   const [showImport, setShowImport] = useState(false);
-  const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [entrustSize, setEntrustSize] = useState<EntrustSize>("collapsed");
   const [entrustWidth, setEntrustWidth] = useState(420);
   const [toast, setToast] = useState("");
+  const { width: railWidth, onWidthChange: onRailWidthChange } = useRailWidth();
 
   activeRunRef.current = activeRun;
   editingRef.current = editing;
@@ -708,65 +861,56 @@ function ProjectPaper(props: {
           {toast}
         </div>
       ) : null}
-      <div className={`workbench-body${leftCollapsed ? " is-left-collapsed" : ""}`}>
+      <div className="workbench-body" style={{ "--rail-w": `${railWidth}px` } as CSSProperties}>
         <Rail
-          collapsed={leftCollapsed}
-          onCollapsed={setLeftCollapsed}
+          width={railWidth}
+          onWidthChange={onRailWidthChange}
           user={props.user}
           projects={props.projects}
           currentId={id}
           files={files}
           currentPath={currentPath}
-          title={title}
           clarityLabel={clarityLabel}
           onOpenProject={props.onSwitch}
           onOpenFile={(path) => void openFile(path)}
           onCreate={props.onCreate}
           onSettings={props.onSettings}
           onUsers={props.onUsers}
-          extra={
+          flags={
+            uncommitted || aiRunning ? (
+              <div className="rail-flags">
+                {uncommitted ? <span className="tag warn">未记入版本</span> : null}
+                {aiRunning ? <span className="tag">AI 进行中</span> : null}
+              </div>
+            ) : null
+          }
+          cmds={
             <>
-              {uncommitted ? <span className="tag warn">未记入版本</span> : null}
-              {aiRunning ? <span className="tag">AI 进行中</span> : null}
-              <button className="side-text" type="button" onClick={() => setShowVersions(true)}>
-                版本
-              </button>
-              <button
-                className="side-text"
-                type="button"
+              <RailMenuItem label="版本" onClick={() => setShowVersions(true)} />
+              <RailMenuItem
+                label="保存一版"
                 disabled={readOnly || busy || (!uncommitted && !dirty)}
                 onClick={() => void saveAndRecord()}
-              >
-                保存一版
-              </button>
-              <button className="side-text" type="button" onClick={() => setShowImport(true)}>
-                导入
-              </button>
+              />
+              <RailMenuItem label="导入" onClick={() => setShowImport(true)} />
               {props.user.role === "architect" && lock && !lock.youHold ? (
-                <button
-                  className="side-text"
-                  type="button"
+                <RailMenuItem
+                  label="解除编辑权"
                   onClick={() => void api.forceReleaseLock(id).then(() => bootstrap())}
-                >
-                  解除编辑权
-                </button>
+                />
               ) : null}
               {props.user.role === "architect" ? (
-                <button
-                  className="side-text"
-                  type="button"
+                <RailMenuItem
+                  label="删除工程"
+                  danger
                   onClick={() => {
                     if (!window.confirm(`删除「${title}」会删掉这个文件夹。`)) return;
                     void api.deleteRequirement(id).then(() => props.onDeleted(id));
                   }}
-                >
-                  删除工程
-                </button>
+                />
               ) : null}
               {!youHold && !lock ? (
-                <button className="btn primary" type="button" onClick={() => void bootstrap()}>
-                  开始编辑
-                </button>
+                <RailMenuItem label="开始编辑" onClick={() => void bootstrap()} />
               ) : null}
             </>
           }

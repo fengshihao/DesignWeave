@@ -82,3 +82,23 @@ export function lastEntrustWidth(projectId: string): number | null {
     return null;
   }
 }
+
+const RAIL_WIDTH = "dw-rail-width";
+
+export function rememberRailWidth(width: number) {
+  try {
+    localStorage.setItem(RAIL_WIDTH, String(Math.round(width)));
+  } catch {
+    /* 隐私模式 */
+  }
+}
+
+export function lastRailWidth(): number | null {
+  try {
+    const raw = localStorage.getItem(RAIL_WIDTH);
+    const n = raw ? Number(raw) : NaN;
+    return Number.isFinite(n) && n >= 188 ? Math.min(380, n) : null;
+  } catch {
+    return null;
+  }
+}

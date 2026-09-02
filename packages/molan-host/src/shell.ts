@@ -1,20 +1,15 @@
 /** Web 工作台 inline 模式：reader-header + 编辑器区 + 底栏 + 灯箱（无 iframe） */
 export type InlineShellOptions = {
   statusRight?: string;
-  title?: string;
 };
 
 export function renderInlineShell(options: InlineShellOptions = {}): string {
-  const { statusRight = "工作台 · 写回文档仓", title = "墨览" } = options;
+  const { statusRight = "工作台 · 写回文档仓" } = options;
 
   return `
   <div class="app">
     <main class="main">
       <header class="reader-header">
-        <div class="reader-title">
-          <div class="eyebrow" id="readerEyebrow">准备就绪</div>
-          <h2 id="readerTitle">${title}</h2>
-        </div>
         <div class="reader-actions">
           <button class="icon-btn molan-find-btn" id="molanFindBtn" type="button" title="在文档中查找" aria-label="在文档中查找">
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
