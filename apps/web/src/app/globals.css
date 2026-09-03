@@ -1142,6 +1142,105 @@ body:has(.workbench) {
   padding-bottom: 58px;
 }
 
+.selection-ask {
+  position: fixed;
+  z-index: 24;
+  width: min(520px, calc(100vw - 32px));
+  padding: 10px 10px 8px;
+  border-radius: 14px;
+  border: 1px solid var(--hairline-strong);
+  background: var(--paper-lift);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.selection-ask-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.selection-ask-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 2px 0 2px;
+}
+
+.selection-ask-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-muted);
+}
+
+.selection-ask-quote {
+  margin: 0;
+  max-height: 8.7em;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 7px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--hairline);
+  background: var(--paper);
+}
+
+.selection-ask textarea {
+  width: 100%;
+  resize: none;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.45;
+  padding: 8px 10px;
+  outline: none;
+}
+
+.selection-ask textarea:focus {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--hairline));
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.selection-ask-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.selection-ask-expand {
+  flex-shrink: 0;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.selection-ask-expand:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--hairline));
+  color: var(--ink);
+}
+
 .focus-chip {
   display: inline-flex;
   align-items: center;
@@ -1977,7 +2076,8 @@ html[data-theme="hack"] .workbench::after {
   background: var(--lightbox-dim, rgba(20, 18, 14, 0.72));
   display: grid;
   place-items: center;
-  z-index: 24;
+  /* 高于墨览大纲 fab（40）、查找/灯箱等纸面控件，避免按钮飘在设置上 */
+  z-index: 100;
 }
 
 .overlay-panel {

@@ -20,7 +20,13 @@ export type InlineHostCallbacks = {
   onPreviewChange: (isPreview: boolean) => void;
   onWantEdit: () => void;
   onReady?: () => void;
-  onSelection?: (focus: { headingPath: string[]; quote: string }) => void;
+  onSelection?: (focus: {
+    headingPath: string[];
+    quote: string;
+    before?: string;
+    after?: string;
+    rect?: { top: number; left: number; bottom: number; right: number } | null;
+  }) => void;
 };
 
 export type InlineHostHandle = {
@@ -29,6 +35,7 @@ export type InlineHostHandle = {
   markSaved(): Promise<void>;
   exitEdit(): Promise<void>;
   clearSelection(): Promise<void>;
+  expandToSection(): Promise<void>;
   dispose(): void;
 };
 
@@ -72,6 +79,9 @@ export function mountInlineHost(root: HTMLElement, callbacks: InlineHostCallback
         callbacks.onSelection?.({
           headingPath: msg.headingPath,
           quote: msg.quote,
+          before: msg.before,
+          after: msg.after,
+          rect: msg.rect,
         });
         return;
       }
@@ -195,6 +205,9 @@ export function mountInlineHost(root: HTMLElement, callbacks: InlineHostCallback
     },
     async clearSelection() {
       await bridge.handleHostMessage({ type: "clearSelection" });
+    },
+    async expandToSection() {
+      await bridge.handleHostMessage({ type: "expandSection" });
     },
     dispose() {
       queryInRoot(root, "copyBtn")?.removeEventListener("click", onCopy);

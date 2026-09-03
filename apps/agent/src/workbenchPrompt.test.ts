@@ -14,17 +14,23 @@ test("parseWorkbenchFocus 丢掉空对象，收下文件 + 引文", () => {
     file: "PRD.md",
     headingPath: [],
     quote: "",
+    before: "",
+    after: "",
   });
   assert.deepEqual(
     parseWorkbenchFocus({
       file: " PRD.md ",
       headingPath: [" 用户故事 ", "", "US-001"],
       quote: "  作为用户我想要一键关灯。  ",
+      before: "  上一句。  ",
+      after: "  下一句。  ",
     }),
     {
       file: "PRD.md",
       headingPath: ["用户故事", "US-001"],
       quote: "作为用户我想要一键关灯。",
+      before: "上一句。",
+      after: "下一句。",
     }
   );
 });
@@ -55,13 +61,18 @@ test("有选区时 userPrompt 带章节路径和 markdown 引文", () => {
       file: "PRD.md",
       headingPath: ["用户故事", "US-001"],
       quote: "作为用户我想要一键关灯。",
+      before: "夜间模式要好用。",
+      after: "验收要可勾选。",
     },
     message: "把验收写成可勾选项",
   });
   assert.match(prompt, /打开的文件：PRD.md/);
+  assert.match(prompt, /地址：PRD.md · 用户故事 \/ US-001/);
   assert.match(prompt, /章节：用户故事 \/ US-001/);
   assert.equal(quoteAsMarkdown("作为用户我想要一键关灯。"), "> 作为用户我想要一键关灯。");
   assert.match(prompt, /> 作为用户我想要一键关灯。/);
+  assert.match(prompt, /> 夜间模式要好用。/);
+  assert.match(prompt, /> 验收要可勾选。/);
   assert.match(prompt, /把验收写成可勾选项/);
   assert.doesNotMatch(prompt, /档位/);
 });

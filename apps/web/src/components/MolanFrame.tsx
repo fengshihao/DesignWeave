@@ -22,6 +22,7 @@ export type MolanHandle = {
   markSaved: () => void;
   exitEdit: () => void;
   clearSelection: () => void;
+  expandToSection: () => void;
 };
 
 export const MolanFrame = forwardRef<
@@ -36,7 +37,13 @@ export const MolanFrame = forwardRef<
     onEditingChange: (editing: boolean) => void;
     onBlockedEdit?: () => void;
     onOpenRelative?: (path: string) => void;
-    onSelection?: (focus: { headingPath: string[]; quote: string }) => void;
+    onSelection?: (focus: {
+      headingPath: string[];
+      quote: string;
+      before?: string;
+      after?: string;
+      rect?: { top: number; left: number; bottom: number; right: number } | null;
+    }) => void;
   }
 >(function MolanFrame(props, ref) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -75,6 +82,9 @@ export const MolanFrame = forwardRef<
       },
       clearSelection() {
         void handleRef.current?.clearSelection();
+      },
+      expandToSection() {
+        void handleRef.current?.expandToSection();
       },
     }),
     [],

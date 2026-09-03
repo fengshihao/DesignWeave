@@ -200,6 +200,9 @@ export function createBridgeCore(options: BridgeCoreOptions) {
         type: "selection",
         headingPath: focus.headingPath,
         quote: focus.quote,
+        before: focus.before,
+        after: focus.after,
+        rect: focus.rect ?? null,
       });
     });
   }
@@ -243,6 +246,10 @@ export function createBridgeCore(options: BridgeCoreOptions) {
     }
     if (msg.type === "clearSelection") {
       editorApi?.clearSelection?.();
+      return true;
+    }
+    if (msg.type === "expandSection") {
+      editorApi?.expandToSection?.();
       return true;
     }
     return false;

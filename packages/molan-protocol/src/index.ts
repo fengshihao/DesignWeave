@@ -39,6 +39,7 @@ export type EditorApi = {
   onPreviewChange(cb: (previewing: boolean) => void): () => void;
   onSelection?(cb: (focus: DocFocus) => void): () => void;
   clearSelection?(): void;
+  expandToSection?(): void;
   getVditor?(): unknown;
 };
 
@@ -61,6 +62,7 @@ export const HostToFrameMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("findNext") }),
   z.object({ type: z.literal("findPrev") }),
   z.object({ type: z.literal("clearSelection") }),
+  z.object({ type: z.literal("expandSection") }),
 ]);
 export type HostToFrameMessage = z.infer<typeof HostToFrameMessageSchema>;
 
@@ -90,6 +92,17 @@ export const FrameToHostMessageSchema = z.discriminatedUnion("type", [
     type: z.literal("selection"),
     headingPath: z.array(z.string()),
     quote: z.string(),
+    before: z.string().optional(),
+    after: z.string().optional(),
+    rect: z
+      .object({
+        top: z.number(),
+        left: z.number(),
+        bottom: z.number(),
+        right: z.number(),
+      })
+      .nullable()
+      .optional(),
   }),
 ]);
 export type FrameToHostMessage = z.infer<typeof FrameToHostMessageSchema>;
@@ -116,10 +129,13 @@ export * from "./run.js";
 export {
   emptyDocFocus,
   formatFocusChip,
+  formatFocusPath,
   headingPathForQuoteInHtml,
   headingPathFromMarks,
   sectionForHeadingInHtml,
   stripPreviewText,
+  surroundingQuote,
   type DocFocus,
+  type FocusRect,
   type HeadingMark,
 } from "./docFocus.js";

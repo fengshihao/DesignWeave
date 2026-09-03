@@ -25,6 +25,29 @@ test("编辑器源码按职责拆模块，构建仍产出单文件 IIFE", () => 
   assert.match(bundled, /global\.MolanEditor\s*=/);
 });
 
+test("大纲按钮挂在纸面里，不挂到 body 以免压过设置浮层", () => {
+  const src = editorSrc();
+  assert.match(src, /挂在纸面里，不要挂到 body/);
+  assert.match(src, /querySelector\("\.reader-body"\)/);
+  assert.match(src, /dock\.style\.position = "absolute"/);
+  assert.match(src, /dock\.style\.zIndex = "8"/);
+});
+
+test("预览选区会上报前后文，且点输入框折叠选区不会清焦点", () => {
+  const src = editorSrc();
+  assert.match(src, /function bindPreviewSelection/);
+  assert.match(src, /function surroundingFromRange/);
+  assert.match(src, /function clipRangeToRoot/);
+  assert.match(src, /按下过程中不上报/);
+  assert.match(src, /function decorateSectionAsks/);
+  assert.match(src, /function headingBeforeNode/);
+  assert.match(src, /function headingFromPath/);
+  assert.match(src, /function nodeInsideRoot/);
+  assert.match(src, /不能再用 getSelection 猜标题/);
+  assert.match(src, /FOCUS_CONTEXT = 240/);
+  assert.match(src, /key !== "a"/);
+});
+
 test("molan-editor.js 导出 MolanEditor.create", () => {
   const src = editorSrc();
   assert.match(src, /MolanEditor\.create|global\.MolanEditor\s*=/);

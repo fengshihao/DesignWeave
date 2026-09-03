@@ -213,6 +213,8 @@ export function createRun(input: {
         file: focus.file,
         headingPath: focus.headingPath,
         quote: focus.quote,
+        before: focus.before || "",
+        after: focus.after || "",
       })
     );
   }

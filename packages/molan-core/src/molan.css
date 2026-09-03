@@ -1314,12 +1314,12 @@
     }
 
     .molan-outline-dock {
-      position: fixed;
+      position: absolute;
       top: 10px;
       left: 10px;
       width: 32px;
       height: 32px;
-      z-index: 40;
+      z-index: 8;
       margin: 0;
       pointer-events: none;
     }
@@ -2681,6 +2681,7 @@
       min-height: 0;
       height: 0;
       overflow: auto !important;
+      user-select: text;
     }
 
     .editor-wrap.is-lite-preview .molan-preview {
@@ -2909,6 +2910,71 @@
       font-weight: 650 !important;
       color: var(--ink-soft) !important;
       margin: 1.1em 0 0.35em !important;
+    }
+
+    .vditor-reset h1.has-ask-section,
+    .vditor-reset h2.has-ask-section,
+    .vditor-reset h3.has-ask-section,
+    .vditor-reset h4.has-ask-section,
+    .vditor-reset h5.has-ask-section,
+    .vditor-reset h6.has-ask-section {
+      position: relative;
+    }
+
+    .molan-ask-section {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: 0.55em;
+      vertical-align: middle;
+      width: auto;
+      height: 1.35em;
+      padding: 0 0.55em;
+      border: 1px solid var(--hairline-strong);
+      border-radius: 999px;
+      background: var(--paper-lift);
+      color: var(--ink-soft);
+      font-family: var(--font-ui);
+      font-size: 12px;
+      font-weight: 550;
+      letter-spacing: 0.02em;
+      line-height: 1;
+      opacity: 0;
+      cursor: pointer;
+      user-select: none;
+      pointer-events: none;
+    }
+
+    .molan-ask-section::before {
+      content: "问这一节";
+    }
+
+    .vditor-reset h1:hover .molan-ask-section,
+    .vditor-reset h2:hover .molan-ask-section,
+    .vditor-reset h3:hover .molan-ask-section,
+    .vditor-reset h4:hover .molan-ask-section,
+    .vditor-reset h5:hover .molan-ask-section,
+    .vditor-reset h6:hover .molan-ask-section,
+    .molan-ask-section:focus-visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    #molanPreviewBody {
+      position: relative;
+    }
+
+    .molan-ask-mark {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .molan-ask-mark i {
+      position: absolute;
+      border-radius: 3px;
+      background: color-mix(in srgb, var(--accent) 22%, transparent);
     }
 
     .vditor-reset p { margin: var(--reader-gap) 0 !important; }

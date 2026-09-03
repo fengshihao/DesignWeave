@@ -30,6 +30,8 @@ export type DocFocus = {
   file: string;
   headingPath: string[];
   quote: string;
+  before?: string;
+  after?: string;
 };
 
 export type WorkbenchRun = {

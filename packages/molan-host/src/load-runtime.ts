@@ -46,5 +46,5 @@ export async function loadMolanRuntime(basePath = "/molan"): Promise<void> {
 
   await loadScript(`${base}/vditor/dist/js/icons/ant.js`, "vditorIconScript");
   await loadScript(`${base}/vditor/dist/method.min.js`, "vditorMethodScript");
-  await loadScript(`${base}/molan-editor.js`, "molanEditorScript");
+  await loadScript(`${base}/molan-editor.js?v=20260903d`, "molanEditorScript");
 }

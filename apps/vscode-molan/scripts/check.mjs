@@ -103,7 +103,7 @@ assert(readFileSync(join(viewer, "molan.css"), "utf8").includes(".molan-table-to
 assert(readFileSync(join(viewer, "molan.css"), "utf8").includes(".molan-table-picker"), "css for table size picker");
 assert(readFileSync(join(viewer, "molan.css"), "utf8").includes('[data-type="table"].vditor-menu--disabled'), "table insert stays clickable when Vditor disables toolbar");
 assert(readFileSync(join(viewer, "molan.css"), "utf8").includes(".editor-wrap > .vditor-outline"), "css docks Vditor outline as a left pane");
-assert(readFileSync(join(viewer, "molan.css"), "utf8").includes(".molan-outline-dock {\n      position: fixed"), "outline button is viewport-fixed");
+assert(readFileSync(join(viewer, "molan.css"), "utf8").includes(".molan-outline-dock {\n      position: absolute"), "outline button stays on the paper, not above workbench overlays");
 assert(readFileSync(join(viewer, "molan.css"), "utf8").includes("#molanPreviewBody"), "css constrains preview body so the outline fab can stay put");
 assert(readFileSync(join(viewer, "molan.css"), "utf8").includes(".vditor-ir__node[data-type=\"code-block\"]:not(.vditor-ir__node--expand) > :not(.vditor-ir__preview)"), "IR code blocks hide source when collapsed");
 assert(readFileSync(join(viewer, "molan.css"), "utf8").includes(".vditor-ir__node:not(.vditor-ir__node--expand):has(.language-mermaid) .vditor-ir__marker"), "IR mermaid hides language chip when collapsed");

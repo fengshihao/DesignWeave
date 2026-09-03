@@ -31,30 +31,27 @@
   function pinOutlineDock() {
     const dock = document.getElementById("outlinePrefs");
     if (!dock) return;
-    if (dock.parentElement !== document.body) document.body.appendChild(dock);
-    const host = document.querySelector(".reader-body");
+    const host = document.querySelector(".reader-body")
+      || document.querySelector(".molan-inline")
+      || document.querySelector(".main");
     const rtl = document.documentElement.getAttribute("dir") === "rtl";
-    const r = host?.getBoundingClientRect();
-    dock.style.position = "fixed";
     dock.style.width = "32px";
     dock.style.height = "32px";
-    dock.style.zIndex = "40";
     dock.style.margin = "0";
     dock.style.bottom = "auto";
-    if (!r || dock.hidden) {
-      dock.style.top = "10px";
-      dock.style.left = rtl ? "auto" : "10px";
-      dock.style.right = rtl ? "10px" : "auto";
+    dock.style.top = "10px";
+    dock.style.left = rtl ? "auto" : "10px";
+    dock.style.right = rtl ? "10px" : "auto";
+    // 挂在纸面里，不要挂到 body：否则 z-index 会压过工作台设置浮层。
+    if (host) {
+      if (dock.parentElement !== host) host.appendChild(dock);
+      dock.style.position = "absolute";
+      dock.style.zIndex = "8";
       return;
     }
-    dock.style.top = `${Math.round(r.top + 10)}px`;
-    if (rtl) {
-      dock.style.left = "auto";
-      dock.style.right = `${Math.round(window.innerWidth - r.right + 10)}px`;
-    } else {
-      dock.style.right = "auto";
-      dock.style.left = `${Math.round(r.left + 10)}px`;
-    }
+    if (dock.parentElement !== document.body) document.body.appendChild(dock);
+    dock.style.position = "fixed";
+    dock.style.zIndex = "40";
   }
 
   function bindOutlineDockPin() {
@@ -226,7 +223,11 @@
         }
         outlineWrap.querySelector("#outlineMenu")?.remove();
       }
-      document.body.appendChild(outlineWrap);
+      const paper = document.querySelector(".reader-body")
+        || document.querySelector(".molan-inline")
+        || document.querySelector(".main")
+        || document.body;
+      if (outlineWrap.parentElement !== paper) paper.appendChild(outlineWrap);
       bindOutlineDockPin();
       pinOutlineDock();
     }

@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   formatFocusChip,
+  formatFocusPath,
   headingPathForQuoteInHtml,
   headingPathFromMarks,
   sectionForHeadingInHtml,
+  surroundingQuote,
 } from "./docFocus.js";
 
 test("标题栈按层级收成路径", () => {
@@ -71,6 +73,15 @@ test("点用户故事标题取整节，不把下一节卷进来", () => {
   assert.notEqual(section.quote, "作为用户我想要一键关灯。");
 });
 
+test("surroundingQuote 切出引文前后文", () => {
+  const full = "前文甲 作为用户我想要一键关灯。 后文乙";
+  assert.deepEqual(surroundingQuote(full, "作为用户我想要一键关灯。"), {
+    before: "前文甲",
+    after: "后文乙",
+  });
+  assert.deepEqual(surroundingQuote("没有这段", "一键关灯"), { before: "", after: "" });
+});
+
 test("芯片文案是章节路径加 24 字摘录", () => {
   assert.equal(formatFocusChip({ headingPath: [], quote: "" }), "");
   assert.equal(
@@ -82,4 +93,9 @@ test("芯片文案是章节路径加 24 字摘录", () => {
     formatFocusChip({ headingPath: ["背景与目标", "问题"], quote: long }),
     `背景与目标 / 问题 · 「${long.slice(0, 24)}…」`
   );
+});
+
+test("弹出框路径和底条芯片分开：路径不截引文", () => {
+  assert.equal(formatFocusPath([]), "（整篇）");
+  assert.equal(formatFocusPath(["背景与目标", "背景与问题"]), "背景与目标 / 背景与问题");
 });

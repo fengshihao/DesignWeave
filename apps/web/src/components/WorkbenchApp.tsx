@@ -19,6 +19,7 @@ import {
 } from "@/lib/api";
 import { MolanFrame, type MolanHandle } from "@/components/MolanFrame";
 import { EntrustLayer } from "@/components/EntrustLayer";
+import { SelectionAsk, type SelectionAskFocus } from "@/components/SelectionAsk";
 import { VersionDrawer } from "@/components/VersionDrawer";
 import { DocTree } from "@/components/DocTree";
 import { CreateProjectPanel } from "@/components/CreateProjectPanel";
@@ -504,9 +505,7 @@ function ProjectPaper(props: {
   const [entrustSize, setEntrustSize] = useState<EntrustSize>("collapsed");
   const [entrustWidth, setEntrustWidth] = useState(420);
   const [toast, setToast] = useState("");
-  const [previewFocus, setPreviewFocus] = useState<{ headingPath: string[]; quote: string } | null>(
-    null
-  );
+  const [previewFocus, setPreviewFocus] = useState<SelectionAskFocus | null>(null);
   const { width: railWidth, onWidthChange: onRailWidthChange } = useRailWidth();
 
   activeRunRef.current = activeRun;
@@ -811,6 +810,8 @@ function ProjectPaper(props: {
           file: currentPath,
           headingPath: previewFocus?.quote ? previewFocus.headingPath : [],
           quote: previewFocus?.quote || "",
+          before: previewFocus?.quote ? previewFocus.before || "" : "",
+          after: previewFocus?.quote ? previewFocus.after || "" : "",
         },
       });
       setMessage("");
@@ -944,6 +945,22 @@ function ProjectPaper(props: {
                 }}
               />
             </div>
+            <SelectionAsk
+              focus={previewFocus}
+              message={message}
+              onMessageChange={setMessage}
+              onSend={() => void onSend()}
+              onClear={() => {
+                setPreviewFocus(null);
+                molanRef.current?.clearSelection();
+              }}
+              onExpandSection={() => {
+                molanRef.current?.expandToSection();
+              }}
+              disabled={aiRunning || busy || !youHold}
+              canSend={Boolean(message.trim()) && !aiRunning && !busy && youHold}
+              hint={youHold ? undefined : "先拿编辑权，才能问 AI。"}
+            />
             <EntrustLayer
               size={entrustSize}
               width={entrustWidth}

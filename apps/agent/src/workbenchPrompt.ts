@@ -2,6 +2,8 @@ export type WorkbenchFocus = {
   file: string;
   headingPath: string[];
   quote: string;
+  before?: string;
+  after?: string;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -18,11 +20,13 @@ export function parseWorkbenchFocus(raw: unknown): WorkbenchFocus | null {
   if (!rec) return null;
   const file = cleanText(rec.file).replace(/\\/g, "/");
   const quote = cleanText(rec.quote);
+  const before = cleanText(rec.before);
+  const after = cleanText(rec.after);
   const headingPath = Array.isArray(rec.headingPath)
     ? rec.headingPath.map((part) => cleanText(part)).filter(Boolean)
     : [];
   if (!file && !quote && headingPath.length === 0) return null;
-  return { file, headingPath, quote };
+  return { file, headingPath, quote, before, after };
 }
 
 export function quoteAsMarkdown(quote: string): string {
@@ -45,10 +49,14 @@ export function buildWorkbenchUserPrompt(input: {
   const file = input.focus?.file || input.file || "PRD.md";
   const headingPath = input.focus?.headingPath ?? [];
   const quote = input.focus?.quote ?? "";
+  const before = input.focus?.before ?? "";
+  const after = input.focus?.after ?? "";
   const chapter = headingPath.length ? headingPath.join(" / ") : "（整篇）";
+  const address = headingPath.length ? `${file} · ${chapter}` : file;
   return `
 工程：${input.title}
 打开的文件：${file}
+地址：${address}
 文档仓还有：
 ${input.inventory}
 
@@ -56,11 +64,15 @@ ${input.inventory}
 章节：${chapter}
 选中原文：
 ${quoteAsMarkdown(quote)}
+选区前文：
+${before ? quoteAsMarkdown(before) : "（无）"}
+选区后文：
+${after ? quoteAsMarkdown(after) : "（无）"}
 
 ## 对方说
 ${input.message}
 
-先读文档仓里已有的 Markdown（至少打开的这篇），再用中文说明你在做什么，然后读写文件。有选区就先定位到引文再改。
+先读文档仓里已有的 Markdown（至少打开的这篇），再用中文说明你在做什么，然后读写文件。有选区就先定位到引文再改，前后文只用来定位，不要把前后文一起改掉，除非对方明确要求。
 `.trim();
 }
 

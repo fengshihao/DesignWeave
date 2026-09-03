@@ -3,9 +3,19 @@ export type HeadingMark = {
   text: string;
 };
 
+export type FocusRect = {
+  top: number;
+  left: number;
+  bottom: number;
+  right: number;
+};
+
 export type DocFocus = {
   headingPath: string[];
   quote: string;
+  before?: string;
+  after?: string;
+  rect?: FocusRect | null;
 };
 
 export function stripPreviewText(html: string): string {
@@ -53,7 +63,24 @@ export function headingPathForQuoteInHtml(html: string, quote: string): string[]
 }
 
 export function emptyDocFocus(): DocFocus {
-  return { headingPath: [], quote: "" };
+  return { headingPath: [], quote: "", before: "", after: "", rect: null };
+}
+
+/** 从整篇纯文本里切出引文前后各一段，给模型当定位上下文。 */
+export function surroundingQuote(
+  full: string,
+  quote: string,
+  radius = 240,
+): { before: string; after: string } {
+  const hay = full.replace(/\s+/g, " ").trim();
+  const needle = quote.replace(/\s+/g, " ").trim();
+  if (!hay || !needle) return { before: "", after: "" };
+  const idx = hay.indexOf(needle);
+  if (idx < 0) return { before: "", after: "" };
+  return {
+    before: hay.slice(Math.max(0, idx - radius), idx).trim(),
+    after: hay.slice(idx + needle.length, idx + needle.length + radius).trim(),
+  };
 }
 
 type HtmlHeading = {
@@ -103,11 +130,14 @@ export function sectionForHeadingInHtml(html: string, headingText: string): DocF
   return { headingPath: headingPathFromMarks(marks), quote };
 }
 
+export function formatFocusPath(headingPath: string[]): string {
+  return headingPath.map((p) => p.trim()).filter(Boolean).join(" / ") || "（整篇）";
+}
+
 /** 底条 / 气泡芯片：`章节路径 · 「摘录前 24 字…」`。无引文则空串。 */
 export function formatFocusChip(focus: Pick<DocFocus, "headingPath" | "quote">): string {
   const quote = focus.quote.replace(/\s+/g, " ").trim();
   if (!quote) return "";
-  const path = focus.headingPath.map((p) => p.trim()).filter(Boolean).join(" / ") || "（整篇）";
   const excerpt = quote.slice(0, 24) + (quote.length > 24 ? "…" : "");
-  return `${path} · 「${excerpt}」`;
+  return `${formatFocusPath(focus.headingPath)} · 「${excerpt}」`;
 }

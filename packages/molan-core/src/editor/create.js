@@ -99,6 +99,7 @@
         if (spot) keepReadingSpot(true, spot);
         if (findState.open) runFind({ keepIndex: true, reveal: false });
         blockInsert.sync();
+        previewSelection.decorate();
         scheduleOutlineRefresh();
       };
       if (spot && lastPreviewSource === sourceText && previewBody.childElementCount) {
@@ -455,6 +456,9 @@
       },
       clearSelection() {
         previewSelection.clear();
+      },
+      expandToSection() {
+        previewSelection.expandToSection();
       },
       getVditor() {
         return vditor;

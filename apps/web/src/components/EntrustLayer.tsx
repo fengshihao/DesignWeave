@@ -70,7 +70,7 @@ export function EntrustLayer(props: {
   aiRunning: boolean;
   busy: boolean;
   activeRun: WorkbenchRun | null;
-  focus?: { headingPath: string[]; quote: string } | null;
+  focus?: { headingPath: string[]; quote: string; before?: string; after?: string } | null;
   onClearFocus?: () => void;
 }) {
   const overlayRef = useRef<HTMLElement>(null);
@@ -83,7 +83,6 @@ export function EntrustLayer(props: {
   const placeholder = "说一句，AI 改文档…";
   const canSend = Boolean(props.message.trim()) && !props.aiRunning && !props.busy;
   const focusChip = props.focus?.quote ? formatFocusChip(props.focus) : "";
-  const focusKey = focusChip;
 
   useEffect(() => {
     return () => {
@@ -105,11 +104,6 @@ export function EntrustLayer(props: {
     const max = floating ? 160 : 36;
     el.style.height = `${Math.min(el.scrollHeight, max)}px`;
   }, [props.message, floating]);
-
-  useEffect(() => {
-    if (!focusKey) return;
-    inputRef.current?.focus();
-  }, [focusKey]);
 
   function endResize(el: HTMLDivElement, pointerId: number) {
     if (el.hasPointerCapture(pointerId)) {
