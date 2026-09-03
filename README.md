@@ -1,7 +1,7 @@
 # DesignWeave
 
 <p align="center">
-  <img src="branding/designweave.svg" width="128" height="128" alt="DesignWeave">
+  <img src="branding/icon-512.png" width="128" height="128" alt="DesignWeave">
 </p>
 
 给产品 / 设计 / 测试用的 Cursor。本机工作台：圈文档一块，说一句，AI 改 Markdown。人不用面对终端、源码树、prompt。
