@@ -1979,26 +1979,22 @@ html[data-theme="hack"] .workbench::after {
   padding: 0;
   display: grid;
   place-items: center;
-  border: 1px solid color-mix(in srgb, var(--accent-soft) 42%, var(--sidebar-line));
-  border-radius: 5px;
-  background:
-    linear-gradient(160deg, color-mix(in srgb, var(--accent) 28%, transparent), transparent 62%),
-    var(--sidebar-fill);
-  color: var(--accent-soft);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-soft) 16%, transparent);
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  overflow: hidden;
+  cursor: pointer;
 }
 
-.rail-mark svg {
-  width: 20px;
-  height: 20px;
+.rail-mark .weave-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  box-shadow: none;
 }
 
-.rail-mark:hover {
-  color: var(--on-accent);
-  background:
-    linear-gradient(160deg, color-mix(in srgb, var(--accent) 55%, transparent), transparent 70%),
-    var(--sidebar-fill-strong);
-  border-color: color-mix(in srgb, var(--accent-soft) 70%, var(--sidebar-line));
+.rail-mark:hover:not(.is-static) {
+  filter: brightness(1.1);
 }
 
 .rail-mark.is-static {
