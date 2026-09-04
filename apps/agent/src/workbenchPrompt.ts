@@ -45,6 +45,7 @@ export function buildWorkbenchUserPrompt(input: {
   inventory: string;
   focus?: WorkbenchFocus | null;
   message: string;
+  ask?: boolean;
 }): string {
   const file = input.focus?.file || input.file || "PRD.md";
   const headingPath = input.focus?.headingPath ?? [];
@@ -53,6 +54,9 @@ export function buildWorkbenchUserPrompt(input: {
   const after = input.focus?.after ?? "";
   const chapter = headingPath.length ? headingPath.join(" / ") : "（整篇）";
   const address = headingPath.length ? `${file} · ${chapter}` : file;
+  const closing = input.ask
+    ? "先读文档仓里已有的 Markdown（至少打开的这篇，以及 product/PRD.md、product/gaps.md、该文件夹的 问题.md 若有）。用中文回答圈中这段。禁止改任何文件。\n你是在辅助提问人做判断，不是替作者拍板。只根据文档里已经写明的内容回答，并点到文件和章节。文档没写的，说文档里还没有、缺哪一条；不要用猜测补一个方案。不要空说「我也不知道」——把文档里相关的句子找出来，方便对方决定要不要向作者提问。"
+    : "先读文档仓里已有的 Markdown（至少打开的这篇），再用中文说明你在做什么，然后读写文件。有选区就先定位到引文再改，前后文只用来定位，不要把前后文一起改掉，除非对方明确要求。";
   return `
 工程：${input.title}
 打开的文件：${file}
@@ -72,7 +76,7 @@ ${after ? quoteAsMarkdown(after) : "（无）"}
 ## 对方说
 ${input.message}
 
-先读文档仓里已有的 Markdown（至少打开的这篇），再用中文说明你在做什么，然后读写文件。有选区就先定位到引文再改，前后文只用来定位，不要把前后文一起改掉，除非对方明确要求。
+${closing}
 `.trim();
 }
 

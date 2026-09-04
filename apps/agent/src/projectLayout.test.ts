@@ -28,8 +28,14 @@ test("旧工程根上的 PRD / gaps / import / 调研 迁进三文件夹", () =>
     assert.match(fs.readFileSync(path.join(dir, "eng/调研.md"), "utf8"), /调研/);
     assert.ok(fs.existsSync(path.join(dir, "eng/方案.md")));
     assert.ok(fs.existsSync(path.join(dir, "eng/跟上.md")));
+    assert.ok(fs.existsSync(path.join(dir, "eng/待办.md")));
+    assert.ok(fs.existsSync(path.join(dir, "eng/问题.md")));
     assert.ok(fs.existsSync(path.join(dir, "qa/测试.md")));
     assert.ok(fs.existsSync(path.join(dir, "qa/跟上.md")));
+    assert.ok(fs.existsSync(path.join(dir, "qa/待办.md")));
+    assert.ok(fs.existsSync(path.join(dir, "qa/问题.md")));
+    assert.ok(fs.existsSync(path.join(dir, "product/待办.md")));
+    assert.ok(fs.existsSync(path.join(dir, "product/问题.md")));
     assert.equal(ensureProjectLayout(dir, "夜间模式"), false);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });

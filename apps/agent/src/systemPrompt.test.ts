@@ -31,6 +31,7 @@ test("出厂默认写清有选区改选区、一次问 1～3 个问题", () => {
   assert.match(text, /一次只问 1～3 个关键问题/);
   assert.match(HARD_RULES, /架构师只写 eng\/，测试只写 qa\/，产品经理只写 product\//);
   assert.match(HARD_RULES, /跟上\.md 由系统维护/);
+  assert.match(HARD_RULES, /待办\.md \/ 问题\.md/);
   assert.doesNotMatch(text, /档位：|检查清晰度|可行性只读代码/);
 });
 

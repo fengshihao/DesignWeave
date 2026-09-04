@@ -9,9 +9,15 @@ export const PRD_FILE = "product/PRD.md" as const;
 /** 新建工程时从模板复制的文件；其余（gaps、调研等）由 AI 按需创建。 */
 export const PRD_PACK_FILES = [
   PRD_FILE,
+  "product/待办.md",
+  "product/问题.md",
   "eng/方案.md",
+  "eng/待办.md",
+  "eng/问题.md",
   "eng/跟上.md",
   "qa/测试.md",
+  "qa/待办.md",
+  "qa/问题.md",
   "qa/跟上.md",
 ] as const;
 

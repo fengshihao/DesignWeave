@@ -21,6 +21,7 @@ import {
 import {
   canCreateProject,
   defaultFileForRole,
+  FOLDER_LABELS,
   folderOfPath,
   followHintFor,
   writableFolderOf,
@@ -718,14 +719,14 @@ function ProjectPaper(props: {
         .catch(() => undefined);
       void refreshTree().catch(() => undefined);
       void refreshVersions(viewFolder).catch(() => undefined);
-      void api.currentRun(id, viewFolder).then((res) => setActiveRun(res.run)).catch(() => undefined);
+      void api.currentRun(id, heldFolder).then((res) => setActiveRun(res.run)).catch(() => undefined);
       void api
         .getRequirement(id, cid, viewFolder)
         .then((data) => setMeta(data.requirement))
         .catch(() => undefined);
     }, 2500);
     return () => clearInterval(timer);
-  }, [cid, currentPath, etag, history, id, readOnly, refreshTree, refreshVersions, viewFolder]);
+  }, [cid, currentPath, etag, history, heldFolder, id, readOnly, refreshTree, refreshVersions, viewFolder]);
 
   const ingestEvents = useCallback((incoming: AguiEvent[]) => {
     if (!incoming.length) return;
@@ -781,12 +782,12 @@ function ProjectPaper(props: {
           } else if (parsed.type === "RUN_FINISHED") {
             await refreshVersions();
             await refreshTree();
-            const cur = await api.currentRun(id, folderOfPath(currentPathRef.current) || heldFolder);
+            const cur = await api.currentRun(id, heldFolder);
             setActiveRun(cur.run);
             const file = await api.readFile(id, currentPathRef.current);
             setContent(file.content);
             setEtag(file.etag);
-            const bundle = await api.getRequirement(id, cid, folderOfPath(currentPathRef.current) || heldFolder);
+            const bundle = await api.getRequirement(id, cid, heldFolder);
             setMeta(bundle.requirement);
           }
         }
@@ -866,21 +867,29 @@ function ProjectPaper(props: {
     if (!text || busy || aiRunning) return;
     setGate("");
     setError("");
-    const state = await molanRef.current?.getState();
-    if (state && (!state.isPreview || state.dirty || editing)) {
-      setGate("先保存一版并退出编辑，再发给 AI。");
+    const asking = !youHold;
+    if (asking && !previewFocus?.quote) {
+      setGate("先圈一段，再提问。");
       return;
     }
-    if (uncommitted) {
-      setGate("先记入版本再发给 AI。");
-      return;
+    if (!asking) {
+      const state = await molanRef.current?.getState();
+      if (state && (!state.isPreview || state.dirty || editing)) {
+        setGate("先保存一版并退出编辑，再发给 AI。");
+        return;
+      }
+      if (uncommitted) {
+        setGate("先记入版本再发给 AI。");
+        return;
+      }
     }
     setBusy(true);
     try {
       const started = await api.startRun(id, {
         message: text,
         clientId: cid,
-        folder: viewFolder,
+        mode: asking ? "ask" : "coauthor",
+        folder: asking ? heldFolder : viewFolder,
         focus: {
           file: currentPath,
           headingPath: previewFocus?.quote ? previewFocus.headingPath : [],
@@ -905,6 +914,33 @@ function ProjectPaper(props: {
       if (entrustSize === "collapsed") changeEntrustSize("half");
     } catch (err) {
       setGate(err instanceof Error ? err.message : "没发出去");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function addQuestionToAuthor() {
+    const text = message.trim();
+    if (!text || busy || aiRunning) return;
+    if (!previewFocus?.quote) {
+      setGate("先圈一段，再提问。");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await api.addQuestion(id, {
+        folder: viewFolder,
+        question: text,
+        file: currentPath,
+        headingPath: previewFocus.headingPath,
+      });
+      setMessage("");
+      setPreviewFocus(null);
+      molanRef.current?.clearSelection();
+      setToast(`已加到${FOLDER_LABELS[viewFolder]}的问题列表。`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "没能加上问题");
     } finally {
       setBusy(false);
     }
@@ -1033,6 +1069,10 @@ function ProjectPaper(props: {
                   }
                 }}
                 onBlockedEdit={() => {
+                  if (!youHold && !history && !aiRunning) {
+                    setToast("圈一段就能提问。");
+                    return;
+                  }
                   setToast(editBlockedReason || "现在不能编辑。");
                 }}
                 onSelection={(focus) => {
@@ -1053,9 +1093,11 @@ function ProjectPaper(props: {
               onExpandSection={() => {
                 molanRef.current?.expandToSection();
               }}
-              disabled={aiRunning || busy || !youHold}
-              canSend={Boolean(message.trim()) && !aiRunning && !busy && youHold}
-              hint={youHold ? undefined : "先拿编辑权，才能问 AI。"}
+              onAskAuthor={youHold ? undefined : () => void addQuestionToAuthor()}
+              authorActionLabel="向作者提一个问题"
+              disabled={aiRunning || busy}
+              canSend={Boolean(message.trim()) && !aiRunning && !busy}
+              placeholder={youHold ? "对这块说一句，回车发给 AI…" : "写一句问题…"}
             />
             <EntrustLayer
               size={entrustSize}
@@ -1162,7 +1204,7 @@ function ProjectPaper(props: {
           <div className="gate-panel" onClick={(e) => e.stopPropagation()}>
             <p>{gate}</p>
             <div className="gate-actions">
-              {gate.includes("清晰度") || gate.includes("代码目录") ? (
+              {gate.includes("清晰度") || gate.includes("代码目录") || gate.includes("先圈一段") ? (
                 <button className="btn ghost" type="button" onClick={() => setGate("")}>
                   知道了
                 </button>

@@ -16,7 +16,7 @@ import {
   type ProjectSource,
 } from "./projectMeta.js";
 import { commitAll, ensureDocumentVault, isDirty, listVersions } from "./gitVault.js";
-import { ensureProjectLayout } from "./projectLayout.js";
+import { ensureProjectLayoutAndCommit } from "./projectLayout.js";
 import { PRD_FILE } from "./prdPack.js";
 import {
   getWorkspaceRoot,
@@ -165,17 +165,7 @@ export function listDiskProjects(root: string | null | undefined): RequirementMe
     const dir = path.join(root, entry.name);
     const disk = readMetaFile(dir);
     if (!disk) continue;
-    const dirtyBefore = isDirty(dir);
-    if (ensureProjectLayout(dir, disk.title) && !dirtyBefore) {
-      try {
-        commitAll(dir, "系统：整理成产品/研发/测试", {
-          name: "系统",
-          email: "system@designweave.local",
-        });
-      } catch {
-        /* 整理失败也不挡打开 */
-      }
-    }
+    ensureProjectLayoutAndCommit(dir, disk.title);
     out.push(toRequirement(dir, disk));
   }
   return out.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));

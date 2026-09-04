@@ -1306,6 +1306,18 @@ body:has(.workbench) {
   color: var(--ink);
 }
 
+.selection-ask-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.selection-ask-actions .btn {
+  flex: 1 1 auto;
+  min-height: 32px;
+}
+
 .focus-chip {
   display: inline-flex;
   align-items: center;
@@ -1834,6 +1846,8 @@ body.is-col-resizing iframe {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  position: relative;
+  z-index: 1;
 }
 
 .tree-node {

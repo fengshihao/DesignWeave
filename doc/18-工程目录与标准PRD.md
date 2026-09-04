@@ -35,14 +35,20 @@
     meta.md
     product/
       PRD.md
+      待办.md
+      问题.md
       gaps.md
       import/
         original.md
     eng/
       方案.md
+      待办.md
+      问题.md
       跟上.md
     qa/
       测试.md
+      待办.md
+      问题.md
       跟上.md
     .git/
     .dw/

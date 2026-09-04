@@ -221,7 +221,7 @@ export function EntrustLayer(props: {
           ) : null}
         </div>
       ) : null}
-      {props.youHold ? (
+      {props.youHold || props.aiRunning ? (
         <form
           onSubmit={(e) => {
             e.preventDefault();

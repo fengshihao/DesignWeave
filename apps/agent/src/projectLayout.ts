@@ -1,8 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
-import { DOC_FOLDERS, FOLDER_MAIN_FILE, FOLLOW_FILE, type DocFolder } from "./docFolders.js";
+import { DOC_FOLDERS, FOLDER_MAIN_FILE, FOLLOW_FILE, QUESTION_FILE, TODO_FILE, type DocFolder } from "./docFolders.js";
 import { emptyFollowMarkdown } from "./followUp.js";
+import { emptyQuestionMarkdown, emptyTodoMarkdown } from "./questions.js";
 import { prdPackTemplateDir } from "./prdPack.js";
+import { commitAll, isDirty } from "./gitVault.js";
 
 function moveIfExists(from: string, to: string): boolean {
   if (!fs.existsSync(from)) return false;
@@ -27,6 +29,14 @@ function copyTemplateFile(rel: string, destRoot: string, title: string): boolean
   }
   if (rel.endsWith(FOLLOW_FILE)) {
     fs.writeFileSync(dest, emptyFollowMarkdown(), "utf8");
+    return true;
+  }
+  if (rel.endsWith(TODO_FILE)) {
+    fs.writeFileSync(dest, emptyTodoMarkdown(), "utf8");
+    return true;
+  }
+  if (rel.endsWith(QUESTION_FILE)) {
+    fs.writeFileSync(dest, emptyQuestionMarkdown(), "utf8");
     return true;
   }
   return false;
@@ -56,8 +66,30 @@ export function ensureProjectLayout(vaultPath: string, title = ""): boolean {
   for (const rel of Object.values(FOLDER_MAIN_FILE)) {
     changed = copyTemplateFile(rel, vaultPath, title) || changed;
   }
+  for (const folder of DOC_FOLDERS) {
+    changed = copyTemplateFile(`${folder}/${TODO_FILE}`, vaultPath, title) || changed;
+    changed = copyTemplateFile(`${folder}/${QUESTION_FILE}`, vaultPath, title) || changed;
+  }
   for (const folder of ["eng", "qa"] as DocFolder[]) {
     changed = copyTemplateFile(`${folder}/${FOLLOW_FILE}`, vaultPath, title) || changed;
+  }
+  return changed;
+}
+
+/** 补齐模板；若仓原先是干净的，立刻记一版，避免空待办/问题把发送关卡卡住。 */
+export function ensureProjectLayoutAndCommit(vaultPath: string, title = ""): boolean {
+  if (!vaultPath || !fs.existsSync(vaultPath)) return false;
+  const dirtyBefore = isDirty(vaultPath);
+  const changed = ensureProjectLayout(vaultPath, title);
+  if (changed && !dirtyBefore) {
+    try {
+      commitAll(vaultPath, "系统：整理成产品/研发/测试", {
+        name: "系统",
+        email: "system@designweave.local",
+      });
+    } catch {
+      /* 整理失败也不挡打开 */
+    }
   }
   return changed;
 }

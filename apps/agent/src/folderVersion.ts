@@ -11,6 +11,8 @@ import {
 import {
   DOWNSTREAM,
   FOLLOW_FILE,
+  QUESTION_FILE,
+  TODO_FILE,
   followPath,
   pathUnderFolder,
   type DocFolder,
@@ -36,10 +38,13 @@ function writeFollow(vaultPath: string, folder: DocFolder, text: string): void {
   fs.writeFileSync(abs, text.endsWith("\n") ? text : `${text}\n`, "utf8");
 }
 
+function isInboxOrFollow(rel: string): boolean {
+  const name = path.basename(rel);
+  return name === FOLLOW_FILE || name === TODO_FILE || name === QUESTION_FILE;
+}
+
 function contentFiles(files: string[], folder: DocFolder): string[] {
-  return files.filter(
-    (f) => pathUnderFolder(f, folder) && !f.endsWith(`/${FOLLOW_FILE}`) && path.basename(f) !== FOLLOW_FILE
-  );
+  return files.filter((f) => pathUnderFolder(f, folder) && !isInboxOrFollow(f));
 }
 
 function touchedLabel(files: string[], headings: string[]): string {

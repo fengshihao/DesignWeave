@@ -18,9 +18,12 @@ export function SelectionAsk(props: {
   onSend: () => void;
   onClear: () => void;
   onExpandSection?: () => void;
+  onAskAuthor?: () => void;
+  authorActionLabel?: string;
   disabled?: boolean;
   canSend?: boolean;
   hint?: string;
+  placeholder?: string;
 }) {
   const boxRef = useRef<HTMLFormElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -31,6 +34,7 @@ export function SelectionAsk(props: {
   const path = quote ? formatFocusPath(props.focus?.headingPath || []) : "";
   const pathParts = (props.focus?.headingPath || []).map((p) => p.trim()).filter(Boolean);
   const section = pathParts[pathParts.length - 1] || "本节";
+  const authorMode = Boolean(props.onAskAuthor);
 
   useLayoutEffect(() => {
     const rect = props.focus?.rect;
@@ -51,7 +55,7 @@ export function SelectionAsk(props: {
     if (left + width > vw - pad) left = vw - width - pad;
     if (left < pad) left = pad;
     setPos({ top, left });
-  }, [props.focus]);
+  }, [props.focus, props.message, authorMode]);
 
   useEffect(() => {
     if (!quote) return;
@@ -131,9 +135,24 @@ export function SelectionAsk(props: {
         }}
         disabled={props.disabled}
         rows={2}
-        aria-label="对这块说一句"
-        placeholder="对这块说一句，回车发给 AI…"
+        aria-label={props.placeholder || "对这块说一句"}
+        placeholder={props.placeholder || "对这块说一句，回车发给 AI…"}
       />
+      {authorMode ? (
+        <div className="selection-ask-actions">
+          <button className="btn primary" type="submit" disabled={!props.canSend}>
+            问 AI
+          </button>
+          <button
+            className="btn ghost"
+            type="button"
+            disabled={!props.canSend}
+            onClick={() => props.onAskAuthor?.()}
+          >
+            {props.authorActionLabel || "向作者提一个问题"}
+          </button>
+        </div>
+      ) : null}
       {props.hint ? <p className="selection-ask-hint">{props.hint}</p> : null}
     </form>
   );

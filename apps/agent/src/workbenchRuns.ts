@@ -6,7 +6,7 @@ import { HttpError } from "./httpError.js";
 import { parseDocFolder, type DocFolder } from "./docFolders.js";
 import { parseWorkbenchFocus, type WorkbenchFocus } from "./workbenchPrompt.js";
 
-export type WorkbenchMode = "clarify" | "coauthor" | "grill" | "feasibility";
+export type WorkbenchMode = "clarify" | "coauthor" | "grill" | "feasibility" | "ask";
 export type RunStatus =
   | "queued"
   | "running"

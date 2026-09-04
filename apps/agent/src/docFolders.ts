@@ -16,6 +16,8 @@ export const FOLDER_MAIN_FILE: Record<DocFolder, string> = {
 };
 
 export const FOLLOW_FILE = "跟上.md" as const;
+export const TODO_FILE = "待办.md" as const;
+export const QUESTION_FILE = "问题.md" as const;
 
 export const WRITABLE_FOLDER: Record<AppRole, DocFolder> = {
   architect: "eng",
@@ -54,6 +56,14 @@ export function folderOfPath(relPath: string): DocFolder | null {
 
 export function followPath(folder: DocFolder): string {
   return `${folder}/${FOLLOW_FILE}`;
+}
+
+export function todoPath(folder: DocFolder): string {
+  return `${folder}/${TODO_FILE}`;
+}
+
+export function questionPath(folder: DocFolder): string {
+  return `${folder}/${QUESTION_FILE}`;
 }
 
 export function pathUnderFolder(relPath: string, folder: DocFolder): boolean {

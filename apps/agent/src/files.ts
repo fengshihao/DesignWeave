@@ -5,7 +5,7 @@ import { isPathInside } from "./hostPath.js";
 import { getRequirement } from "./requirements.js";
 import { DOC_FOLDERS, FOLDER_LABELS } from "./docFolders.js";
 import { folderHasPendingFollow } from "./folderVersion.js";
-import { ensureProjectLayout } from "./projectLayout.js";
+import { ensureProjectLayoutAndCommit } from "./projectLayout.js";
 
 const ALLOWED = new Set([".md", ".markdown", ".txt"]);
 
@@ -44,7 +44,7 @@ export function listDocTree(projectId: string): Array<{
 }> {
   const meta = getRequirement(projectId);
   if (!meta) throw new Error("工程不存在");
-  ensureProjectLayout(meta.vaultPath, meta.title);
+  ensureProjectLayoutAndCommit(meta.vaultPath, meta.title);
   const root = meta.vaultPath;
   const out: Array<{ path: string; name: string; isDir: boolean }> = [];
 
@@ -89,7 +89,7 @@ export function listFolderStatus(projectId: string): Array<{
 }> {
   const meta = getRequirement(projectId);
   if (!meta) throw new Error("工程不存在");
-  ensureProjectLayout(meta.vaultPath, meta.title);
+  ensureProjectLayoutAndCommit(meta.vaultPath, meta.title);
   return DOC_FOLDERS.map((id) => ({
     id,
     label: FOLDER_LABELS[id],

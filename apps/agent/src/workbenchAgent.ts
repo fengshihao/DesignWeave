@@ -122,7 +122,21 @@ function audienceOf(userId: string): { role: AppRole; label: string } {
 function vaultDocInventory(projectId: string): string {
   const files = listDocTree(projectId).filter((f) => !f.isDir);
   const names = new Set(files.map((f) => f.path));
-  const core = ["product/PRD.md", "product/gaps.md", "eng/方案.md", "eng/跟上.md", "qa/测试.md", "qa/跟上.md", "eng/调研.md"];
+  const core = [
+    "product/PRD.md",
+    "product/gaps.md",
+    "product/待办.md",
+    "product/问题.md",
+    "eng/方案.md",
+    "eng/待办.md",
+    "eng/问题.md",
+    "eng/跟上.md",
+    "qa/测试.md",
+    "qa/待办.md",
+    "qa/问题.md",
+    "qa/跟上.md",
+    "eng/调研.md",
+  ];
   const lines = core.map((p) => `- ${p}${names.has(p) ? "（已有）" : "（还没有）"}`);
   const extra = files.filter((f) => !core.includes(f.path)).map((f) => f.path);
   if (extra.length) lines.push(`- 其他：${extra.join("、")}`);
@@ -148,8 +162,23 @@ function audienceHint(role: AppRole): string {
 function runtimePromptBlock(
   meta: RequirementMeta,
   audience: { role: AppRole; label: string },
-  folder: DocFolder
+  folder: DocFolder,
+  ask: boolean
 ): string {
+  if (ask) {
+    return `
+## 本轮
+这一轮是提问，不是托付。对方圈了别人文件夹里的一段，要你根据文档仓回答，辅助提问人做判断。
+cwd 是文档仓：${meta.vaultPath}
+禁止 Write / Edit 任何文件。只许 Read / Glob / Grep。
+只根据文档里已经写明的内容回答，并点到文件和章节。文档没写的，说还没有、缺哪一条；不要猜测、不要替作者拍板。不要空说「我也不知道」——把相关原文找出来。不要假装改了文件。
+
+文档仓此刻有：
+${vaultDocInventory(meta.id)}
+
+提问人是${audience.label}。工程标题：${meta.title}
+`.trim();
+  }
   return `
 ## 本轮
 这一轮由${audience.label}托付。
@@ -169,11 +198,12 @@ ${audienceHint(audience.role)}
 function systemPrompt(
   meta: RequirementMeta,
   audience: { role: AppRole; label: string },
-  folder: DocFolder
+  folder: DocFolder,
+  ask = false
 ): string {
   return appendSystemPromptForRun({
     workspaceRoot: getWorkspaceRoot(),
-    runtime: runtimePromptBlock(meta, audience, folder),
+    runtime: runtimePromptBlock(meta, audience, folder, ask),
   });
 }
 
@@ -181,7 +211,8 @@ function userPrompt(
   meta: RequirementMeta,
   message: string,
   focus?: WorkbenchFocus | null,
-  folder: DocFolder = "product"
+  folder: DocFolder = "product",
+  ask = false
 ): string {
   return buildWorkbenchUserPrompt({
     title: meta.title,
@@ -189,12 +220,24 @@ function userPrompt(
     inventory: vaultDocInventory(meta.id),
     focus,
     message,
+    ask,
   });
 }
 
 function revertOutsideFolder(root: string, folder: DocFolder): void {
   for (const rel of changedFiles(root)) {
     if (pathUnderFolder(rel, folder)) continue;
+    try {
+      restoreFile(root, "HEAD", rel);
+    } catch {
+      const abs = path.join(root, rel);
+      if (fs.existsSync(abs) && fs.statSync(abs).isFile()) fs.unlinkSync(abs);
+    }
+  }
+}
+
+function revertAllWrites(root: string): void {
+  for (const rel of changedFiles(root)) {
     try {
       restoreFile(root, "HEAD", rel);
     } catch {
@@ -211,8 +254,27 @@ async function runMock(
   focus: WorkbenchFocus | null,
   folder: DocFolder,
   selectedDirs: string[],
-  signal: AbortSignal
+  signal: AbortSignal,
+  ask: boolean
 ): Promise<void> {
+  if (ask) {
+    hint(runId, "演示模式：本机没有模型密钥，只回答、不改文件。");
+    await sleep(400, signal);
+    hint(runId, "正在阅读文档仓…");
+    await sleep(500, signal);
+    const quote = (focus?.quote || "").replace(/\s+/g, " ").trim();
+    const started = { value: false };
+    assistantDelta(
+      runId,
+      started,
+      quote
+        ? `（演示）按现有文档看，这段是在说：${quote}\n\n你的问题：${message}\n\n接上真实模型后会按全文回答。这一轮没有改任何文件。`
+        : `（演示）你的问题：${message}\n\n这一轮没有改任何文件。`
+    );
+    finishAssistant(runId, started);
+    return;
+  }
+
   hint(runId, "演示模式：本机没有模型密钥，也会把结论写进文档仓。");
   await sleep(400, signal);
 
@@ -250,21 +312,22 @@ async function runClaude(
   audience: { role: AppRole; label: string },
   focus: WorkbenchFocus | null,
   folder: DocFolder,
-  signal: AbortSignal
+  signal: AbortSignal,
+  ask: boolean
 ): Promise<void> {
   let snap = snapshotMtimes(meta.vaultPath);
-  const allowedTools = ["Read", "Write", "Edit", "Glob", "Grep"];
+  const allowedTools = ask ? ["Read", "Glob", "Grep"] : ["Read", "Write", "Edit", "Glob", "Grep"];
   const started = { value: false };
   let toolSeq = 0;
 
   const q = query({
-    prompt: userPrompt(meta, message, focus, folder),
+    prompt: userPrompt(meta, message, focus, folder, ask),
     options: buildClaudeQueryOptions({
       cwd: meta.vaultPath,
       allowedTools,
-      permissionMode: "acceptEdits",
+      permissionMode: ask ? "default" : "acceptEdits",
       additionalDirectories: [],
-      appendSystemPrompt: systemPrompt(meta, audience, folder),
+      appendSystemPrompt: systemPrompt(meta, audience, folder, ask),
     }),
   });
 
@@ -318,6 +381,7 @@ export async function executeWorkbenchRun(runId: string): Promise<void> {
   }
   setRunStatus(runId, "running");
   const folder = run.folder;
+  const ask = run.mode === "ask";
   setEditing(run.projectId, folder, false);
 
   const roots = codeRootsForRun();
@@ -327,13 +391,15 @@ export async function executeWorkbenchRun(runId: string): Promise<void> {
       codeRoots: roots,
       writesDocsOnly: true,
       mockMode: !config.anthropicApiKey,
-      text: "本阶段不读代码目录。不会改业务代码，只写文档仓。不要假装读过代码。",
+      text: ask
+        ? "这一轮只回答，禁止改文件。不要假装改过文档。"
+        : "本阶段不读代码目录。不会改业务代码，只写文档仓。不要假装读过代码。",
     })
   );
 
   try {
     if (!config.anthropicApiKey) {
-      await runMock(runId, meta, run.message, run.focus, folder, roots, controller.signal);
+      await runMock(runId, meta, run.message, run.focus, folder, roots, controller.signal, ask);
     } else {
       await runClaude(
         runId,
@@ -342,12 +408,21 @@ export async function executeWorkbenchRun(runId: string): Promise<void> {
         audienceOf(run.userId),
         run.focus,
         folder,
-        controller.signal
+        controller.signal,
+        ask
       );
     }
 
     if (controller.signal.aborted) {
       throw new Error("已取消");
+    }
+
+    if (ask) {
+      revertAllWrites(meta.vaultPath);
+      setRunStatus(runId, "succeeded");
+      hint(runId, "本轮只回答，没有改文件。");
+      appendAgui(runId, agui.finished("success", { ask: true, mockMode: !config.anthropicApiKey }));
+      return;
     }
 
     revertOutsideFolder(meta.vaultPath, folder);

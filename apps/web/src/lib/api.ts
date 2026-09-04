@@ -17,7 +17,7 @@ export type ClaudeKnownProject = {
   hasClaudeDir: boolean;
 };
 
-export type WorkbenchMode = "clarify" | "coauthor" | "grill" | "feasibility";
+export type WorkbenchMode = "clarify" | "coauthor" | "grill" | "feasibility" | "ask";
 
 export type ProjectLockInfo = {
   holderId: string;
@@ -464,4 +464,22 @@ export const api = {
         }
       >;
     }>(`/v1/requirements/${id}/runs?limit=${limit}`),
+
+  addQuestion: (
+    id: string,
+    body: {
+      folder: DocFolder;
+      question: string;
+      file: string;
+      headingPath: string[];
+    }
+  ) =>
+    request<{
+      ok: boolean;
+      path: string;
+      version: { id: string; message: string } | null;
+    }>(`/v1/requirements/${id}/questions`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 };

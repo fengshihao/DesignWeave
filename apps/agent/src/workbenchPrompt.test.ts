@@ -52,6 +52,25 @@ test("无选区时 userPrompt 按整篇拼，不写档位", () => {
   assert.match(prompt, /有选区就先定位到引文再改/);
 });
 
+test("提问轮 userPrompt 禁止改文件", () => {
+  const prompt = buildWorkbenchUserPrompt({
+    title: "夜间模式",
+    file: "product/PRD.md",
+    inventory: "- product/PRD.md（已有）",
+    focus: {
+      file: "product/PRD.md",
+      headingPath: ["用户故事"],
+      quote: "作为用户我想要一键关灯。",
+    },
+    message: "低端机也要开吗？",
+    ask: true,
+  });
+  assert.match(prompt, /禁止改任何文件/);
+  assert.match(prompt, /辅助提问人做判断/);
+  assert.match(prompt, /不要用猜测补一个方案/);
+  assert.doesNotMatch(prompt, /然后读写文件/);
+});
+
 test("有选区时 userPrompt 带章节路径和 markdown 引文", () => {
   const prompt = buildWorkbenchUserPrompt({
     title: "夜间模式",
