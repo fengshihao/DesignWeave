@@ -91,10 +91,10 @@ assert(html.indexOf('id="molanFindBtn"') < html.indexOf('id="copyBtn"'), "find c
 assert(html.indexOf('id="copyBtn"') < html.indexOf('id="pdfBtn"'), "copy comes before export pdf");
 assert(html.includes("./vendor/vditor/dist/method.min.js"), "html loads local method.min.js");
 assert(html.includes("./vendor/vditor/dist/js/lute/lute.min.js"), "html preloads local lute");
-assert(html.includes("molan-editor.js?v=20260825f"), "studio html cache-busts table editor");
-assert(html.includes("molan.css?v=20260822pg"), "studio html cache-busts table css");
+assert(html.includes("molan-editor.js?v=20260905a"), "studio html cache-busts table editor");
+assert(html.includes("molan.css?v=20260905a"), "studio html cache-busts table css");
 assert(html.includes("molan-i18n.js?v=20260825b"), "studio html cache-busts table i18n");
-assert(html.includes("molan-app.js?v=20260825b"), "studio html cache-busts studio app");
+assert(html.includes("molan-app.js?v=20260905a"), "studio html cache-busts studio app");
 assert(html.includes('id="exportMenu"'), "studio has export menu");
 assert(html.includes('data-export="png"'), "studio can export a png");
 assert(!html.includes("cdn.jsdelivr.net"), "html must not load vditor from jsdelivr");
@@ -103,8 +103,8 @@ assert(readFileSync(join(viewer, "molan.css"), "utf8").includes(".molan-table-to
 assert(readFileSync(join(viewer, "molan.css"), "utf8").includes(".molan-table-picker"), "css for table size picker");
 assert(readFileSync(join(viewer, "molan.css"), "utf8").includes('[data-type="table"].vditor-menu--disabled'), "table insert stays clickable when Vditor disables toolbar");
 assert(readFileSync(join(viewer, "molan.css"), "utf8").includes(".editor-wrap > .vditor-outline"), "css docks Vditor outline as a left pane");
-assert(readFileSync(join(viewer, "molan.css"), "utf8").includes(".molan-outline-dock {\n      position: absolute"), "outline button stays on the paper, not above workbench overlays");
-assert(readFileSync(join(viewer, "molan.css"), "utf8").includes("#molanPreviewBody"), "css constrains preview body so the outline fab can stay put");
+assert(readFileSync(join(viewer, "molan.css"), "utf8").includes(".molan-outline-prefs"), "outline button is header chrome");
+assert(readFileSync(join(viewer, "molan.css"), "utf8").includes("#molanPreviewBody"), "css constrains preview body");
 assert(readFileSync(join(viewer, "molan.css"), "utf8").includes(".vditor-ir__node[data-type=\"code-block\"]:not(.vditor-ir__node--expand) > :not(.vditor-ir__preview)"), "IR code blocks hide source when collapsed");
 assert(readFileSync(join(viewer, "molan.css"), "utf8").includes(".vditor-ir__node:not(.vditor-ir__node--expand):has(.language-mermaid) .vditor-ir__marker"), "IR mermaid hides language chip when collapsed");
 assert(readFileSync(join(viewer, "molan.css"), "utf8").includes(".editor-wrap.is-source-open.is-outline-open .molan-source-view"), "source view leaves room for the outline pane");
@@ -157,8 +157,9 @@ assert(editorSource.includes("keepPreviewFromSourceSpot"), "closing source view 
 assert(editorSource.includes("handleSourceInput"), "source view accepts markdown edits");
 assert(editorSource.includes("sourceEditable"), "source view shows editable hint");
 assert(!editorSource.includes("editModeBtn"), "old edit-mode switcher is gone");
-assert(editorSource.includes('document.querySelector(".reader-body")'), "outline dock pins to the reader pane");
-assert(editorSource.includes("pinOutlineDock"), "outline button is position-fixed over the reader pane");
+assert(editorSource.includes('document.querySelector(".reader-header")'), "outline button lives in the reader header");
+assert(editorSource.includes("molan-outline-prefs"), "outline button is header chrome, not a floating dock");
+assert(!editorSource.includes("pinOutlineDock"), "outline button is not position-fixed over the reader pane");
 assert(editorSource.includes("is-in"), "outline pane has a slide-in animation state");
 assert(editorSource.includes("scheduleOutlineRefresh"), "open outline follows document updates");
 assert(editorSource.includes("relocateVditorOutline"), "uses Vditor outline on the article overlay");

@@ -554,7 +554,6 @@
     if (!outline) return;
     if (!show) window.MolanEditor?.outline?.close?.(true);
     outline.hidden = !show;
-    window.MolanEditor?.outline?.pin?.();
   }
 
   function syncModeButton() {

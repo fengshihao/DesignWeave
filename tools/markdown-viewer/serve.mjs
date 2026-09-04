@@ -4,12 +4,24 @@
  */
 import http from "node:http";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(process.env.MOLAN_ROOT || path.dirname(fileURLToPath(import.meta.url)));
 const port = Number(process.env.MOLAN_SERVE_PORT || 5500);
+const host = process.env.MOLAN_BIND || "0.0.0.0";
+
+function lanAddresses() {
+  const out = [];
+  for (const list of Object.values(os.networkInterfaces())) {
+    for (const info of list || []) {
+      if (info.family === "IPv4" && !info.internal) out.push(info.address);
+    }
+  }
+  return out;
+}
 const gzipCache = new Map();
 
 const MIME = {
@@ -87,6 +99,13 @@ http.createServer((req, res) => {
       res.end(data);
     });
   });
-}).listen(port, "127.0.0.1", () => {
-  console.log("Serving " + root + " at http://127.0.0.1:" + port + "/");
+}).listen(port, host, () => {
+  const urls = [`http://127.0.0.1:${port}/`];
+  if (host === "0.0.0.0" || host === "::") {
+    for (const ip of lanAddresses()) urls.push(`http://${ip}:${port}/`);
+  } else if (host !== "127.0.0.1" && host !== "localhost") {
+    urls.push(`http://${host}:${port}/`);
+  }
+  console.log("Serving " + root);
+  for (const url of urls) console.log("  " + url);
 });

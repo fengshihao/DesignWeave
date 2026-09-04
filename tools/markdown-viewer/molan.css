@@ -529,7 +529,7 @@
       .editor-wrap > .vditor-outline.is-out {
         animation: none;
       }
-      .molan-outline-fab svg {
+      #outlineBtn svg {
         transition: none;
       }
     }
@@ -1192,16 +1192,16 @@
       position: relative;
       z-index: 2;
       min-width: 0;
-      padding: 16px 28px 12px;
+      padding: 12px 28px;
       border-bottom: 1px solid var(--hairline);
       background: var(--header-bg);
       backdrop-filter: blur(8px);
       display: flex;
       flex-wrap: nowrap;
-      align-items: flex-end;
+      align-items: center;
       justify-content: space-between;
-      gap: 12px;
-      min-height: 68px;
+      gap: 10px;
+      min-height: 64px;
     }
 
     .reader-title {
@@ -1239,6 +1239,7 @@
       flex-wrap: nowrap;
       justify-content: flex-end;
       align-items: center;
+      margin-inline-start: auto;
     }
 
     .reader-actions .type-prefs {
@@ -1313,74 +1314,42 @@
       display: none;
     }
 
-    .molan-outline-dock {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      width: 32px;
-      height: 32px;
-      z-index: 8;
-      margin: 0;
-      pointer-events: none;
+    .molan-outline-prefs {
+      position: relative;
+      display: flex;
+      flex: 0 0 auto;
+      align-items: center;
     }
-    html[dir="rtl"] .molan-outline-dock {
-      left: auto;
-      right: 10px;
-    }
-    .molan-outline-dock[hidden] {
+    .molan-outline-prefs[hidden] {
       display: none;
     }
-    .molan-outline-fab {
-      appearance: none;
-      pointer-events: auto;
-      width: 32px;
-      height: 32px;
-      padding: 0;
-      position: absolute;
-      inset: 0;
-      border: 1px solid var(--hairline-strong);
-      border-radius: 10px;
-      background: color-mix(in srgb, var(--paper-lift) 88%, transparent);
-      color: var(--ink-muted);
-      box-shadow: 0 6px 18px rgba(28, 25, 20, 0.08);
-      backdrop-filter: blur(8px);
-      cursor: pointer;
-      line-height: 0;
+    .reader-header > .molan-outline-prefs .icon-btn {
+      width: 40px;
+      height: 40px;
+      position: relative;
     }
-    .molan-outline-fab svg {
+    .reader-header > .molan-outline-prefs .icon-btn svg {
+      width: 20px;
+      height: 20px;
       position: absolute;
       inset: 0;
       margin: auto;
-      width: 16px;
-      height: 16px;
-      display: block;
       transition: opacity 0.28s var(--ease), transform 0.36s var(--ease);
     }
-    .molan-outline-fab .icon-outline-close {
+    .reader-header > .molan-outline-prefs .icon-outline circle {
+      fill: currentColor;
+    }
+    .reader-header > .molan-outline-prefs .icon-outline-close {
       opacity: 0;
       transform: rotate(-90deg) scale(0.72);
     }
-    .molan-outline-fab.is-on {
-      color: var(--accent);
-      background: var(--surface);
-      border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-    }
-    .molan-outline-fab.is-on .icon-outline {
+    #outlineBtn.is-on .icon-outline {
       opacity: 0;
       transform: rotate(90deg) scale(0.72);
     }
-    .molan-outline-fab.is-on .icon-outline-close {
+    #outlineBtn.is-on .icon-outline-close {
       opacity: 1;
       transform: none;
-    }
-    .molan-outline-fab:hover {
-      color: var(--accent-deep);
-      border-color: var(--accent-soft);
-      background: var(--surface-hover);
-    }
-    .molan-outline-fab:focus-visible {
-      outline: 2px solid var(--accent);
-      outline-offset: 2px;
     }
     .editor-wrap > .vditor-outline {
       flex: 0 0 var(--molan-outline-w);
@@ -1812,7 +1781,8 @@
 
     #headerPrefsBtn.is-on,
     #typeBtn.is-on,
-    #sourceViewBtn.is-on {
+    #sourceViewBtn.is-on,
+    #outlineBtn.is-on {
       color: var(--accent);
       background: var(--surface);
       border-color: color-mix(in srgb, var(--accent) 45%, transparent);
@@ -2619,7 +2589,7 @@
       .editor-wrap > .vditor-outline.is-out {
         animation: none;
       }
-      .molan-outline-fab svg {
+      #outlineBtn svg {
         transition: none;
       }
       .file-item,
@@ -4571,7 +4541,7 @@
       .molan-diagram-toolbar,
       .molan-table-toolbar,
       .molan-table-picker,
-      .molan-outline-dock,
+      .molan-outline-prefs,
       .molan-outline-panel,
       .editor-wrap > .vditor-outline,
       .molan-source-view,

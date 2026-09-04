@@ -28,48 +28,25 @@
     }
   }
 
-  function pinOutlineDock() {
-    const dock = document.getElementById("outlinePrefs");
-    if (!dock) return;
-    const host = document.querySelector(".reader-body")
-      || document.querySelector(".molan-inline")
-      || document.querySelector(".main");
-    const rtl = document.documentElement.getAttribute("dir") === "rtl";
-    dock.style.width = "32px";
-    dock.style.height = "32px";
-    dock.style.margin = "0";
-    dock.style.bottom = "auto";
-    dock.style.top = "10px";
-    dock.style.left = rtl ? "auto" : "10px";
-    dock.style.right = rtl ? "10px" : "auto";
-    // 挂在纸面里，不要挂到 body：否则 z-index 会压过工作台设置浮层。
-    if (host) {
-      if (dock.parentElement !== host) host.appendChild(dock);
-      dock.style.position = "absolute";
-      dock.style.zIndex = "8";
+  const OUTLINE_BTN_HTML = `<button type="button" class="icon-btn" id="outlineBtn" aria-haspopup="true" aria-expanded="false">${OUTLINE_ICON}${OUTLINE_CLOSE_ICON}</button>`;
+
+  function mountOutlinePrefs(outlineWrap) {
+    outlineWrap.className = "molan-outline-prefs";
+    outlineWrap.removeAttribute("style");
+    const btn = outlineWrap.querySelector("#outlineBtn");
+    if (btn) {
+      btn.className = "icon-btn";
+      btn.removeAttribute("style");
+    }
+    const header = document.querySelector(".reader-header");
+    const title = header?.querySelector(".reader-title");
+    const actions = document.querySelector(".reader-actions");
+    // 跟标题同一行，不要浮在纸面上：否则会和行首「+」重叠。
+    if (header) {
+      header.insertBefore(outlineWrap, title || actions || null);
       return;
     }
-    if (dock.parentElement !== document.body) document.body.appendChild(dock);
-    dock.style.position = "fixed";
-    dock.style.zIndex = "40";
-  }
-
-  function bindOutlineDockPin() {
-    if (bindOutlineDockPin.done) return;
-    bindOutlineDockPin.done = true;
-    const pin = () => requestAnimationFrame(pinOutlineDock);
-    window.addEventListener("resize", pin);
-    window.visualViewport?.addEventListener("resize", pin);
-    window.visualViewport?.addEventListener("scroll", pin);
-    if (typeof ResizeObserver === "function") {
-      const ro = new ResizeObserver(pin);
-      const host = document.querySelector(".reader-body");
-      const main = document.querySelector(".main");
-      const wrap = document.getElementById("editorWrap") || document.querySelector(".editor-wrap");
-      if (host) ro.observe(host);
-      if (main) ro.observe(main);
-      if (wrap) ro.observe(wrap);
-    }
+    if (actions) actions.insertBefore(outlineWrap, actions.firstChild);
   }
 
   let outlineRefreshTimer = 0;
@@ -97,7 +74,6 @@
     btn?.classList.toggle("is-on", !!open);
     btn?.setAttribute("aria-expanded", open ? "true" : "false");
     applyEditorChromeI18n();
-    pinOutlineDock();
   }
 
   function relocateVditorOutline() {
@@ -173,7 +149,6 @@
     } else if (shown) {
       shown.classList.add("is-in");
     }
-    pinOutlineDock();
   }
 
   function ensureEditorChrome(ctx) {
@@ -210,26 +185,12 @@
       if (!outlineWrap) {
         outlineWrap = document.createElement("div");
         outlineWrap.id = "outlinePrefs";
-        outlineWrap.className = "molan-outline-dock";
-        outlineWrap.innerHTML = `
-          <button type="button" class="molan-outline-fab" id="outlineBtn" aria-haspopup="true" aria-expanded="false">${OUTLINE_ICON}${OUTLINE_CLOSE_ICON}</button>
-        `;
-      } else {
-        outlineWrap.className = "molan-outline-dock";
-        if (!outlineWrap.querySelector(".molan-outline-fab") || !outlineWrap.querySelector(".icon-outline-close")) {
-          outlineWrap.innerHTML = `
-            <button type="button" class="molan-outline-fab" id="outlineBtn" aria-haspopup="true" aria-expanded="false">${OUTLINE_ICON}${OUTLINE_CLOSE_ICON}</button>
-          `;
-        }
-        outlineWrap.querySelector("#outlineMenu")?.remove();
+        outlineWrap.innerHTML = OUTLINE_BTN_HTML;
+      } else if (!outlineWrap.querySelector("#outlineBtn") || !outlineWrap.querySelector(".icon-outline-close")) {
+        outlineWrap.innerHTML = OUTLINE_BTN_HTML;
       }
-      const paper = document.querySelector(".reader-body")
-        || document.querySelector(".molan-inline")
-        || document.querySelector(".main")
-        || document.body;
-      if (outlineWrap.parentElement !== paper) paper.appendChild(outlineWrap);
-      bindOutlineDockPin();
-      pinOutlineDock();
+      outlineWrap.querySelector("#outlineMenu")?.remove();
+      mountOutlinePrefs(outlineWrap);
     }
 
     outlineCtx = ctx;

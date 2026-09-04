@@ -11,9 +11,10 @@
 界面语言按浏览器自动选择，也可在侧栏手动切换：简体中文、繁體中文、English、日本語、한국어、Español、Français、Deutsch、Português、Русский、العربية。
 
 ```bash
-pnpm molan            # 停旧后启动 http://127.0.0.1:5500/ 并打开浏览器
+pnpm molan            # 停旧后启动，本机 http://127.0.0.1:5500/ ，局域网用本机 IP
 pnpm molan:stop       # 仅停止
 MOLAN_PORT=5600 pnpm molan   # 自定义端口
+MOLAN_BIND=127.0.0.1 pnpm molan   # 只允许本机访问
 ```
 
 介绍动画与教程截图（需本机 Chrome）：

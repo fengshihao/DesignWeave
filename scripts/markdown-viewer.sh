@@ -10,6 +10,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VIEWER_DIR="${ROOT}/tools/markdown-viewer"
 PORT="${MOLAN_PORT:-5500}"
+BIND="${MOLAN_BIND:-0.0.0.0}"
 ACTION="${1:-start}"
 URL="http://127.0.0.1:${PORT}/"
 
@@ -114,11 +115,11 @@ open_browser() {
 
 serve_viewer() {
   if command -v node >/dev/null 2>&1; then
-    MOLAN_ROOT="${VIEWER_DIR}" MOLAN_SERVE_PORT="${PORT}" node "${VIEWER_DIR}/serve.mjs"
+    MOLAN_ROOT="${VIEWER_DIR}" MOLAN_SERVE_PORT="${PORT}" MOLAN_BIND="${BIND}" node "${VIEWER_DIR}/serve.mjs"
   elif command -v python3 >/dev/null 2>&1; then
-    python3 -m http.server "${PORT}" --bind 127.0.0.1 --directory "${VIEWER_DIR}"
+    python3 -m http.server "${PORT}" --bind "${BIND}" --directory "${VIEWER_DIR}"
   elif command -v python >/dev/null 2>&1; then
-    python -m http.server "${PORT}" --bind 127.0.0.1 --directory "${VIEWER_DIR}"
+    python -m http.server "${PORT}" --bind "${BIND}" --directory "${VIEWER_DIR}"
   else
     echo "需要 Node.js 或 python3 才能启动静态服务" >&2
     exit 1
@@ -159,6 +160,7 @@ case "${ACTION}" in
     sleep 0.3
     vendor_vditor
     echo "==> 启动墨览 Markdown 工作室  ${URL}"
+    echo "    局域网可用本机 IP，例如 http://192.168.x.x:${PORT}/ （MOLAN_BIND=${BIND}）"
     echo "    侧栏「打开文件夹」打开本地目录；Chrome / Edge 可写回，Cursor 内置浏览器自动走兼容选择。Ctrl+C 停止。"
     (
       sleep 0.5

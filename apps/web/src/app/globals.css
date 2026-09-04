@@ -714,7 +714,7 @@ body:has(.workbench) {
 }
 
 .molan-inline.molan-host-vscode .reader-header {
-  justify-content: flex-end;
+  justify-content: space-between;
   align-items: center;
   min-height: 44px;
   padding: 6px 12px 6px 16px;

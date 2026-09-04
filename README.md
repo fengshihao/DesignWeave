@@ -57,7 +57,7 @@ pnpm stop
 
 ```bash
 pnpm install
-pnpm molan            # http://127.0.0.1:5500/
+pnpm molan            # 本机 http://127.0.0.1:5500/ ，局域网用本机 IP
 pnpm molan:stop
 ```
 

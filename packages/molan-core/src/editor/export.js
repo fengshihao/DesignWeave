@@ -560,7 +560,6 @@
     },
     outline: {
       close: closeOutline,
-      pin: pinOutlineDock,
     },
     source: {
       open: openSourceView,

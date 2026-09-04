@@ -25,12 +25,15 @@ test("编辑器源码按职责拆模块，构建仍产出单文件 IIFE", () => 
   assert.match(bundled, /global\.MolanEditor\s*=/);
 });
 
-test("大纲按钮挂在纸面里，不挂到 body 以免压过设置浮层", () => {
+test("大纲按钮在顶栏标题左侧，不浮在纸面上", () => {
   const src = editorSrc();
-  assert.match(src, /挂在纸面里，不要挂到 body/);
-  assert.match(src, /querySelector\("\.reader-body"\)/);
-  assert.match(src, /dock\.style\.position = "absolute"/);
-  assert.match(src, /dock\.style\.zIndex = "8"/);
+  assert.match(src, /跟标题同一行，不要浮在纸面上/);
+  assert.match(src, /querySelector\("\.reader-header"\)/);
+  assert.match(src, /molan-outline-prefs/);
+  assert.match(src, /header\.insertBefore\(outlineWrap/);
+  assert.doesNotMatch(src, /pinOutlineDock/);
+  assert.doesNotMatch(src, /molan-outline-fab/);
+  assert.doesNotMatch(src, /dock\.style\.position = "absolute"/);
 });
 
 test("预览选区会上报前后文，且点输入框折叠选区不会清焦点", () => {
@@ -89,6 +92,13 @@ test("molan.css 含四主题变量", () => {
   assert.match(css, /max-height:\s*220mm/);
   assert.match(css, /\.export-menu/);
   assert.match(css, /molan-source-view/);
+  assert.match(css, /\.molan-outline-prefs/);
+  assert.doesNotMatch(css, /molan-outline-fab|molan-outline-dock/);
+  {
+    const header = css.match(/    \.reader-header \{[\s\S]*?\n    \}/);
+    assert.ok(header, "extract .reader-header");
+    assert.match(header[0], /align-items:\s*center/);
+  }
   assert.match(css, /molan-mermaid-editor-zoom/);
   assert.match(css, /--reader-font/);
   assert.match(css, /--reader-heading/);
