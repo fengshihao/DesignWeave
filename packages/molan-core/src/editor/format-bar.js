@@ -1,4 +1,105 @@
   /* --- format-bar: 选区格式条与插入表格拾取 --- */
+  function collapseWs(value) {
+    return String(value || "").replace(/\s+/g, " ").trim();
+  }
+
+  function spanInFence(source, index) {
+    let inFence = false;
+    const upto = String(source || "").slice(0, Math.max(0, index));
+    for (const line of upto.split("\n")) {
+      if (/^ {0,3}(`{3,}|~{3,})/.test(line)) inFence = !inFence;
+    }
+    return inFence;
+  }
+
+  function findCollapsedHits(source, needle) {
+    const n = collapseWs(needle);
+    const src = String(source || "");
+    if (!n || !src) return [];
+    const hits = [];
+    let i = 0;
+    while (i < src.length) {
+      while (i < src.length && /\s/.test(src[i])) i += 1;
+      if (i >= src.length) break;
+      let pi = 0;
+      let j = i;
+      while (j < src.length && pi < n.length) {
+        const sc = src[j];
+        if (/\s/.test(sc)) {
+          if (n[pi] === " ") {
+            pi += 1;
+            while (j < src.length && /\s/.test(src[j])) j += 1;
+            continue;
+          }
+          j += 1;
+          continue;
+        }
+        if (sc === n[pi]) {
+          pi += 1;
+          j += 1;
+          continue;
+        }
+        break;
+      }
+      if (pi === n.length) hits.push({ start: i, end: j });
+      i += 1;
+    }
+    return hits;
+  }
+
+  function pickCollapsedSpan(source, quote, before, after) {
+    const hits = findCollapsedHits(source, quote).filter((hit) => !spanInFence(source, hit.start));
+    if (!hits.length) return null;
+    if (hits.length === 1) return hits[0];
+    const preWant = collapseWs(before).slice(-48);
+    const postWant = collapseWs(after).slice(0, 48);
+    let best = hits[0];
+    let bestScore = -1;
+    for (const hit of hits) {
+      const pre = collapseWs(source.slice(Math.max(0, hit.start - 96), hit.start));
+      const post = collapseWs(source.slice(hit.end, hit.end + 96));
+      let score = 0;
+      if (preWant && pre.endsWith(preWant)) score += 3;
+      else if (preWant && pre.includes(preWant.slice(-16))) score += 1;
+      if (postWant && post.startsWith(postWant)) score += 3;
+      else if (postWant && post.includes(postWant.slice(0, 16))) score += 1;
+      if (score > bestScore) {
+        bestScore = score;
+        best = hit;
+      }
+    }
+    return best;
+  }
+
+  function wrapInlineMarkdown(source, start, end, left, right) {
+    const src = String(source || "");
+    const inner = src.slice(start, end);
+    const before = src.slice(Math.max(0, start - left.length), start);
+    const after = src.slice(end, end + right.length);
+    if (before === left && after === right) {
+      return src.slice(0, start - left.length) + inner + src.slice(end + right.length);
+    }
+    if (inner.startsWith(left) && inner.endsWith(right) && inner.length > left.length + right.length) {
+      return src.slice(0, start) + inner.slice(left.length, inner.length - right.length) + src.slice(end);
+    }
+    return src.slice(0, start) + left + inner + right + src.slice(end);
+  }
+
+  function wrapPreviewLink(source, start, end, href) {
+    const src = String(source || "");
+    const inner = src.slice(start, end);
+    const before = src.slice(0, start);
+    const after = src.slice(end);
+    const wrapped = before.match(/\[$/) && after.match(/^\]\([^)]*\)/);
+    if (wrapped) {
+      return before.slice(0, -1) + `[${inner}](${href})` + after.replace(/^\]\([^)]*\)/, "");
+    }
+    if (/^\[[^\]]+\]\([^)]*\)$/.test(inner)) {
+      return src.slice(0, start) + `[${inner.replace(/^\[/, "").replace(/\]\([^)]*\)$/, "")}](${href})` + src.slice(end);
+    }
+    return src.slice(0, start) + `[${inner}](${href})` + src.slice(end);
+  }
+
   function hideFormatBar() {
     const bar = document.getElementById("molanFormatBar");
     if (!bar) return;
@@ -28,9 +129,13 @@
     }
   }
 
-  function bindFormatBar(vditorRoot, getVditor, isPreviewing) {
+  function bindFormatBar(vditorRoot, getVditor, isPreviewing, extras = {}) {
     if (!vditorRoot || vditorRoot.dataset.molanFormatBar === "1") return;
     vditorRoot.dataset.molanFormatBar = "1";
+    const previewFormat = extras.previewFormat === true;
+    const getPreviewRoot = extras.getPreviewRoot || (() => document.getElementById("molanPreviewBody"));
+    const getMarkdown = extras.getMarkdown || (() => "");
+    const applyMarkdown = extras.applyMarkdown;
 
     let bar = document.getElementById("molanFormatBar");
     if (!bar) {
@@ -40,9 +145,9 @@
       bar.hidden = true;
       bar.innerHTML = `
         <div class="molan-format-bar__actions">
-          <button type="button" data-format="bold"><span>B</span></button>
-          <button type="button" data-format="italic"><span>I</span></button>
-          <button type="button" data-format="link">
+          <button type="button" class="molan-insert-item" data-format="bold"><span>B</span></button>
+          <button type="button" class="molan-insert-item" data-format="italic"><span>I</span></button>
+          <button type="button" class="molan-insert-item" data-format="link">
             <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 9.5l3-3M5 8.2l-1.2 1.2a2.2 2.2 0 1 0 3.1 3.1L8.2 11M11 7.8l1.2-1.2a2.2 2.2 0 1 0-3.1-3.1L7.8 5"/></svg>
           </button>
         </div>
@@ -149,18 +254,52 @@
       if (savedRange) positionBar(savedRange);
     };
 
+    const previewFocusFromSelection = () => {
+      const root = getPreviewRoot?.();
+      const sel = window.getSelection();
+      if (!root || !sel || !sel.rangeCount || sel.isCollapsed) return null;
+      const node = sel.anchorNode;
+      const el = node?.nodeType === 1 ? node : node?.parentElement;
+      if (!el || !root.contains(el)) return null;
+      if (el.closest("pre, .language-mermaid, .molan-find-bar, .molan-format-bar")) return null;
+      const text = sel.toString();
+      if (!text.replace(/\s+/g, "")) return null;
+      return { range: sel.getRangeAt(0).cloneRange(), text, root };
+    };
+
+    const applyPreviewFormat = (type, href) => {
+      if (!applyMarkdown) return false;
+      const src = getMarkdown?.() || "";
+      const around = typeof surroundingFromRange === "function" && savedRange
+        ? surroundingFromRange(getPreviewRoot?.(), savedRange)
+        : { before: "", after: "" };
+      const span = pickCollapsedSpan(src, savedText, around.before, around.after);
+      if (!span) return false;
+      let next = src;
+      if (type === "bold") next = wrapInlineMarkdown(src, span.start, span.end, "**", "**");
+      else if (type === "italic") next = wrapInlineMarkdown(src, span.start, span.end, "*", "*");
+      else if (type === "link") next = wrapPreviewLink(src, span.start, span.end, href);
+      if (next === src) return false;
+      applyMarkdown(next);
+      return true;
+    };
+
     const applyLink = (raw) => {
       const href = parseInlineHref(raw);
-      const vditor = getVditor?.();
-      if (!href || !vditor || !savedText) {
-        if (!href) {
-          const input = bar.querySelector(".molan-format-bar__link input");
-          input?.classList.add("is-invalid");
-          input?.focus();
-          return false;
-        }
+      if (!href) {
+        const input = bar.querySelector(".molan-format-bar__link input");
+        input?.classList.add("is-invalid");
+        input?.focus();
         return false;
       }
+      if (isPreviewing?.() && previewFormat) {
+        const ok = applyPreviewFormat("link", href);
+        closeLink();
+        hideFormatBar();
+        return ok;
+      }
+      const vditor = getVditor?.();
+      if (!vditor || !savedText) return false;
       restoreRange();
       const md = `[${escapeMdAlt(savedText)}](${href})`;
       try {
@@ -174,7 +313,23 @@
     };
 
     const sync = () => {
-      if (isPreviewing?.() || linkOpen) return;
+      if (linkOpen) return;
+      if (isPreviewing?.()) {
+        if (!previewFormat) {
+          hideFormatBar();
+          return;
+        }
+        const focus = previewFocusFromSelection();
+        if (!focus) {
+          hideFormatBar();
+          return;
+        }
+        savedRange = focus.range;
+        savedText = focus.text;
+        positionBar(savedRange);
+        bar.querySelectorAll("[data-format]").forEach((btn) => btn.classList.remove("is-on"));
+        return;
+      }
       const vditor = getVditor?.();
       const mode = currentEditorMode(vditor);
       if (mode !== "ir" && mode !== "wysiwyg") {
@@ -220,6 +375,7 @@
     };
 
     document.addEventListener("selectionchange", scheduleSync);
+    document.addEventListener("mouseup", scheduleSync);
     vditorRoot.addEventListener("keyup", scheduleSync);
     vditorRoot.addEventListener("mouseup", scheduleSync);
     window.addEventListener("scroll", () => {
@@ -240,6 +396,11 @@
       const type = btn.getAttribute("data-format");
       if (type === "link") {
         openLink();
+        return;
+      }
+      if (isPreviewing?.() && previewFormat) {
+        applyPreviewFormat(type);
+        hideFormatBar();
         return;
       }
       restoreRange();

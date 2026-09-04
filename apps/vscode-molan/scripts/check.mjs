@@ -91,10 +91,10 @@ assert(html.indexOf('id="molanFindBtn"') < html.indexOf('id="copyBtn"'), "find c
 assert(html.indexOf('id="copyBtn"') < html.indexOf('id="pdfBtn"'), "copy comes before export pdf");
 assert(html.includes("./vendor/vditor/dist/method.min.js"), "html loads local method.min.js");
 assert(html.includes("./vendor/vditor/dist/js/lute/lute.min.js"), "html preloads local lute");
-assert(html.includes("molan-editor.js?v=20260905a"), "studio html cache-busts table editor");
-assert(html.includes("molan.css?v=20260905a"), "studio html cache-busts table css");
+assert(html.includes("molan-editor.js?v=20260905b"), "studio html cache-busts table editor");
+assert(html.includes("molan.css?v=20260905b"), "studio html cache-busts table css");
 assert(html.includes("molan-i18n.js?v=20260825b"), "studio html cache-busts table i18n");
-assert(html.includes("molan-app.js?v=20260905a"), "studio html cache-busts studio app");
+assert(html.includes("molan-app.js?v=20260905b"), "studio html cache-busts studio app");
 assert(html.includes('id="exportMenu"'), "studio has export menu");
 assert(html.includes('data-export="png"'), "studio can export a png");
 assert(!html.includes("cdn.jsdelivr.net"), "html must not load vditor from jsdelivr");
@@ -168,6 +168,7 @@ assert(!editorSource.includes("relocateVditorChrome"), "does not move Vditor out
 assert(readFileSync(join(viewer, "molan-i18n.js"), "utf8").includes("viewSource"), "i18n has source view label");
 assert(readFileSync(join(viewer, "molan-app.js"), "utf8").includes("sourceViewPrefs"), "studio shows header chrome with a document");
 assert(editorSource.includes("bindFormatBar"), "edit mode shows a selection format bubble");
+assert(editorSource.includes("previewFormatBar"), "studio can show the format bar in preview");
 assert(!editorSource.includes('"fullscreen"'), "vditor toolbar has no fullscreen");
 assert(/counter:\s*\{\s*enable:\s*false/.test(editorSource), "vditor word counter is off");
 assert(editorSource.includes('pick: "image"'), "image insert opens a URL prompt instead of empty markdown");

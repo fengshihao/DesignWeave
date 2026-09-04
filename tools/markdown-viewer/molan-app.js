@@ -1360,6 +1360,7 @@
       elementId: "vditor",
       cdn: window.MolanEditor.DEFAULT_CDN,
       placeholder: t("placeholder"),
+      previewFormatBar: true,
       lang: window.MolanI18n ? window.MolanI18n.vditorLang() : "zh_CN",
       onInput: () => onEditorInput(),
       onCounter: () => {

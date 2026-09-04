@@ -4396,59 +4396,32 @@
       position: fixed;
       z-index: 36;
       display: flex;
+      flex-direction: row;
       align-items: center;
       gap: 2px;
       padding: 4px;
-      border-radius: 10px;
-      background: var(--ink);
-      color: var(--paper);
+      border: 1px solid var(--hairline-strong);
+      border-radius: 12px;
+      background: var(--paper-lift);
       box-shadow: var(--shadow);
+      color: var(--ink);
       font-family: var(--font-ui);
     }
     .molan-format-bar[hidden] {
       display: none !important;
-    }
-    .molan-format-bar::after {
-      content: "";
-      position: absolute;
-      left: 50%;
-      bottom: -6px;
-      width: 0;
-      height: 0;
-      margin-left: -6px;
-      border: 6px solid transparent;
-      border-top-color: var(--ink);
-      border-bottom-width: 0;
-    }
-    .molan-format-bar.is-below::after {
-      top: -6px;
-      bottom: auto;
-      border-top-width: 0;
-      border-top-color: transparent;
-      border-bottom-width: 6px;
-      border-bottom-color: var(--ink);
     }
     .molan-format-bar__actions {
       display: flex;
       align-items: center;
       gap: 2px;
     }
-    .molan-format-bar button {
-      width: 32px;
-      height: 32px;
-      border: 0;
-      border-radius: 7px;
-      background: transparent;
-      color: inherit;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    .molan-format-bar .molan-insert-item {
       font: 700 14px/1 Georgia, "Times New Roman", serif;
     }
-    .molan-format-bar button:hover,
-    .molan-format-bar button.is-on {
-      background: color-mix(in srgb, var(--paper) 16%, transparent);
+    .molan-format-bar .molan-insert-item.is-on,
+    .molan-format-bar .molan-insert-item[data-format]:hover {
+      background: var(--row-hover);
+      color: var(--ink);
     }
     .molan-format-bar [data-format="italic"] span {
       font-style: italic;
@@ -4457,10 +4430,6 @@
     .molan-format-bar [data-format="link"] svg {
       width: 16px;
       height: 16px;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 1.5;
-      stroke-linecap: round;
     }
     .molan-format-bar__link {
       margin: 0;
@@ -4475,7 +4444,7 @@
       outline: none;
     }
     .molan-format-bar__link input.is-invalid {
-      color: color-mix(in srgb, #ffb4a8 80%, var(--paper));
+      color: var(--danger, #c45b6a);
     }
 
     @page {

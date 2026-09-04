@@ -50,6 +50,7 @@ function bootVscodeBridge() {
         cdn: window.__MOLAN_VDITOR_CDN__,
         linkBase: window.__MOLAN_LINK_BASE__ || "",
         previewActions: [],
+        previewFormatBar: true,
         onInput: () => bridge.onEditorInput(),
         onCounter: () => bridge.onEditorCounter(),
         onSave: () => vscode.postMessage({ type: "save" }),

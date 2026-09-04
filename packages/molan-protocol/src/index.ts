@@ -22,6 +22,8 @@ export type EditorOptions = {
   lang?: string;
   placeholder?: string;
   previewActions?: unknown[];
+  /** 墨览工作室：预览态选中文字也出格式条。工作台不要开，避免和 AI 引用框抢手势。 */
+  previewFormatBar?: boolean;
   onInput?: () => void;
   onCounter?: () => void;
   onSave?: () => void;

@@ -36,6 +36,42 @@ test("大纲按钮在顶栏标题左侧，不浮在纸面上", () => {
   assert.doesNotMatch(src, /dock\.style\.position = "absolute"/);
 });
 
+test("墨览选区格式条预览也可改 Markdown，工作台默认不开", () => {
+  const src = editorSrc();
+  assert.match(src, /function findCollapsedHits/);
+  assert.match(src, /function pickCollapsedSpan/);
+  assert.match(src, /function wrapInlineMarkdown/);
+  assert.match(src, /const applyPreviewFormat = /);
+  assert.match(src, /previewFormat: options\.previewFormatBar === true/);
+  const studio = readFileSync(join(root, "..", "..", "tools", "markdown-viewer", "molan-app.js"), "utf8");
+  assert.match(studio, /previewFormatBar:\s*true/);
+  const workbench = readFileSync(join(root, "..", "molan-host", "src", "inline-host.ts"), "utf8");
+  assert.doesNotMatch(workbench, /previewFormatBar:\s*true/);
+
+  const take = (name) => {
+    const start = src.indexOf(`function ${name}`);
+    assert.ok(start >= 0, name);
+    let depth = 0;
+    let i = src.indexOf("{", start);
+    for (; i < src.length; i += 1) {
+      if (src[i] === "{") depth += 1;
+      else if (src[i] === "}") {
+        depth -= 1;
+        if (depth === 0) return src.slice(start, i + 1);
+      }
+    }
+    throw new Error(name);
+  };
+  const api = new Function(`${take("collapseWs")}\n${take("findCollapsedHits")}\n${take("spanInFence")}\n${take("pickCollapsedSpan")}\n${take("wrapInlineMarkdown")}\nreturn { pickCollapsedSpan, wrapInlineMarkdown };`)();
+  const md = "hello **world** and world";
+  const hit = api.pickCollapsedSpan(md, "world", "and ", "");
+  assert.equal(md.slice(hit.start, hit.end), "world");
+  assert.ok(hit.start > md.indexOf("and"));
+  assert.equal(api.wrapInlineMarkdown(md, hit.start, hit.end, "**", "**"), "hello **world** and **world**");
+  const inner = api.pickCollapsedSpan(md, "world", "hello ", " and");
+  assert.equal(api.wrapInlineMarkdown(md, inner.start, inner.end, "**", "**"), "hello world and world");
+});
+
 test("预览选区会上报前后文，且点输入框折叠选区不会清焦点", () => {
   const src = editorSrc();
   assert.match(src, /function bindPreviewSelection/);

@@ -47,6 +47,28 @@
       return markdown;
     });
     bindMermaidInteractions(previewRoot, () => vditor, lightbox, mermaidBridge);
+    bindFormatBar(vditorRoot, () => vditor, () => previewing, {
+      previewFormat: options.previewFormatBar === true,
+      getPreviewRoot: () => previewBody,
+      getMarkdown: () => {
+        if (sourceOpen) {
+          const { text } = sourceEls();
+          if (text) return text.value;
+        }
+        if (previewing || !vditor) return markdown;
+        try { return vditor.getValue(); } catch (_) { return markdown; }
+      },
+      applyMarkdown: (next) => {
+        markdown = String(next ?? "");
+        if (previewing) {
+          const spot = captureReadingSpot(true);
+          renderLitePreview(markdown, spot);
+        } else if (vditor) {
+          try { vditor.setValue(markdown, false); } catch (_) { /* ignore */ }
+        }
+        try { options.onInput?.(); } catch (_) { /* ignore */ }
+      },
+    });
     bindPreviewCodeCopy();
     watchMermaidPreviews(previewRoot);
     watchTables(previewRoot);
@@ -227,7 +249,10 @@
             watchTables(vditorRoot);
             bindTableInsertPicker(vditorRoot, () => vditor);
             bindTableControls(vditorRoot, () => vditor);
-            bindFormatBar(vditorRoot, () => vditor, () => previewing);
+            bindFormatBar(vditorRoot, () => vditor, () => previewing, {
+              previewFormat: options.previewFormatBar === true,
+              getPreviewRoot: () => previewBody,
+            });
             bindIrListGuards(vditorRoot, () => vditor, () => previewing);
             relocateVditorOutline();
             revealVditorIcons();
