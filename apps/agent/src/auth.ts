@@ -9,7 +9,9 @@ import {
   ac,
   architectRole,
   designerRole,
+  testerRole,
   ROLES,
+  asAppRole,
 } from "./roles.js";
 
 export function countUsers(): number {
@@ -45,6 +47,7 @@ const auth = betterAuth({
       roles: {
         architect: architectRole,
         designer: designerRole,
+        tester: testerRole,
       },
       defaultRole: ROLES.designer,
       adminRoles: [ROLES.architect],
@@ -57,11 +60,9 @@ const auth = betterAuth({
           if (countUsers() === 0) {
             return { data: { ...user, role: ROLES.architect } };
           }
-          const role =
-            "role" in user && user.role === ROLES.architect
-              ? ROLES.architect
-              : ROLES.designer;
-          return { data: { ...user, role } };
+          const incoming =
+            "role" in user && typeof user.role === "string" ? user.role : "";
+          return { data: { ...user, role: asAppRole(incoming) } };
         },
       },
     },
@@ -160,10 +161,11 @@ export function signUpFirstUser(input: {
   });
 }
 
-export function createDesignerUser(input: {
+export function createAppUser(input: {
   name: string;
   email: string;
   password: string;
+  role: "designer" | "tester";
   headers: IncomingHttpHeaders;
 }) {
   return auth.api.createUser({
@@ -172,9 +174,19 @@ export function createDesignerUser(input: {
       name: input.name,
       email: input.email,
       password: input.password,
-      role: ROLES.designer,
+      role: input.role,
     },
   });
+}
+
+/** @deprecated 用 createAppUser */
+export function createDesignerUser(input: {
+  name: string;
+  email: string;
+  password: string;
+  headers: IncomingHttpHeaders;
+}) {
+  return createAppUser({ ...input, role: ROLES.designer });
 }
 
 export function listAuthUsers(headers: IncomingHttpHeaders) {

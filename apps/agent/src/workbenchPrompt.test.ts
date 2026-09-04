@@ -78,8 +78,8 @@ test("有选区时 userPrompt 带章节路径和 markdown 引文", () => {
 });
 
 test("演示写回路径听打开的文件，不听旧档位", () => {
-  assert.equal(demoWriteRelPath(null), "PRD.md");
-  assert.equal(demoWriteRelPath({ file: "gaps.md", headingPath: [], quote: "" }), "gaps.md");
-  assert.equal(demoWriteRelPath({ file: "../secret.md", headingPath: [], quote: "" }), "PRD.md");
-  assert.equal(demoWriteRelPath({ file: "code.ts", headingPath: [], quote: "" }), "PRD.md");
+  assert.equal(demoWriteRelPath(null), "product/PRD.md");
+  assert.equal(demoWriteRelPath({ file: "product/gaps.md", headingPath: [], quote: "" }), "product/gaps.md");
+  assert.equal(demoWriteRelPath({ file: "../secret.md", headingPath: [], quote: "" }), "product/PRD.md");
+  assert.equal(demoWriteRelPath({ file: "code.ts", headingPath: [], quote: "" }), "product/PRD.md");
 });

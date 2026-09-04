@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { getAuthSession } from "./auth.js";
-import { isArchitect, type AppRole } from "./roles.js";
+import { isArchitect, isAppRole, ROLE_LABELS, type AppRole } from "./roles.js";
 
 export type SessionUser = {
   id: string;
@@ -39,7 +39,7 @@ export async function requireSession(
   try {
     const session = await getAuthSession(req.headers);
     const role = session?.user?.role;
-    if (!session?.user || (role !== "architect" && role !== "designer")) {
+    if (!session?.user || !isAppRole(role)) {
       res.status(401).json({ error: "请先登录" });
       return;
     }
@@ -77,6 +77,6 @@ export function publicUser(user: SessionUser) {
     name: user.name,
     email: user.email,
     role: user.role,
-    roleLabel: user.role === "architect" ? "架构师" : "产品经理",
+    roleLabel: ROLE_LABELS[user.role],
   };
 }

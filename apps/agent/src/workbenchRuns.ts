@@ -3,6 +3,7 @@ import type { Response } from "express";
 import { agui, userMessageId, type AguiEventType } from "@designweave/molan-protocol";
 import { getDb } from "./db.js";
 import { HttpError } from "./httpError.js";
+import { parseDocFolder, type DocFolder } from "./docFolders.js";
 import { parseWorkbenchFocus, type WorkbenchFocus } from "./workbenchPrompt.js";
 
 export type WorkbenchMode = "clarify" | "coauthor" | "grill" | "feasibility";
@@ -21,6 +22,7 @@ export type WorkbenchRun = {
   mode: WorkbenchMode;
   message: string;
   focus: WorkbenchFocus | null;
+  folder: DocFolder;
   status: RunStatus;
   createdAt: string;
   updatedAt: string;
@@ -64,6 +66,7 @@ export function ensureRunTables(): void {
     );
   `);
   ensureFocusColumn();
+  ensureFolderColumn();
 }
 
 function ensureFocusColumn(): void {
@@ -75,7 +78,16 @@ function ensureFocusColumn(): void {
   }
 }
 
-const RUN_COLS = `id, project_id, user_id, user_name, mode, message, focus, status,
+function ensureFolderColumn(): void {
+  const cols = getDb()
+    .prepare(`PRAGMA table_info(workbench_runs)`)
+    .all() as Array<{ name: string }>;
+  if (!cols.some((col) => col.name === "folder")) {
+    getDb().exec(`ALTER TABLE workbench_runs ADD COLUMN folder TEXT NOT NULL DEFAULT 'product'`);
+  }
+}
+
+const RUN_COLS = `id, project_id, user_id, user_name, mode, message, focus, folder, status,
               created_at, updated_at, ended_at, error`;
 
 function parseStoredFocus(raw: unknown): WorkbenchFocus | null {
@@ -98,6 +110,7 @@ function mapRun(r: {
   mode: string;
   message: string;
   focus?: string | null;
+  folder?: string | null;
   status: string;
   created_at: string;
   updated_at: string;
@@ -112,6 +125,7 @@ function mapRun(r: {
     mode: r.mode as WorkbenchMode,
     message: r.message,
     focus: parseStoredFocus(r.focus),
+    folder: parseDocFolder(r.folder, "product"),
     status: r.status as RunStatus,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -148,6 +162,19 @@ export function getActiveRun(projectId: string): WorkbenchRun | null {
   return r ? mapRun(r) : null;
 }
 
+export function getActiveRunInFolder(projectId: string, folder: DocFolder): WorkbenchRun | null {
+  ensureRunTables();
+  const r = getDb()
+    .prepare(
+      `SELECT ${RUN_COLS}
+       FROM workbench_runs
+       WHERE project_id = ? AND folder = ? AND status IN ('queued', 'running')
+       ORDER BY created_at DESC LIMIT 1`
+    )
+    .get(projectId, folder) as Parameters<typeof mapRun>[0] | undefined;
+  return r ? mapRun(r) : null;
+}
+
 export function listProjectRuns(projectId: string, limit = 20): WorkbenchRun[] {
   ensureRunTables();
   const rows = getDb()
@@ -178,10 +205,11 @@ export function createRun(input: {
   userName: string;
   mode: WorkbenchMode;
   message: string;
+  folder: DocFolder;
   focus?: WorkbenchFocus | null;
 }): WorkbenchRun {
   ensureRunTables();
-  if (getActiveRun(input.projectId)) {
+  if (getActiveRunInFolder(input.projectId, input.folder)) {
     throw new HttpError("还有一轮 AI 没跑完，等它结束或取消后再发。", 409);
   }
   const now = new Date().toISOString();
@@ -190,8 +218,8 @@ export function createRun(input: {
   getDb()
     .prepare(
       `INSERT INTO workbench_runs
-       (id, project_id, user_id, user_name, mode, message, focus, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)`
+       (id, project_id, user_id, user_name, mode, message, focus, folder, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)`
     )
     .run(
       id,
@@ -201,6 +229,7 @@ export function createRun(input: {
       input.mode,
       input.message,
       focus ? JSON.stringify(focus) : null,
+      input.folder,
       now,
       now
     );

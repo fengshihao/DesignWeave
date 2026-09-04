@@ -9,7 +9,7 @@
     "start": "node dist/index.js",
     "start:dev": "tsx src/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test src/hostPath.test.ts src/claudeProjects.test.ts src/fsBrowse.test.ts src/workspacePrd.test.ts src/systemPrompt.test.ts src/workbenchPrompt.test.ts"
+    "test": "tsx --test src/hostPath.test.ts src/claudeProjects.test.ts src/fsBrowse.test.ts src/workspacePrd.test.ts src/systemPrompt.test.ts src/workbenchPrompt.test.ts src/docFolders.test.ts src/projectLayout.test.ts src/gitVault.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.27",

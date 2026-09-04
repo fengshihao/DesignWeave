@@ -4,10 +4,16 @@ import { config } from "./config.js";
 import type { ClarityState, DiskProjectPhase, ProjectSource } from "./projectMeta.js";
 import { writeMetaFile } from "./projectMeta.js";
 
-export const PRD_FILE = "PRD.md" as const;
+export const PRD_FILE = "product/PRD.md" as const;
 
 /** 新建工程时从模板复制的文件；其余（gaps、调研等）由 AI 按需创建。 */
-export const PRD_PACK_FILES = [PRD_FILE] as const;
+export const PRD_PACK_FILES = [
+  PRD_FILE,
+  "eng/方案.md",
+  "eng/跟上.md",
+  "qa/测试.md",
+  "qa/跟上.md",
+] as const;
 
 export type PrdPackFile = (typeof PRD_PACK_FILES)[number];
 
@@ -56,11 +62,18 @@ export function copyPrdPack(
   const src = assertPrdPackTemplate();
   fs.mkdirSync(dest, { recursive: true });
   for (const file of PRD_PACK_FILES) {
-    let text = fs.readFileSync(path.join(src, file), "utf8");
+    const from = path.join(src, file);
+    if (!fs.existsSync(from)) {
+      throw new Error(`找不到 PRD 模板：${file}（${src}）`);
+    }
+    let text = fs.readFileSync(from, "utf8");
+    text = text.replaceAll("（工程名）", input.title);
     if (file === PRD_FILE) {
       text = applyTitleToPrd(text, input.title);
     }
-    fs.writeFileSync(path.join(dest, file), text, "utf8");
+    const to = path.join(dest, file);
+    fs.mkdirSync(path.dirname(to), { recursive: true });
+    fs.writeFileSync(to, text, "utf8");
   }
   writeMetaFile(dest, {
     id: input.id,
@@ -74,9 +87,16 @@ export function copyPrdPack(
   });
 }
 
-export function defaultOpenPath(files: Array<{ path: string; isDir: boolean }>): string {
+export function defaultOpenPath(
+  files: Array<{ path: string; isDir: boolean }>,
+  preferred: string = PRD_FILE
+): string {
+  if (files.some((f) => f.path === preferred && !f.isDir)) return preferred;
   if (files.some((f) => f.path === PRD_FILE && !f.isDir)) return PRD_FILE;
-  if (files.some((f) => f.path === "README.md" && !f.isDir)) return "README.md";
-  const md = files.find((f) => !f.isDir && f.path.endsWith(".md") && f.path !== "meta.md");
-  return md?.path || PRD_FILE;
+  if (files.some((f) => f.path === "eng/方案.md" && !f.isDir)) return "eng/方案.md";
+  if (files.some((f) => f.path === "qa/测试.md" && !f.isDir)) return "qa/测试.md";
+  const md = files.find(
+    (f) => !f.isDir && f.path.endsWith(".md") && path.basename(f.path) !== "meta.md"
+  );
+  return md?.path || preferred;
 }

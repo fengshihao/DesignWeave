@@ -126,18 +126,105 @@ export function isDirty(dir: string): boolean {
   return out.length > 0;
 }
 
+export function isDirtyFolder(dir: string, folder: string): boolean {
+  return changedFiles(dir).some(
+    (f) => f === folder || f.startsWith(`${folder}/`)
+  );
+}
+
+export function shortHead(dir: string): string {
+  if (!gitDir(dir) || !hasHead(dir)) return "";
+  try {
+    return runGit(dir, ["rev-parse", "--short", "HEAD"]);
+  } catch {
+    return "";
+  }
+}
+
+export function headingsTouched(dir: string, relPaths: string[]): string[] {
+  const found = new Set<string>();
+  for (const rel of relPaths) {
+    const abs = path.join(dir, rel);
+    if (!fs.existsSync(abs) || fs.statSync(abs).isDirectory()) continue;
+    let diff = "";
+    if (hasHead(dir)) {
+      const result = spawnGit(dir, ["diff", "HEAD", "--", rel]);
+      diff = result.stdout || "";
+    }
+    const source = diff || fs.readFileSync(abs, "utf8");
+    const re = diff ? /^\+#{1,3} (.+)$/gm : /^#{1,3} (.+)$/gm;
+    for (const match of source.matchAll(re)) {
+      const title = match[1].trim();
+      if (title && !title.startsWith("#")) found.add(title);
+    }
+  }
+  return [...found];
+}
+
+export function commitSelected(
+  dir: string,
+  relPaths: string[],
+  message: string,
+  author: GitAuthor
+): VaultVersion | null {
+  const abs = path.resolve(dir);
+  const unique = [...new Set(relPaths.map((p) => p.replace(/\\/g, "/")))].filter(Boolean);
+  if (!unique.length) return null;
+  for (const rel of unique) {
+    const target = path.join(abs, rel);
+    if (!fs.existsSync(target) && !changedFiles(abs).includes(rel)) continue;
+    runGit(abs, ["add", "--", rel]);
+  }
+  const staged = runGit(abs, ["diff", "--cached", "--name-only"]);
+  if (!staged && hasHead(abs)) return null;
+  runGit(abs, [
+    "-c",
+    `user.name=${author.name}`,
+    "-c",
+    `user.email=${author.email}`,
+    "commit",
+    "--allow-empty",
+    "-m",
+    message,
+    "--author",
+    `${author.name} <${author.email}>`,
+  ]);
+  return listVersions(abs, 1)[0] ?? null;
+}
+
+function decodeGitPath(raw: string): string {
+  let s = raw.trim();
+  if (s.startsWith('"') && s.endsWith('"')) {
+    s = s.slice(1, -1);
+    s = s.replace(/\\([0-7]{3})/g, (_, oct) => String.fromCharCode(Number.parseInt(oct, 8)));
+    s = s.replace(/\\\\/g, "\\").replace(/\\"/g, '"').replace(/\\n/g, "\n").replace(/\\t/g, "\t");
+  }
+  return s.replace(/\\/g, "/");
+}
+
 export function changedFiles(dir: string): string[] {
   if (!gitDir(dir)) return [];
-  const out = runGit(dir, ["status", "--porcelain"]);
+  const out = runGit(dir, ["-c", "core.quotepath=false", "status", "--porcelain", "-z"]);
   if (!out) return [];
-  return out
-    .split("\n")
-    .map((line) => {
-      const rest = line.slice(2).trim();
-      if (rest.includes(" -> ")) return rest.split(" -> ").pop() || rest;
-      return rest.replace(/^"|"$/g, "").trim();
-    })
-    .filter(Boolean);
+  const parts = out.split("\0").filter((p) => p.length > 0);
+  const files: string[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    const line = parts[i];
+    const status = line.slice(0, 2);
+    let rel = line.slice(2);
+    if (rel.startsWith(" ")) rel = rel.slice(1);
+    rel = decodeGitPath(rel);
+    if (status.includes("R") || status.includes("C")) {
+      const next = parts[i + 1];
+      if (next) {
+        i += 1;
+        files.push(decodeGitPath(next));
+        continue;
+      }
+    }
+    files.push(rel);
+  }
+  return files.filter(Boolean);
 }
 
 function initMainlineRepo(dir: string): void {

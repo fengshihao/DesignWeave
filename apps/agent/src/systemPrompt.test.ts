@@ -29,7 +29,8 @@ test("出厂默认写清有选区改选区、一次问 1～3 个问题", () => {
   const text = readBuiltinSystemPrompt();
   assert.match(text, /对方圈了哪一段，就优先改那一段/);
   assert.match(text, /一次只问 1～3 个关键问题/);
-  assert.match(HARD_RULES, /对方给了选区：优先改该引文所在位置/);
+  assert.match(HARD_RULES, /架构师只写 eng\/，测试只写 qa\/，产品经理只写 product\//);
+  assert.match(HARD_RULES, /跟上\.md 由系统维护/);
   assert.doesNotMatch(text, /档位：|检查清晰度|可行性只读代码/);
 });
 

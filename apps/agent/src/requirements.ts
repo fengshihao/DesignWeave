@@ -16,6 +16,8 @@ import {
   type ProjectSource,
 } from "./projectMeta.js";
 import { commitAll, ensureDocumentVault, isDirty, listVersions } from "./gitVault.js";
+import { ensureProjectLayout } from "./projectLayout.js";
+import { PRD_FILE } from "./prdPack.js";
 import {
   getWorkspaceRoot,
   isUnderWorkspaceRoot,
@@ -163,6 +165,17 @@ export function listDiskProjects(root: string | null | undefined): RequirementMe
     const dir = path.join(root, entry.name);
     const disk = readMetaFile(dir);
     if (!disk) continue;
+    const dirtyBefore = isDirty(dir);
+    if (ensureProjectLayout(dir, disk.title) && !dirtyBefore) {
+      try {
+        commitAll(dir, "系统：整理成产品/研发/测试", {
+          name: "系统",
+          email: "system@designweave.local",
+        });
+      } catch {
+        /* 整理失败也不挡打开 */
+      }
+    }
     out.push(toRequirement(dir, disk));
   }
   return out.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -369,16 +382,16 @@ export function getRequirementBundle(id: string) {
   const meta = getRequirement(id);
   if (!meta) return null;
   const versions = listVersions(meta.vaultPath, 1);
-  const gaps = path.join(meta.vaultPath, "gaps.md");
-  const original = path.join(meta.vaultPath, "import", "original.md");
-  const prdPath = path.join(meta.vaultPath, "PRD.md");
-  const readmePath = path.join(meta.vaultPath, "README.md");
+  const gaps = path.join(meta.vaultPath, "product", "gaps.md");
+  const original = path.join(meta.vaultPath, "product", "import", "original.md");
+  const prdPath = path.join(meta.vaultPath, PRD_FILE);
+  const legacyPrd = path.join(meta.vaultPath, "PRD.md");
   return {
     requirement: meta,
     prd: fs.existsSync(prdPath)
       ? fs.readFileSync(prdPath, "utf8")
-      : fs.existsSync(readmePath)
-        ? fs.readFileSync(readmePath, "utf8")
+      : fs.existsSync(legacyPrd)
+        ? fs.readFileSync(legacyPrd, "utf8")
         : "",
     gaps: fs.existsSync(gaps) ? fs.readFileSync(gaps, "utf8") : "",
     originalImport: fs.existsSync(original) ? fs.readFileSync(original, "utf8") : null,
@@ -404,16 +417,18 @@ export function writeVaultMarkdown(id: string, rel: string, content: string): vo
 }
 
 export function readPrdMarkdown(id: string): string {
-  const prd = readVaultMarkdown(id, "PRD.md");
+  const prd = readVaultMarkdown(id, PRD_FILE);
   if (prd) return prd;
-  return readVaultMarkdown(id, "README.md");
+  return readVaultMarkdown(id, "PRD.md");
 }
 
 export function writePrdMarkdown(id: string, content: string): void {
-  writeVaultMarkdown(id, "PRD.md", content);
+  writeVaultMarkdown(id, PRD_FILE, content);
 }
 
 export function readGapsMarkdown(id: string): string {
+  const nested = readVaultMarkdown(id, path.join("product", "gaps.md"));
+  if (nested) return nested;
   return readVaultMarkdown(id, "gaps.md");
 }
 
@@ -422,8 +437,10 @@ export function writeGapsMarkdown(id: string, content: string): void {
 }
 
 export function readOriginalImport(id: string): string | null {
-  const text = readVaultMarkdown(id, path.join("import", "original.md"));
-  return text || null;
+  const text = readVaultMarkdown(id, path.join("product", "import", "original.md"));
+  if (text) return text;
+  const legacy = readVaultMarkdown(id, path.join("import", "original.md"));
+  return legacy || null;
 }
 
 export { folderNameFor, isReady };

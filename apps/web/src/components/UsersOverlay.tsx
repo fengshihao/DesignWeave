@@ -11,6 +11,7 @@ export function UsersOverlay(props: {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState<"designer" | "tester">("designer");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [created, setCreated] = useState<{
@@ -18,6 +19,7 @@ export function UsersOverlay(props: {
     email: string;
     password: string;
     origin: string;
+    roleLabel: string;
   } | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -42,12 +44,19 @@ export function UsersOverlay(props: {
     setBusy(true);
     setError("");
     try {
-      await api.createUser({ name, email, password });
-      setCreated({ name, email, password, origin: window.location.origin });
+      await api.createUser({ name, email, password, role });
+      setCreated({
+        name,
+        email,
+        password,
+        origin: window.location.origin,
+        roleLabel: role === "tester" ? "测试" : "产品经理",
+      });
       setCopied(false);
       setName("");
       setEmail("");
       setPassword("");
+      setRole("designer");
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "创建失败");
@@ -67,8 +76,27 @@ export function UsersOverlay(props: {
         </header>
         <form onSubmit={(e) => void onCreate(e)} className="create-form">
           <p className="muted" style={{ margin: 0 }}>
-            创建产品经理账号后把邮箱和密码交给对方。
+            创建账号后把邮箱和密码交给对方。一人一账号一角色。
           </p>
+          <div className="field">
+            <label>角色</label>
+            <div className="source-switch" role="tablist">
+              <button
+                type="button"
+                className={role === "designer" ? "is-on" : ""}
+                onClick={() => setRole("designer")}
+              >
+                产品经理
+              </button>
+              <button
+                type="button"
+                className={role === "tester" ? "is-on" : ""}
+                onClick={() => setRole("tester")}
+              >
+                测试
+              </button>
+            </div>
+          </div>
           <div className="field">
             <label>姓名</label>
             <input value={name} onChange={(e) => setName(e.target.value)} required />
@@ -97,13 +125,14 @@ export function UsersOverlay(props: {
             <strong>交给对方这一段</strong>
             <pre>{`工作台：${created.origin}
 姓名：${created.name}
+角色：${created.roleLabel}
 邮箱：${created.email}
 密码：${created.password}`}</pre>
             <button
               className="btn"
               type="button"
               onClick={() => {
-                const text = `工作台：${created.origin}\n姓名：${created.name}\n邮箱：${created.email}\n密码：${created.password}`;
+                const text = `工作台：${created.origin}\n姓名：${created.name}\n角色：${created.roleLabel}\n邮箱：${created.email}\n密码：${created.password}`;
                 void navigator.clipboard.writeText(text).then(() => setCopied(true));
               }}
             >

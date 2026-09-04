@@ -1,4 +1,5 @@
-export type AppRole = "architect" | "designer";
+export type AppRole = "architect" | "designer" | "tester";
+export type DocFolder = "product" | "eng" | "qa";
 
 export type SessionUser = {
   id: string;
@@ -21,6 +22,7 @@ export type WorkbenchMode = "clarify" | "coauthor" | "grill" | "feasibility";
 export type ProjectLockInfo = {
   holderId: string;
   holderName: string;
+  folder?: DocFolder;
   youHold: boolean;
   editing: boolean;
   otherDevice: boolean;
@@ -42,6 +44,7 @@ export type WorkbenchRun = {
   mode: WorkbenchMode;
   message: string;
   focus?: DocFocus | null;
+  folder?: DocFolder;
   status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
   createdAt: string;
   updatedAt: string;
@@ -143,7 +146,7 @@ export const api = {
       users: Array<SessionUser & { createdAt?: string }>;
     }>("/v1/users"),
 
-  createUser: (body: { name: string; email: string; password: string }) =>
+  createUser: (body: { name: string; email: string; password: string; role?: "designer" | "tester" }) =>
     request<{ user: SessionUser }>("/v1/users", {
       method: "POST",
       body: JSON.stringify(body),
@@ -253,10 +256,13 @@ export const api = {
       { method: "POST" }
     ),
 
-  getRequirement: (id: string, clientId?: string) =>
-    request<RequirementBundle>(
-      `/v1/requirements/${id}${clientId ? `?clientId=${encodeURIComponent(clientId)}` : ""}`
-    ),
+  getRequirement: (id: string, clientId?: string, folder?: DocFolder) => {
+    const q = new URLSearchParams();
+    if (clientId) q.set("clientId", clientId);
+    if (folder) q.set("folder", folder);
+    const qs = q.toString();
+    return request<RequirementBundle>(`/v1/requirements/${id}${qs ? `?${qs}` : ""}`);
+  },
 
   savePrd: (id: string, content: string) =>
     request<{ prd: string }>(`/v1/requirements/${id}/prd`, {
@@ -319,7 +325,7 @@ export const api = {
       body: JSON.stringify({ parent, name }),
     }),
 
-  listVersions: (id: string) =>
+  listVersions: (id: string, folder?: DocFolder) =>
     request<{
       versions: Array<{
         id: string;
@@ -329,9 +335,11 @@ export const api = {
       }>;
       uncommitted: boolean;
       changedFiles: string[];
-    }>(`/v1/requirements/${id}/versions`),
+    }>(
+      `/v1/requirements/${id}/versions${folder ? `?folder=${encodeURIComponent(folder)}` : ""}`
+    ),
 
-  recordVersion: (id: string, message?: string, clientId?: string) =>
+  recordVersion: (id: string, message?: string, clientId?: string, folder?: DocFolder, markCaughtUp?: boolean) =>
     request<{
       version: {
         id: string;
@@ -342,7 +350,7 @@ export const api = {
       message?: string;
     }>(`/v1/requirements/${id}/versions`, {
       method: "POST",
-      body: JSON.stringify({ message, clientId }),
+      body: JSON.stringify({ message, clientId, folder, markCaughtUp }),
     }),
 
   readVersionFile: (id: string, sha: string, filePath = "PRD.md") =>
@@ -363,9 +371,10 @@ export const api = {
     ),
 
   listFiles: (id: string) =>
-    request<{ files: Array<{ path: string; name: string; isDir: boolean }> }>(
-      `/v1/requirements/${id}/tree`
-    ),
+    request<{
+      files: Array<{ path: string; name: string; isDir: boolean }>;
+      folders?: Array<{ id: DocFolder; label: string; pendingFollow: boolean }>;
+    }>(`/v1/requirements/${id}/tree`),
 
   readFile: (id: string, filePath: string) =>
     request<{ path: string; content: string; etag: string }>(
@@ -388,7 +397,7 @@ export const api = {
       }
     ),
 
-  claimLock: (id: string, clientId: string) =>
+  claimLock: (id: string, clientId: string, folder?: DocFolder) =>
     request<{
       youHold: boolean;
       otherDevice: boolean;
@@ -396,29 +405,36 @@ export const api = {
       lock: ProjectLockInfo;
     }>(`/v1/requirements/${id}/lock/claim`, {
       method: "POST",
-      body: JSON.stringify({ clientId }),
+      body: JSON.stringify({ clientId, folder }),
     }),
 
-  heartbeatLock: (id: string, clientId: string, editing: boolean) =>
+  heartbeatLock: (id: string, clientId: string, editing: boolean, folder?: DocFolder) =>
     request<{ lock: ProjectLockInfo }>(`/v1/requirements/${id}/lock/heartbeat`, {
       method: "POST",
-      body: JSON.stringify({ clientId, editing }),
+      body: JSON.stringify({ clientId, editing, folder }),
     }),
 
-  releaseLock: (id: string, clientId: string) =>
+  releaseLock: (id: string, clientId: string, folder?: DocFolder) =>
     request<{ ok: boolean; lock: ProjectLockInfo }>(
       `/v1/requirements/${id}/lock/release`,
-      { method: "POST", body: JSON.stringify({ clientId }) }
+      { method: "POST", body: JSON.stringify({ clientId, folder }) }
     ),
 
-  forceReleaseLock: (id: string) =>
+  forceReleaseLock: (id: string, folder?: DocFolder) =>
     request<{ ok: boolean }>(`/v1/requirements/${id}/lock/force-release`, {
       method: "POST",
+      body: JSON.stringify({ folder }),
     }),
 
   startRun: (
     id: string,
-    body: { message: string; clientId: string; focus?: DocFocus; mode?: WorkbenchMode }
+    body: {
+      message: string;
+      clientId: string;
+      focus?: DocFocus;
+      mode?: WorkbenchMode;
+      folder?: DocFolder;
+    }
   ) =>
     request<{
       runId: string;
@@ -435,8 +451,10 @@ export const api = {
       { method: "POST", body: JSON.stringify({ clientId }) }
     ),
 
-  currentRun: (id: string) =>
-    request<{ run: WorkbenchRun | null }>(`/v1/requirements/${id}/runs/current`),
+  currentRun: (id: string, folder?: DocFolder) =>
+    request<{ run: WorkbenchRun | null }>(
+      `/v1/requirements/${id}/runs/current${folder ? `?folder=${encodeURIComponent(folder)}` : ""}`
+    ),
 
   listRuns: (id: string, limit = 12) =>
     request<{

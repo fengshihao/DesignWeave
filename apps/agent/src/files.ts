@@ -3,6 +3,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { isPathInside } from "./hostPath.js";
 import { getRequirement } from "./requirements.js";
+import { DOC_FOLDERS, FOLDER_LABELS } from "./docFolders.js";
+import { folderHasPendingFollow } from "./folderVersion.js";
+import { ensureProjectLayout } from "./projectLayout.js";
 
 const ALLOWED = new Set([".md", ".markdown", ".txt"]);
 
@@ -41,24 +44,57 @@ export function listDocTree(projectId: string): Array<{
 }> {
   const meta = getRequirement(projectId);
   if (!meta) throw new Error("工程不存在");
+  ensureProjectLayout(meta.vaultPath, meta.title);
   const root = meta.vaultPath;
   const out: Array<{ path: string; name: string; isDir: boolean }> = [];
 
-  function walk(dir: string) {
+  for (const folder of DOC_FOLDERS) {
+    const absFolder = path.join(root, folder);
+    if (!fs.existsSync(absFolder)) fs.mkdirSync(absFolder, { recursive: true });
+    out.push({ path: folder, name: FOLDER_LABELS[folder], isDir: true });
+    walkFolder(absFolder, folder);
+  }
+
+  function walkFolder(dir: string, prefix: string) {
+    if (!fs.existsSync(dir)) return;
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (entry.name === ".git" || entry.name === ".dw") continue;
+      if (entry.name === ".git" || entry.name === ".dw" || entry.name === "meta.md") continue;
       const abs = path.join(dir, entry.name);
       const rel = path.relative(root, abs).replace(/\\/g, "/");
       if (entry.isDirectory()) {
         out.push({ path: rel, name: entry.name, isDir: true });
-        walk(abs);
+        walkFolder(abs, prefix);
       } else if (ALLOWED.has(path.extname(entry.name).toLowerCase())) {
         out.push({ path: rel, name: entry.name, isDir: false });
       }
     }
   }
-  if (fs.existsSync(root)) walk(root);
-  return out.sort((a, b) => a.path.localeCompare(b.path, "zh"));
+
+  return out.sort((a, b) => {
+    const rank = (p: string) => {
+      const top = p.split("/")[0];
+      const i = DOC_FOLDERS.indexOf(top as (typeof DOC_FOLDERS)[number]);
+      return i === -1 ? 99 : i;
+    };
+    const d = rank(a.path) - rank(b.path);
+    if (d) return d;
+    return a.path.localeCompare(b.path, "zh");
+  });
+}
+
+export function listFolderStatus(projectId: string): Array<{
+  id: string;
+  label: string;
+  pendingFollow: boolean;
+}> {
+  const meta = getRequirement(projectId);
+  if (!meta) throw new Error("工程不存在");
+  ensureProjectLayout(meta.vaultPath, meta.title);
+  return DOC_FOLDERS.map((id) => ({
+    id,
+    label: FOLDER_LABELS[id],
+    pendingFollow: folderHasPendingFollow(meta.vaultPath, id),
+  }));
 }
 
 export function readDocFile(

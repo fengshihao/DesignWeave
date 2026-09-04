@@ -77,11 +77,11 @@ ${input.message}
 }
 
 /** 演示模式写回哪一篇：听本轮打开的文件，忽略旧档位。 */
-export function demoWriteRelPath(focus?: WorkbenchFocus | null): string {
-  const file = (focus?.file || "PRD.md").replace(/\\/g, "/").replace(/^\/+/, "");
+export function demoWriteRelPath(focus?: WorkbenchFocus | null, fallback = "product/PRD.md"): string {
+  const file = (focus?.file || fallback).replace(/\\/g, "/").replace(/^\/+/, "");
   if (!file || file.includes("..") || file.startsWith("/") || /^[A-Za-z]:/.test(file)) {
-    return "PRD.md";
+    return fallback;
   }
-  if (!/\.(md|markdown|txt)$/i.test(file)) return "PRD.md";
+  if (!/\.(md|markdown|txt)$/i.test(file)) return fallback;
   return file;
 }

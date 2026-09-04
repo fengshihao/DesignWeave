@@ -92,7 +92,9 @@ function writeGaps(dest: string, unmatched: HeadingChunk[]): void {
   } else {
     gapLines.push("（导入章节都对上了 PRD。仍须检查清晰度：占位、含糊、缺验收都不算过。）", "");
   }
-  fs.writeFileSync(path.join(dest, "gaps.md"), gapLines.join("\n"), "utf8");
+  const gapsDir = path.join(dest, "product");
+  fs.mkdirSync(gapsDir, { recursive: true });
+  fs.writeFileSync(path.join(gapsDir, "gaps.md"), gapLines.join("\n"), "utf8");
 }
 
 export function normalizeImportedPrd(input: {
@@ -115,7 +117,7 @@ export function normalizeImportedPrd(input: {
     updatedAt: now,
   });
 
-  const importDir = path.join(input.dest, "import");
+  const importDir = path.join(input.dest, "product", "import");
   fs.mkdirSync(importDir, { recursive: true });
   fs.writeFileSync(path.join(importDir, "original.md"), input.original.trim() + "\n", "utf8");
 
@@ -146,6 +148,6 @@ export function normalizeImportedPrd(input: {
   fs.writeFileSync(prdPath, applyTitleToPrd(withGoal, input.title), "utf8");
   writeGaps(input.dest, unmatched);
 
-  const filesWritten = [...PRD_PACK_FILES, "gaps.md", "import/original.md"];
+  const filesWritten = [...PRD_PACK_FILES, "product/gaps.md", "product/import/original.md"];
   return { unmatched, filesWritten };
 }

@@ -2,7 +2,13 @@ import type { Express, Request, Response } from "express";
 import { isArchitect } from "./roles.js";
 import { HttpError, statusOf } from "./httpError.js";
 import { getRequirement } from "./requirements.js";
-import { isDirty } from "./gitVault.js";
+import { isDirtyFolder } from "./gitVault.js";
+import {
+  folderOfPath,
+  parseDocFolder,
+  writableFolderOf,
+  type DocFolder,
+} from "./docFolders.js";
 import {
   assertHoldsLock,
   claimLock,
@@ -15,7 +21,7 @@ import {
 import {
   cancelRun,
   createRun,
-  getActiveRun,
+  getActiveRunInFolder,
   getRun,
   listEvents,
   listProjectRunsWithEvents,
@@ -31,6 +37,14 @@ function fail(res: Response, err: unknown): void {
   res.status(statusOf(err)).json({
     error: err instanceof Error ? err.message : "请求失败",
   });
+}
+
+function folderFromReq(req: Request, fallback?: DocFolder): DocFolder {
+  const raw = req.body?.folder ?? req.query.folder;
+  if (raw) return parseDocFolder(raw, fallback || writableFolderOf(req.user!.role));
+  const focusFile = req.body?.focus?.file || req.body?.path;
+  const fromPath = typeof focusFile === "string" ? folderOfPath(focusFile) : null;
+  return fromPath || fallback || writableFolderOf(req.user!.role);
 }
 
 function requireProject(req: Request) {
@@ -53,7 +67,8 @@ export function registerWorkbenchRoutes(app: Express): void {
     try {
       requireProject(req);
       const clientId = String(req.body?.clientId || "");
-      const result = claimLock(req.params.id, req.user!, clientId);
+      const folder = folderFromReq(req);
+      const result = claimLock(req.params.id, folder, req.user!, clientId);
       res.json({
         youHold: result.youHold,
         otherDevice: result.otherDevice,
@@ -70,7 +85,8 @@ export function registerWorkbenchRoutes(app: Express): void {
       requireProject(req);
       const clientId = String(req.body?.clientId || "");
       const editing = Boolean(req.body?.editing);
-      const lock = heartbeatLock(req.params.id, req.user!, clientId, editing);
+      const folder = folderFromReq(req);
+      const lock = heartbeatLock(req.params.id, folder, req.user!, clientId, editing);
       res.json({ lock: publicLock(lock, req.user!.id, clientId) });
     } catch (err) {
       fail(res, err);
@@ -81,8 +97,12 @@ export function registerWorkbenchRoutes(app: Express): void {
     try {
       requireProject(req);
       const clientId = String(req.body?.clientId || "");
-      releaseLock(req.params.id, req.user!, clientId);
-      res.json({ ok: true, lock: publicLock(getLock(req.params.id), req.user!.id, clientId) });
+      const folder = folderFromReq(req);
+      releaseLock(req.params.id, folder, req.user!, clientId);
+      res.json({
+        ok: true,
+        lock: publicLock(getLock(req.params.id, folder), req.user!.id, clientId),
+      });
     } catch (err) {
       fail(res, err);
     }
@@ -94,7 +114,8 @@ export function registerWorkbenchRoutes(app: Express): void {
       if (!isArchitect(req.user!.role)) {
         throw new HttpError("只有架构师能解除编辑权。", 403);
       }
-      forceReleaseLock(req.params.id);
+      const folder = req.body?.folder ? folderFromReq(req) : undefined;
+      forceReleaseLock(req.params.id, folder);
       res.json({ ok: true, lock: null });
     } catch (err) {
       fail(res, err);
@@ -106,9 +127,10 @@ export function registerWorkbenchRoutes(app: Express): void {
       requireProject(req);
       const clientId =
         typeof req.query.clientId === "string" ? req.query.clientId : undefined;
+      const folder = folderFromReq(req);
       res.json({
-        lock: publicLock(getLock(req.params.id), req.user!.id, clientId),
-        activeRun: getActiveRun(req.params.id),
+        lock: publicLock(getLock(req.params.id, folder), req.user!.id, clientId),
+        activeRun: getActiveRunInFolder(req.params.id, folder),
       });
     } catch (err) {
       fail(res, err);
@@ -130,11 +152,13 @@ export function registerWorkbenchRoutes(app: Express): void {
       });
       if (gate) throw new HttpError(gate, 400);
 
-      const lock = assertHoldsLock(meta.id, req.user!, clientId || undefined);
+      const focus = parseWorkbenchFocus(req.body?.focus);
+      const folder = folderFromReq(req, focus?.file ? folderOfPath(focus.file) || undefined : undefined);
+      const lock = assertHoldsLock(meta.id, folder, req.user!, clientId || undefined);
       if (lock.editing) {
         throw new HttpError("先保存一版并退出编辑，再发给 AI。", 409);
       }
-      if (isDirty(meta.vaultPath)) {
+      if (isDirtyFolder(meta.vaultPath, folder)) {
         throw new HttpError("先记入版本再发给 AI。", 409);
       }
 
@@ -144,7 +168,8 @@ export function registerWorkbenchRoutes(app: Express): void {
         userName: req.user!.name,
         mode,
         message,
-        focus: parseWorkbenchFocus(req.body?.focus),
+        folder,
+        focus,
       });
       res.status(201).json({ runId: run.id, run, events: listEvents(run.id) });
       void executeWorkbenchRun(run.id);
@@ -166,8 +191,7 @@ export function registerWorkbenchRoutes(app: Express): void {
   app.get("/v1/requirements/:id/runs/current", (req, res) => {
     try {
       requireProject(req);
-      const run = getActiveRun(req.params.id);
-      res.json({ run });
+      res.json({ run: getActiveRunInFolder(req.params.id, folderFromReq(req)) });
     } catch (err) {
       fail(res, err);
     }
@@ -205,7 +229,7 @@ export function registerWorkbenchRoutes(app: Express): void {
     try {
       requireProject(req);
       const clientId = String(req.body?.clientId || "");
-      assertHoldsLock(req.params.id, req.user!, clientId || undefined);
+      assertHoldsLock(req.params.id, folderFromReq(req), req.user!, clientId || undefined);
       const run = getRun(req.params.runId);
       if (!run || run.projectId !== req.params.id) {
         throw new HttpError("这一轮不存在", 404);

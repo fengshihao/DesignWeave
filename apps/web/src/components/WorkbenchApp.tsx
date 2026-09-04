@@ -12,17 +12,26 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   api,
+  type DocFolder,
   type ProjectLockInfo,
   type RequirementMeta,
   type SessionUser,
   type WorkbenchRun,
 } from "@/lib/api";
+import {
+  canCreateProject,
+  defaultFileForRole,
+  folderOfPath,
+  followHintFor,
+  writableFolderOf,
+} from "@/lib/docFolders";
 import { MolanFrame, type MolanHandle } from "@/components/MolanFrame";
 import { EntrustLayer } from "@/components/EntrustLayer";
 import { SelectionAsk, type SelectionAskFocus } from "@/components/SelectionAsk";
 import { VersionDrawer } from "@/components/VersionDrawer";
 import { DocTree } from "@/components/DocTree";
 import { CreateProjectPanel } from "@/components/CreateProjectPanel";
+import { SwitchProjectPanel } from "@/components/SwitchProjectPanel";
 import { SettingsOverlay } from "@/components/SettingsOverlay";
 import { UsersOverlay } from "@/components/UsersOverlay";
 import { logoutAndLeave } from "@/lib/auth-client";
@@ -107,9 +116,11 @@ export function WorkbenchApp(props: { user: SessionUser }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const canCreate = workspaceRootSet;
+  const canCreate = workspaceRootSet && canCreateProject(props.user.role);
   const blockedReason = workspaceRootSet
-    ? ""
+    ? canCreate
+      ? ""
+      : "测试不能建工程。"
     : isArchitect
       ? "请先在设置里选定运行根目录。"
       : "请架构师先设定运行根目录。";
@@ -121,8 +132,7 @@ export function WorkbenchApp(props: { user: SessionUser }) {
           key={projectId}
           id={projectId}
           user={props.user}
-          projects={projects}
-          onSwitch={(id) => setQuery({ p: id })}
+          onSwitch={() => setQuery({ overlay: "switch" })}
           onCreate={() => setQuery({ overlay: "create" })}
           onSettings={() => (isArchitect ? setQuery({ overlay: "settings" }) : undefined)}
           onUsers={() => (isArchitect ? setQuery({ overlay: "users" }) : undefined)}
@@ -138,14 +148,24 @@ export function WorkbenchApp(props: { user: SessionUser }) {
           user={props.user}
           projects={projects}
           workspaceRootSet={workspaceRootSet}
+          canCreate={canCreate}
           blockedReason={blockedReason}
-          onSwitch={(id) => setQuery({ p: id })}
+          onSwitch={() => setQuery({ overlay: "switch" })}
           onCreate={() => setQuery({ overlay: "create" })}
           onSettings={() => (isArchitect ? setQuery({ overlay: "settings" }) : undefined)}
           onUsers={() => (isArchitect ? setQuery({ overlay: "users" }) : undefined)}
         />
       )}
 
+      <SwitchProjectPanel
+        open={overlay === "switch"}
+        projects={projects}
+        currentId={projectId || ""}
+        canCreate={canCreate}
+        onClose={() => setQuery({ overlay: null })}
+        onSwitch={(id) => setQuery({ p: id, overlay: null })}
+        onCreate={() => setQuery({ overlay: "create" })}
+      />
       <CreateProjectPanel
         open={overlay === "create"}
         canCreate={canCreate}
@@ -176,37 +196,52 @@ function EmptyWorkbench(props: {
   user: SessionUser;
   projects: RequirementMeta[];
   workspaceRootSet: boolean;
+  canCreate: boolean;
   blockedReason: string;
-  onSwitch: (id: string) => void;
+  onSwitch: () => void;
   onCreate: () => void;
   onSettings?: () => void;
   onUsers?: () => void;
 }) {
   const { width, onWidthChange } = useRailWidth();
+  const emptyCopy = props.projects.length
+    ? "用菜单里的「切换工程」打开。"
+    : props.canCreate
+      ? props.blockedReason || "还没有工程。用菜单里的「新建工程」开始。"
+      : props.blockedReason || "还没有工程。等产品经理或架构师建好。";
   return (
     <div className="workbench-body" style={{ "--rail-w": `${width}px` } as CSSProperties}>
       <Rail
         width={width}
         onWidthChange={onWidthChange}
         user={props.user}
-        projects={props.projects}
-        currentId=""
         files={[]}
         currentPath=""
         clarityLabel=""
-        onOpenProject={props.onSwitch}
+        canCreate={props.canCreate}
         onOpenFile={() => undefined}
         onCreate={props.onCreate}
+        onSwitch={props.onSwitch}
         onSettings={props.onSettings}
         onUsers={props.onUsers}
       />
       <section className="workbench-col workbench-center">
         <div className="empty-paper">
-          <p>
-            {props.projects.length
-              ? "从左侧打开一个工程。"
-              : props.blockedReason || "还没有工程。"}
-          </p>
+          <div className="empty-paper-inner">
+            <p>{emptyCopy}</p>
+            <div className="empty-paper-actions">
+              {props.projects.length ? (
+                <button className="btn ghost" type="button" onClick={props.onSwitch}>
+                  切换工程
+                </button>
+              ) : null}
+              {props.canCreate ? (
+                <button className="btn ghost" type="button" onClick={props.onCreate}>
+                  新建工程
+                </button>
+              ) : null}
+            </div>
+          </div>
         </div>
       </section>
     </div>
@@ -242,6 +277,10 @@ function RailMenuItem(props: {
       {props.label}
     </button>
   );
+}
+
+function RailMenuSep() {
+  return <div className="rail-menu-sep" role="separator" />;
 }
 
 function RailMenu(props: { children: ReactNode }) {
@@ -363,14 +402,15 @@ function Rail(props: {
   width: number;
   onWidthChange: (width: number) => void;
   user: SessionUser;
-  projects: RequirementMeta[];
-  currentId: string;
+  projectTitle?: string;
   files: Array<{ path: string; name: string; isDir: boolean }>;
   currentPath: string;
   clarityLabel: string;
-  onOpenProject: (id: string) => void;
+  canCreate?: boolean;
+  pendingFollow?: string[];
   onOpenFile: (path: string) => void;
   onCreate: () => void;
+  onSwitch: () => void;
   onSettings?: () => void;
   onUsers?: () => void;
   flags?: ReactNode;
@@ -400,6 +440,11 @@ function Rail(props: {
               </span>
             </div>
             <RailMenu>
+              {props.canCreate !== false ? (
+                <RailMenuItem label="新建工程" onClick={props.onCreate} />
+              ) : null}
+              <RailMenuItem label="切换工程" onClick={props.onSwitch} />
+              {props.cmds ? <RailMenuSep /> : null}
               {props.cmds}
               {isArchitect ? (
                 <RailMenuItem label="用户" onClick={() => props.onUsers?.()} />
@@ -410,33 +455,25 @@ function Rail(props: {
           {props.flags}
         </div>
         <div className="workbench-side-scroll">
-          <div className="workbench-left-head">
-            <span className="side-kicker">工程</span>
-            <button className="side-text" type="button" onClick={props.onCreate}>
-              新建
-            </button>
-          </div>
-          <ul className="project-switch">
-            {props.projects.map((p) => (
-              <li key={p.id}>
-                <button
-                  type="button"
-                  className={p.id === props.currentId ? "is-current" : ""}
-                  onClick={() => props.onOpenProject(p.id)}
-                >
-                  {p.title}
-                </button>
-              </li>
-            ))}
-          </ul>
-          {props.files.length ? (
-            <>
-              <div className="workbench-left-head" style={{ marginTop: 16 }}>
-                <span className="side-kicker">文档</span>
-              </div>
-              <DocTree files={props.files} currentPath={props.currentPath} onOpen={props.onOpenFile} />
-            </>
+          {props.projectTitle ? (
+            <div className="workbench-left-head">
+              <span className="rail-project-name" title={props.projectTitle}>
+                {props.projectTitle}
+              </span>
+            </div>
           ) : null}
+          {props.files.length ? (
+            <DocTree
+              files={props.files}
+              currentPath={props.currentPath}
+              pendingFollow={props.pendingFollow}
+              onOpen={props.onOpenFile}
+            />
+          ) : props.projectTitle ? (
+            <p className="rail-empty-hint">这个工程还没有文档。</p>
+          ) : (
+            <p className="rail-empty-hint">打开工程后，这里是当前工程的文件。</p>
+          )}
         </div>
       </aside>
       <RailResize width={props.width} onWidthChange={props.onWidthChange} />
@@ -447,14 +484,16 @@ function Rail(props: {
 function ProjectPaper(props: {
   id: string;
   user: SessionUser;
-  projects: RequirementMeta[];
-  onSwitch: (id: string) => void;
+  onSwitch: () => void;
   onCreate: () => void;
   onSettings?: () => void;
   onUsers?: () => void;
   onDeleted: (id: string) => void;
 }) {
   const id = props.id;
+  const heldFolder = writableFolderOf(props.user.role);
+  const canCreate = canCreateProject(props.user.role);
+  const canImport = props.user.role === "designer";
   const [cid, setCid] = useState("");
   const molanRef = useRef<MolanHandle>(null);
   const editingRef = useRef(false);
@@ -464,7 +503,10 @@ function ProjectPaper(props: {
   const [title, setTitle] = useState("");
   const [meta, setMeta] = useState<RequirementMeta | null>(null);
   const [files, setFiles] = useState<Array<{ path: string; name: string; isDir: boolean }>>([]);
-  const [currentPath, setCurrentPath] = useState("PRD.md");
+  const [folders, setFolders] = useState<Array<{ id: DocFolder; label: string; pendingFollow: boolean }>>(
+    []
+  );
+  const [currentPath, setCurrentPath] = useState(() => defaultFileForRole(props.user.role));
   const [content, setContent] = useState("");
   const [etag, setEtag] = useState("");
   const [lock, setLock] = useState<ProjectLockInfo>(null);
@@ -498,6 +540,10 @@ function ProjectPaper(props: {
   editingRef.current = editing;
 
   const youHold = Boolean(lock?.youHold);
+  const viewFolder = folderOfPath(currentPath) || heldFolder;
+  const pendingMine = Boolean(folders.find((f) => f.id === heldFolder)?.pendingFollow);
+  const showFollowHint = pendingMine && viewFolder === heldFolder;
+  const pendingFollow = folders.filter((f) => f.pendingFollow).map((f) => f.id);
   const aiRunning = Boolean(
     activeRun && (activeRun.status === "queued" || activeRun.status === "running")
   );
@@ -516,15 +562,16 @@ function ProjectPaper(props: {
     rememberEntrustSize(id, next);
   }
 
-  const refreshVersions = useCallback(async () => {
-    const ver = await api.listVersions(id);
+  const refreshVersions = useCallback(async (folder = viewFolder) => {
+    const ver = await api.listVersions(id, folder);
     setVersions(ver.versions);
     setUncommitted(ver.uncommitted);
-  }, [id]);
+  }, [id, viewFolder]);
 
   const refreshTree = useCallback(async () => {
     const tree = await api.listFiles(id);
     setFiles(tree.files);
+    setFolders(tree.folders || []);
     return tree.files;
   }, [id]);
 
@@ -538,43 +585,59 @@ function ProjectPaper(props: {
         }
       }
       const file = await api.readFile(id, path);
+      const nextFolder = folderOfPath(file.path) || heldFolder;
+      if (cid) {
+        const claimed = await api.claimLock(id, cid, nextFolder);
+        setLock(claimed.lock);
+        setPreviewReason(claimed.previewReason || "");
+      }
       setCurrentPath(file.path);
       setContent(file.content);
       setEtag(file.etag);
       setDirty(false);
-    setHistory(null);
-    setPreviewFocus(null);
-    molanRef.current?.clearSelection();
-    rememberFile(id, file.path);
+      setHistory(null);
+      setPreviewFocus(null);
+      molanRef.current?.clearSelection();
+      rememberFile(id, file.path);
+      void api.listVersions(id, nextFolder).then((ver) => {
+        setVersions(ver.versions);
+        setUncommitted(ver.uncommitted);
+      });
     },
-    [dirty, id, readOnly]
+    [cid, dirty, heldFolder, id, readOnly]
   );
 
   const bootstrap = useCallback(async () => {
     setError("");
-    const data = await api.getRequirement(id, cid);
+    const data = await api.getRequirement(id, cid, heldFolder);
     setTitle(data.requirement.title);
     setMeta(data.requirement);
     setUncommitted(Boolean(data.uncommitted));
     if (data.activeRun) setActiveRun(data.activeRun);
-    const claimed = await api.claimLock(id, cid);
+    const claimed = await api.claimLock(id, cid, heldFolder);
     setLock(claimed.lock);
     setPreviewReason(claimed.previewReason || "");
     rememberProject(id);
     const tree = await api.listFiles(id);
     setFiles(tree.files);
-    const ver = await api.listVersions(id);
-    setVersions(ver.versions);
-    setUncommitted(ver.uncommitted);
+    setFolders(tree.folders || []);
     const remembered = lastFile(id);
+    const preferred = defaultFileForRole(props.user.role);
     const startPath =
       remembered && tree.files.some((f) => f.path === remembered && !f.isDir)
         ? remembered
-        : tree.files.some((f) => f.path === "PRD.md")
-          ? "PRD.md"
-          : tree.files.some((f) => f.path === "README.md")
-          ? "README.md"
-          : tree.files.find((f) => !f.isDir)?.path || "PRD.md";
+        : tree.files.some((f) => f.path === preferred && !f.isDir)
+          ? preferred
+          : tree.files.find((f) => !f.isDir)?.path || preferred;
+    const startFolder = folderOfPath(startPath) || heldFolder;
+    if (startFolder !== heldFolder) {
+      const viewClaim = await api.claimLock(id, cid, startFolder);
+      setLock(viewClaim.lock);
+      setPreviewReason(viewClaim.previewReason || "");
+    }
+    const ver = await api.listVersions(id, startFolder);
+    setVersions(ver.versions);
+    setUncommitted(ver.uncommitted);
     const file = await api.readFile(id, startPath);
     setCurrentPath(file.path);
     setContent(file.content);
@@ -603,12 +666,12 @@ function ProjectPaper(props: {
     const savedSize = lastEntrustSize(id);
     const savedWidth = lastEntrustWidth(id);
     if (savedWidth) setEntrustWidth(savedWidth);
-    if (!claimed.lock?.youHold) {
+    if (!claimed.lock?.youHold && startFolder === heldFolder) {
       setEntrustSize(savedSize || "half");
     } else if (savedSize) {
       setEntrustSize(savedSize);
     }
-  }, [cid, id]);
+  }, [cid, heldFolder, id, props.user.role]);
 
   useEffect(() => {
     setCid(clientId());
@@ -620,24 +683,26 @@ function ProjectPaper(props: {
   }, [bootstrap, cid]);
 
   useEffect(() => {
-    if (!cid || !youHold) return;
+    if (!cid) return;
     const timer = setInterval(() => {
       void api
-        .heartbeatLock(id, cid, editingRef.current)
-        .then((res) => setLock(res.lock))
+        .heartbeatLock(id, cid, viewFolder === heldFolder && editingRef.current, heldFolder)
+        .then((res) => {
+          if (viewFolder === heldFolder) setLock(res.lock);
+        })
         .catch(() => undefined);
     }, 20000);
     return () => clearInterval(timer);
-  }, [cid, id, youHold]);
+  }, [cid, heldFolder, id, viewFolder]);
 
   useEffect(() => {
     if (!cid) return;
     return () => {
       if (!activeRunRef.current) {
-        void api.releaseLock(id, cid).catch(() => undefined);
+        void api.releaseLock(id, cid, heldFolder).catch(() => undefined);
       }
     };
-  }, [cid, id]);
+  }, [cid, heldFolder, id]);
 
   useEffect(() => {
     if (!readOnly || history) return;
@@ -652,12 +717,15 @@ function ProjectPaper(props: {
         })
         .catch(() => undefined);
       void refreshTree().catch(() => undefined);
-      void refreshVersions().catch(() => undefined);
-      void api.currentRun(id).then((res) => setActiveRun(res.run)).catch(() => undefined);
-      void api.getRequirement(id, cid).then((data) => setMeta(data.requirement)).catch(() => undefined);
+      void refreshVersions(viewFolder).catch(() => undefined);
+      void api.currentRun(id, viewFolder).then((res) => setActiveRun(res.run)).catch(() => undefined);
+      void api
+        .getRequirement(id, cid, viewFolder)
+        .then((data) => setMeta(data.requirement))
+        .catch(() => undefined);
     }, 2500);
     return () => clearInterval(timer);
-  }, [cid, currentPath, etag, history, id, readOnly, refreshTree, refreshVersions]);
+  }, [cid, currentPath, etag, history, id, readOnly, refreshTree, refreshVersions, viewFolder]);
 
   const ingestEvents = useCallback((incoming: AguiEvent[]) => {
     if (!incoming.length) return;
@@ -713,18 +781,18 @@ function ProjectPaper(props: {
           } else if (parsed.type === "RUN_FINISHED") {
             await refreshVersions();
             await refreshTree();
-            const cur = await api.currentRun(id);
+            const cur = await api.currentRun(id, folderOfPath(currentPathRef.current) || heldFolder);
             setActiveRun(cur.run);
             const file = await api.readFile(id, currentPathRef.current);
             setContent(file.content);
             setEtag(file.etag);
-            const bundle = await api.getRequirement(id, cid);
+            const bundle = await api.getRequirement(id, cid, folderOfPath(currentPathRef.current) || heldFolder);
             setMeta(bundle.requirement);
           }
         }
       }
     },
-    [cid, id, ingestEvents, refreshTree, refreshVersions]
+    [cid, heldFolder, id, ingestEvents, refreshTree, refreshVersions]
   );
 
   useEffect(() => {
@@ -747,11 +815,31 @@ function ProjectPaper(props: {
   }
 
   async function recordVersion() {
-    await api.recordVersion(id, undefined, cid);
+    await api.recordVersion(id, undefined, cid, viewFolder);
     molanRef.current?.exitEdit();
     setEditing(false);
-    await api.heartbeatLock(id, cid, false).then((r) => setLock(r.lock)).catch(() => undefined);
-    await refreshVersions();
+    await api
+      .heartbeatLock(id, cid, false, heldFolder)
+      .then((r) => {
+        if (viewFolder === heldFolder) setLock(r.lock);
+      })
+      .catch(() => undefined);
+    await refreshVersions(viewFolder);
+    await refreshTree();
+  }
+
+  async function markCaughtUp() {
+    setBusy(true);
+    setError("");
+    try {
+      await api.recordVersion(id, undefined, cid, heldFolder, true);
+      await refreshTree();
+      await refreshVersions(heldFolder);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "没能标成已跟上");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function saveAndRecord() {
@@ -792,6 +880,7 @@ function ProjectPaper(props: {
       const started = await api.startRun(id, {
         message: text,
         clientId: cid,
+        folder: viewFolder,
         focus: {
           file: currentPath,
           headingPath: previewFocus?.quote ? previewFocus.headingPath : [],
@@ -849,21 +938,31 @@ function ProjectPaper(props: {
           width={railWidth}
           onWidthChange={onRailWidthChange}
           user={props.user}
-          projects={props.projects}
-          currentId={id}
+          projectTitle={title}
           files={files}
           currentPath={currentPath}
           clarityLabel={clarityLabel}
-          onOpenProject={props.onSwitch}
+          canCreate={canCreate}
+          pendingFollow={pendingFollow}
           onOpenFile={(path) => void openFile(path)}
           onCreate={props.onCreate}
+          onSwitch={props.onSwitch}
           onSettings={props.onSettings}
           onUsers={props.onUsers}
           flags={
-            uncommitted || aiRunning ? (
+            uncommitted || aiRunning || showFollowHint ? (
               <div className="rail-flags">
                 {uncommitted ? <span className="tag warn">未记入版本</span> : null}
                 {aiRunning ? <span className="tag">AI 进行中</span> : null}
+                {showFollowHint ? (
+                  <button
+                    className="side-text"
+                    type="button"
+                    onClick={() => void openFile(`${heldFolder}/跟上.md`)}
+                  >
+                    {followHintFor(heldFolder)}
+                  </button>
+                ) : null}
               </div>
             ) : null
           }
@@ -875,11 +974,22 @@ function ProjectPaper(props: {
                 disabled={readOnly || busy || (!uncommitted && !dirty)}
                 onClick={() => void saveAndRecord()}
               />
-              <RailMenuItem label="导入" onClick={() => setShowImport(true)} />
+              {pendingMine && youHold ? (
+                <RailMenuItem
+                  label="标成已跟上"
+                  disabled={busy}
+                  onClick={() => void markCaughtUp()}
+                />
+              ) : null}
+              {canImport ? (
+                <RailMenuItem label="导入" onClick={() => setShowImport(true)} />
+              ) : null}
               {props.user.role === "architect" && lock && !lock.youHold ? (
                 <RailMenuItem
                   label="解除编辑权"
-                  onClick={() => void api.forceReleaseLock(id).then(() => bootstrap())}
+                  onClick={() =>
+                    void api.forceReleaseLock(id, viewFolder).then(() => bootstrap())
+                  }
                 />
               ) : null}
               {props.user.role === "architect" ? (
@@ -917,7 +1027,7 @@ function ProjectPaper(props: {
                   setEditing(next);
                   if (youHold) {
                     void api
-                      .heartbeatLock(id, cid, next)
+                      .heartbeatLock(id, cid, next, heldFolder)
                       .then((r) => setLock(r.lock))
                       .catch(() => undefined);
                   }
@@ -1108,7 +1218,7 @@ function ProjectPaper(props: {
                       setImportText("");
                       setShowImport(false);
                       await refreshTree();
-                      await openFile("PRD.md", true);
+                      await openFile("product/PRD.md", true);
                       await refreshVersions();
                     })
                     .catch((e) => setError(e instanceof Error ? e.message : "导入失败"));

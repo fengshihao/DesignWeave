@@ -105,7 +105,7 @@ export function CreateProjectPanel(props: {
             )}
             {error ? <p className="picker-error">{error}</p> : null}
             <button className="btn primary" type="submit" disabled={busy || !title.trim()}>
-              {busy ? "创建中…" : "创建并打开 PRD.md"}
+              {busy ? "创建中…" : "创建并打开"}
             </button>
           </form>
         ) : (

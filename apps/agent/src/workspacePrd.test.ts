@@ -69,7 +69,7 @@ updatedAt: 2026-01-01T00:00:00.000Z
   assert.equal(parsed.clarity, "pending");
 });
 
-test("标准文档包从模板落地，只有 PRD.md，不含 arch/qa", () => {
+test("标准文档包落地三文件夹：产品 PRD、研发方案、测试文档", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "dw-pack-"));
   try {
     copyPrdPack(dir, {
@@ -89,11 +89,13 @@ test("标准文档包从模板落地，只有 PRD.md，不含 arch/qa", () => {
     assert.match(prd, /^# 负一屏天气卡片/m);
     assert.match(prd, /## 用户故事/);
     assert.match(prd, /作为：/);
+    assert.equal(fs.existsSync(path.join(dir, "PRD.md")), false);
     assert.equal(fs.existsSync(path.join(dir, "README.md")), false);
     assert.equal(fs.existsSync(path.join(dir, "gaps.md")), false);
     assert.equal(fs.existsSync(path.join(dir, "arch")), false);
-    assert.equal(fs.existsSync(path.join(dir, "qa")), false);
     assert.equal(fs.existsSync(path.join(dir, "调研.md")), false);
+    assert.match(fs.readFileSync(path.join(dir, "eng/方案.md"), "utf8"), /架构师写这一篇/);
+    assert.match(fs.readFileSync(path.join(dir, "qa/测试.md"), "utf8"), /测试写这一篇/);
     assert.match(fs.readFileSync(path.join(dir, "meta.md"), "utf8"), /source: template/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -126,10 +128,10 @@ test("导入按章节合并进 PRD.md，对不上的进 gaps，原文进 import/
       createdAt: "2026-08-22T00:00:00.000Z",
     });
     const prd = fs.readFileSync(path.join(dir, PRD_FILE), "utf8");
-    assert.equal(fs.readFileSync(path.join(dir, "import/original.md"), "utf8").includes("供应商内部备忘"), true);
+    assert.equal(fs.readFileSync(path.join(dir, "product/import/original.md"), "utf8").includes("供应商内部备忘"), true);
     assert.match(prd, /设置页太亮/);
     assert.match(prd, /一键关灯/);
-    assert.match(fs.readFileSync(path.join(dir, "gaps.md"), "utf8"), /完全对不上的附录/);
+    assert.match(fs.readFileSync(path.join(dir, "product/gaps.md"), "utf8"), /完全对不上的附录/);
     assert.equal(result.unmatched.some((c) => c.title.includes("完全对不上")), true);
     assert.match(fs.readFileSync(path.join(dir, "meta.md"), "utf8"), /source: import/);
     assert.match(prd, /## 交互与体验/);
