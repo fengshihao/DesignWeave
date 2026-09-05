@@ -392,6 +392,7 @@
     editorWrap?.classList.add("is-source-open");
     paintSourceBtn(true);
     keepSourceReadingSpot(spot);
+    syncHistoryChrome();
   }
 
   function closeSourceView(opts = {}) {
@@ -410,6 +411,7 @@
     editorWrap?.classList.remove("is-source-open");
     paintSourceBtn(false);
     if (spot) keepPreviewFromSourceSpot(spot);
+    syncHistoryChrome();
   }
 
   function toggleSourceView() {

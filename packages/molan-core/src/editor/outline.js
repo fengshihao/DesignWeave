@@ -18,6 +18,9 @@
     return el.style.display === "block" && !el.classList.contains("is-out");
   }
 
+  const UNDO_ICON = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 8H4V4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.4 13A8 8 0 1 0 6 6.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
+  const REDO_ICON = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M16 8h4V4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.6 13A8 8 0 1 1 18 6.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
+
   function applyEditorChromeI18n() {
     applySourceViewI18n();
     const outlineBtn = document.getElementById("outlineBtn");
@@ -26,6 +29,58 @@
       outlineBtn.title = label;
       outlineBtn.setAttribute("aria-label", label);
     }
+    const undoBtn = document.getElementById("undoBtn");
+    if (undoBtn) {
+      const label = t("undo");
+      undoBtn.title = label;
+      undoBtn.setAttribute("aria-label", label);
+    }
+    const redoBtn = document.getElementById("redoBtn");
+    if (redoBtn) {
+      const label = t("redo");
+      redoBtn.title = label;
+      redoBtn.setAttribute("aria-label", label);
+    }
+  }
+
+  function nativeHistoryEnabled(type) {
+    const root = outlineCtx?.getVditorRoot?.();
+    const native = root?.querySelector(`.vditor-toolbar [data-type="${type}"]`);
+    if (!native) return false;
+    return !native.classList.contains("vditor-menu--disabled");
+  }
+
+  function syncHistoryChrome() {
+    const undoBtn = document.getElementById("undoBtn");
+    const redoBtn = document.getElementById("redoBtn");
+    if (!undoBtn && !redoBtn) return;
+    const previewing = outlineCtx?.getPreviewing?.() ?? true;
+    const vditor = outlineCtx?.getVditor?.();
+    const docUndo = !!outlineCtx?.canUndoDoc?.();
+    const docRedo = !!outlineCtx?.canRedoDoc?.();
+    const editUndo = !previewing && !sourceOpen && !!vditor && nativeHistoryEnabled("undo");
+    const editRedo = !previewing && !sourceOpen && !!vditor && nativeHistoryEnabled("redo");
+    if (undoBtn) undoBtn.disabled = !(docUndo || editUndo);
+    if (redoBtn) redoBtn.disabled = !(docRedo || editRedo);
+  }
+
+  function runHistory(type) {
+    const previewing = outlineCtx?.getPreviewing?.() ?? true;
+    const vditor = outlineCtx?.getVditor?.();
+    if (previewing || sourceOpen || !vditor) {
+      if (type === "undo") outlineCtx?.undoDoc?.();
+      else outlineCtx?.redoDoc?.();
+      return;
+    }
+    if (nativeHistoryEnabled(type)) {
+      const root = outlineCtx?.getVditorRoot?.();
+      const native = root?.querySelector(`.vditor-toolbar [data-type="${type}"]`);
+      native?.click();
+      window.setTimeout(syncHistoryChrome, 80);
+      return;
+    }
+    if (type === "undo") outlineCtx?.undoDoc?.();
+    else outlineCtx?.redoDoc?.();
   }
 
   const OUTLINE_BTN_HTML = `<button type="button" class="icon-btn" id="outlineBtn" aria-haspopup="true" aria-expanded="false">${OUTLINE_ICON}${OUTLINE_CLOSE_ICON}</button>`;
@@ -162,6 +217,24 @@
     document.getElementById("editModePrefs")?.remove();
 
     if (actions) {
+      let historyWrap = document.getElementById("historyPrefs");
+      if (!historyWrap) {
+        historyWrap = document.createElement("div");
+        historyWrap.id = "historyPrefs";
+        historyWrap.className = "molan-chrome-prefs";
+        historyWrap.innerHTML = `
+          <button type="button" class="icon-btn" id="undoBtn" disabled>${UNDO_ICON}</button>
+          <button type="button" class="icon-btn" id="redoBtn" disabled>${REDO_ICON}</button>
+        `;
+      }
+      const findBtn = document.getElementById("molanFindBtn");
+      const copyBtn = document.getElementById("copyBtn");
+      if (historyWrap.parentElement !== actions) {
+        if (findBtn && findBtn.parentElement === actions) findBtn.after(historyWrap);
+        else if (copyBtn && copyBtn.parentElement === actions) actions.insertBefore(historyWrap, copyBtn);
+        else actions.insertBefore(historyWrap, actions.firstChild);
+      }
+
       let sourceWrap = document.getElementById("sourceViewPrefs");
       if (!sourceWrap) {
         sourceWrap = document.createElement("div");
@@ -171,7 +244,6 @@
           <button type="button" class="icon-btn" id="sourceViewBtn" aria-pressed="false">${SOURCE_ICON}</button>
         `;
       }
-      const copyBtn = document.getElementById("copyBtn");
       const afterCopy = copyBtn && copyBtn.parentElement === actions ? copyBtn.nextSibling : null;
       if (sourceWrap.parentElement !== actions) {
         if (afterCopy) actions.insertBefore(sourceWrap, afterCopy);
@@ -199,7 +271,25 @@
     const sourceBtn = document.getElementById("sourceViewBtn");
     const outlineBtn = document.getElementById("outlineBtn");
     applyEditorChromeI18n();
+    syncHistoryChrome();
     if (sourceOpen) fillSourceText();
+
+    const undoBtn = document.getElementById("undoBtn");
+    const redoBtn = document.getElementById("redoBtn");
+    if (undoBtn && !undoBtn.dataset.bound) {
+      undoBtn.dataset.bound = "1";
+      undoBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        runHistory("undo");
+      });
+    }
+    if (redoBtn && !redoBtn.dataset.bound) {
+      redoBtn.dataset.bound = "1";
+      redoBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        runHistory("redo");
+      });
+    }
 
     if (sourceBtn && !sourceBtn.dataset.bound) {
       sourceBtn.dataset.bound = "1";
@@ -250,6 +340,16 @@
           return;
         }
         closeOutline();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+        if (String(e.key).toLowerCase() !== "z") return;
+        if (e.target?.closest?.("input, textarea")) return;
+        if (!outlineCtx?.getPreviewing?.() && !sourceOpen) return;
+        const wantRedo = !!e.shiftKey;
+        if (wantRedo ? !outlineCtx?.canRedoDoc?.() : !outlineCtx?.canUndoDoc?.()) return;
+        e.preventDefault();
+        runHistory(wantRedo ? "redo" : "undo");
       });
     }
   }

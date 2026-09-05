@@ -109,6 +109,7 @@ export function mountInlineHost(root: HTMLElement, callbacks: InlineHostCallback
         cdn: window.__MOLAN_VDITOR_CDN__,
         linkBase: window.__MOLAN_LINK_BASE__ || "",
         previewActions: [],
+        sectionAsk: true,
         onInput: () => bridge.onEditorInput(),
         onCounter: () => bridge.onEditorCounter(),
         onSave: () => {

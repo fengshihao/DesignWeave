@@ -117,7 +117,7 @@
   let folderName = "";
   let currentFolderId = null;
   let recentFolders = [];
-  let folderSource = null; // "fs-access" | "legacy"
+  let folderSource = null; // "fs-access" | "legacy" | "demo"
   let folderHandle = null;
   let reloading = false;
   let dirty = false;
@@ -533,15 +533,28 @@
     el.setAttribute("aria-label", label);
   }
 
+  function isCompatSaveMode() {
+    return folderSource === "legacy";
+  }
+
+  function syncSaveButton() {
+    if (!saveBtn) return;
+    const show = !!(activePath && dirty && isCompatSaveMode());
+    saveBtn.hidden = !show;
+    saveBtn.disabled = !show;
+    saveBtn.classList.toggle("is-dirty", show);
+    if (!show) return;
+    saveBtn.dataset.kind = "download";
+    labelAction(saveBtn, t("saveDownloadHint"));
+  }
+
   function setDirty(next) {
     dirty = !!next;
-    saveBtn.disabled = !dirty;
-    saveBtn.classList.toggle("is-dirty", dirty);
-    if (activePath) {
-      const write = canWriteActive();
-      saveBtn.dataset.kind = write ? "save" : "download";
-      labelAction(saveBtn, write ? t("saveWriteHint") : t("saveDownloadHint"));
+    if (activePath && isCompatSaveMode()) {
+      saveBtn.dataset.kind = "download";
+      labelAction(saveBtn, t("saveDownloadHint"));
     }
+    syncSaveButton();
     syncActiveDirtyMark();
     syncModeButton();
   }
@@ -550,6 +563,8 @@
     const source = document.getElementById("sourceViewPrefs");
     if (source) source.hidden = !show;
     if (!show) window.MolanEditor?.source?.close?.();
+    const history = document.getElementById("historyPrefs");
+    if (history) history.hidden = !show;
     const outline = document.getElementById("outlinePrefs");
     if (!outline) return;
     if (!show) window.MolanEditor?.outline?.close?.(true);
@@ -563,7 +578,7 @@
     labelAction(modeBtn, preview ? t("modeEdit") : t("modePreview"));
     modeBtn.hidden = !activePath;
     if (!activePath) {
-      saveBtn.hidden = true;
+      syncSaveButton();
       copyBtn.hidden = true;
       if (pdfBtn) pdfBtn.hidden = true;
       if (findBtn) findBtn.hidden = true;
@@ -580,7 +595,7 @@
     if (typeBtn) typeBtn.hidden = false;
     if (reloadBtn) reloadBtn.hidden = false;
     syncHeaderDocButtons(true);
-    saveBtn.hidden = !dirty;
+    syncSaveButton();
   }
 
   function paintStatus(text) {
@@ -812,7 +827,7 @@
     try {
       const { folder, list } = await fetchSampleFiles();
       folderName = folder;
-      folderSource = "legacy";
+      folderSource = "demo";
       folderHandle = null;
       currentFolderId = null;
       files = list;
@@ -1022,7 +1037,7 @@
     document.querySelector(".main")?.classList.add("is-idle");
     readerBody?.classList.remove("is-editing");
     editorWrap.classList.remove("visible");
-    saveBtn.hidden = true;
+    syncSaveButton();
     copyBtn.hidden = true;
     if (pdfBtn) pdfBtn.hidden = true;
     if (modeBtn) modeBtn.hidden = true;
@@ -1399,7 +1414,7 @@
     document.querySelector(".main")?.classList.remove("is-idle");
     readerBody?.classList.add("is-editing");
     editorWrap.classList.add("visible");
-    saveBtn.hidden = true;
+    syncSaveButton();
     copyBtn.hidden = false;
     if (pdfBtn) pdfBtn.hidden = false;
     if (modeBtn) modeBtn.hidden = false;

@@ -22,12 +22,73 @@
     let vditorReady = null;
     let markdown = "";
     let previewing = options.defaultPreview !== false;
+    const docUndo = [];
+    const docRedo = [];
+
+    const readLiveMarkdown = () => {
+      if (sourceOpen) {
+        const { text } = sourceEls();
+        if (text) return text.value;
+      }
+      if (previewing || !vditor) return markdown;
+      try { return vditor.getValue(); } catch (_) { return markdown; }
+    };
+
+    const writeLiveMarkdown = (next) => {
+      markdown = String(next ?? "");
+      if (sourceOpen) {
+        const { text } = sourceEls();
+        if (text && text.value !== markdown) text.value = markdown;
+      }
+      if (previewing) {
+        const spot = sourceOpen ? captureSourceReadingSpot() : captureReadingSpot(true);
+        renderLitePreview(markdown, spot);
+      } else if (vditor) {
+        try { vditor.setValue(markdown, false); } catch (_) { /* ignore */ }
+      }
+      try { options.onInput?.(); } catch (_) { /* ignore */ }
+    };
+
+    const applyDocChange = (next) => {
+      const before = readLiveMarkdown();
+      const value = String(next ?? "");
+      if (value === before) return false;
+      docUndo.push(before);
+      if (docUndo.length > 80) docUndo.shift();
+      docRedo.length = 0;
+      writeLiveMarkdown(value);
+      syncHistoryChrome();
+      return true;
+    };
+
+    const undoDoc = () => {
+      if (!docUndo.length) return false;
+      docRedo.push(readLiveMarkdown());
+      writeLiveMarkdown(docUndo.pop());
+      syncHistoryChrome();
+      return true;
+    };
+
+    const redoDoc = () => {
+      if (!docRedo.length) return false;
+      docUndo.push(readLiveMarkdown());
+      writeLiveMarkdown(docRedo.pop());
+      syncHistoryChrome();
+      return true;
+    };
+
+    const clearDocHistory = () => {
+      docUndo.length = 0;
+      docRedo.length = 0;
+      syncHistoryChrome();
+    };
     let previewSeq = 0;
     let muteInput = false;
     const previewListeners = [];
     const previewSelection = bindPreviewSelection({
       getRoot: () => previewBody,
       isPreviewing: () => previewing,
+      sectionAsk: options.sectionAsk === true,
     });
     previewSelection.onSelection((focus) => {
       try { options.onSelection?.(focus); } catch (_) { /* ignore */ }
@@ -59,14 +120,7 @@
         try { return vditor.getValue(); } catch (_) { return markdown; }
       },
       applyMarkdown: (next) => {
-        markdown = String(next ?? "");
-        if (previewing) {
-          const spot = captureReadingSpot(true);
-          renderLitePreview(markdown, spot);
-        } else if (vditor) {
-          try { vditor.setValue(markdown, false); } catch (_) { /* ignore */ }
-        }
-        try { options.onInput?.(); } catch (_) { /* ignore */ }
+        applyDocChange(next);
       },
     });
     bindPreviewCodeCopy();
@@ -96,6 +150,7 @@
         try { cb(previewing); } catch (_) { /* ignore */ }
       });
       if (!previewing) previewSelection.clear();
+      syncHistoryChrome();
     };
 
     const syncLiteClass = () => {
@@ -165,7 +220,11 @@
         toast(t("cannotEdit"));
         return false;
       }
+      docUndo.push(markdown);
+      if (docUndo.length > 80) docUndo.shift();
+      docRedo.length = 0;
       markdown = next;
+      syncHistoryChrome();
       if (previewing) {
         const spot = captureReadingSpot(true);
         renderLitePreview(markdown, spot);
@@ -213,8 +272,9 @@
           undoDelay: 200,
           hint: { delay: 400 },
           toolbar: [
-            "bold", "italic", "link",
+            "bold", "italic", "strike", "inline-code", "link",
             "table",
+            "undo", "redo",
             "edit-mode", "outline",
           ],
           toolbarConfig: { pin: true, hide: false },
@@ -235,6 +295,7 @@
             if (previewing || muteInput) return;
             scheduleFitTables(vditorRoot);
             scheduleOutlineRefresh();
+            syncHistoryChrome();
             try {
               options.onInput?.();
             } catch (_) { /* ignore */ }
@@ -258,6 +319,7 @@
             revealVditorIcons();
             blockInsert.sync();
             scheduleOutlineRefresh();
+            syncHistoryChrome();
             resolve(vditor);
           },
         });
@@ -279,6 +341,7 @@
     const applySnippet = async (snippet, hover) => {
       const piece = String(snippet || "").replace(/^\n+/, "").replace(/\n+$/, "");
       if (!piece) return;
+      const before = readLiveMarkdown();
       const mermaidReady = maybePreloadMermaid(cdn, piece);
       const anchor = hover?.gapRect || hover?.el?.getBoundingClientRect?.();
       const viewportY = anchor ? anchor.top + Math.min(anchor.height || 26, 28) / 2 : null;
@@ -325,6 +388,12 @@
           if (vditor) {
             try { markdown = vditor.getValue(); } catch (_) { /* ignore */ }
           }
+          if (markdown !== before) {
+            docUndo.push(before);
+            if (docUndo.length > 80) docUndo.shift();
+            docRedo.length = 0;
+            syncHistoryChrome();
+          }
           releasePreviewOverlay();
         });
         try { options.onInput?.(); } catch (_) { /* ignore */ }
@@ -355,6 +424,7 @@
     const api = {
       async setValue(text, clearStack = true) {
         markdown = text ?? "";
+        if (clearStack) clearDocHistory();
         if (previewing) {
           renderLitePreview(markdown);
           if (sourceOpen) fillSourceText();
@@ -494,6 +564,10 @@
       getVditor: () => vditor,
       getVditorRoot: () => vditorRoot,
       getPreviewing: () => previewing,
+      canUndoDoc: () => docUndo.length > 0,
+      canRedoDoc: () => docRedo.length > 0,
+      undoDoc,
+      redoDoc,
       getMarkdown: () => {
         if (sourceOpen) {
           const { text } = sourceEls();

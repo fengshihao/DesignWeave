@@ -30,10 +30,11 @@
     let hideTimer = 0;
     let moveRaf = 0;
 
-    const items = () => INSERT_ITEMS;
+    const items = () => INSERT_ITEMS.filter((row) => !row.sep);
 
     function paintMenu() {
       menu.innerHTML = INSERT_ITEMS.map((item) => {
+        if (item.sep) return '<span class="molan-insert-sep" aria-hidden="true"></span>';
         const label = t(item.key);
         return `<button type="button" class="molan-insert-item" role="menuitem" data-insert-id="${item.id}" title="${label}" aria-label="${label}">
             ${item.icon}

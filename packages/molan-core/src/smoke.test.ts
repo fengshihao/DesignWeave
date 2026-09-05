@@ -25,6 +25,24 @@ test("编辑器源码按职责拆模块，构建仍产出单文件 IIFE", () => 
   assert.match(bundled, /global\.MolanEditor\s*=/);
 });
 
+test("Vditor 菜单拆到 +、选区条和顶栏，并补齐常用项", () => {
+  const src = editorSrc();
+  assert.match(src, /"undo", "redo"/);
+  assert.match(src, /data-format="strike"/);
+  assert.match(src, /data-format="inline-code"/);
+  assert.match(src, /id: "h1"/);
+  assert.match(src, /id: "quote"/);
+  assert.match(src, /id: "ul"/);
+  assert.match(src, /id="undoBtn"/);
+  assert.match(src, /function syncHistoryChrome/);
+  assert.match(src, /const applyDocChange = /);
+  assert.match(src, /const undoDoc = /);
+  assert.match(src, /canUndoDoc:/);
+  assert.match(src, /item\.sep/);
+  assert.match(src, /vditor-ir__node\[data-type='code-block'\]/);
+  assert.doesNotMatch(src, /el\.closest\("pre, \.vditor-ir__preview/);
+});
+
 test("大纲按钮在顶栏标题左侧，不浮在纸面上", () => {
   const src = editorSrc();
   assert.match(src, /跟标题同一行，不要浮在纸面上/);
@@ -43,10 +61,14 @@ test("墨览选区格式条预览也可改 Markdown，工作台默认不开", ()
   assert.match(src, /function wrapInlineMarkdown/);
   assert.match(src, /const applyPreviewFormat = /);
   assert.match(src, /previewFormat: options\.previewFormatBar === true/);
+  assert.match(src, /sectionAsk: options\.sectionAsk === true/);
+  assert.match(src, /opts\.sectionAsk !== true/);
   const studio = readFileSync(join(root, "..", "..", "tools", "markdown-viewer", "molan-app.js"), "utf8");
   assert.match(studio, /previewFormatBar:\s*true/);
+  assert.doesNotMatch(studio, /sectionAsk:\s*true/);
   const workbench = readFileSync(join(root, "..", "molan-host", "src", "inline-host.ts"), "utf8");
   assert.doesNotMatch(workbench, /previewFormatBar:\s*true/);
+  assert.match(workbench, /sectionAsk:\s*true/);
 
   const take = (name) => {
     const start = src.indexOf(`function ${name}`);

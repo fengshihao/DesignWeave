@@ -114,7 +114,13 @@
   function applyFormatBarI18n() {
     const bar = document.getElementById("molanFormatBar");
     if (!bar) return;
-    const map = { bold: "formatBold", italic: "formatItalic", link: "formatLink" };
+    const map = {
+      bold: "formatBold",
+      italic: "formatItalic",
+      strike: "formatStrike",
+      "inline-code": "formatInlineCode",
+      link: "formatLink",
+    };
     bar.querySelectorAll("[data-format]").forEach((btn) => {
       const key = map[btn.getAttribute("data-format")];
       if (!key) return;
@@ -147,6 +153,8 @@
         <div class="molan-format-bar__actions">
           <button type="button" class="molan-insert-item" data-format="bold"><span>B</span></button>
           <button type="button" class="molan-insert-item" data-format="italic"><span>I</span></button>
+          <button type="button" class="molan-insert-item" data-format="strike"><span>S</span></button>
+          <button type="button" class="molan-insert-item" data-format="inline-code"><span>\`</span></button>
           <button type="button" class="molan-insert-item" data-format="link">
             <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 9.5l3-3M5 8.2l-1.2 1.2a2.2 2.2 0 1 0 3.1 3.1L8.2 11M11 7.8l1.2-1.2a2.2 2.2 0 1 0-3.1-3.1L7.8 5"/></svg>
           </button>
@@ -278,6 +286,8 @@
       let next = src;
       if (type === "bold") next = wrapInlineMarkdown(src, span.start, span.end, "**", "**");
       else if (type === "italic") next = wrapInlineMarkdown(src, span.start, span.end, "*", "*");
+      else if (type === "strike") next = wrapInlineMarkdown(src, span.start, span.end, "~~", "~~");
+      else if (type === "inline-code") next = wrapInlineMarkdown(src, span.start, span.end, "`", "`");
       else if (type === "link") next = wrapPreviewLink(src, span.start, span.end, href);
       if (next === src) return false;
       applyMarkdown(next);
@@ -356,7 +366,7 @@
         hideFormatBar();
         return;
       }
-      if (el.closest("pre, .vditor-ir__preview, .language-mermaid, .molan-find-bar, .molan-format-bar")) {
+      if (el.closest(".vditor-ir__node[data-type='code-block'], .vditor-ir__preview, .language-mermaid, .molan-find-bar, .molan-format-bar")) {
         hideFormatBar();
         return;
       }
@@ -406,7 +416,10 @@
       restoreRange();
       if (!clickToolbar(type)) {
         const vditor = getVditor?.();
-        const marker = type === "bold" ? "**" : "*";
+        const marker = type === "bold" ? "**"
+          : type === "strike" ? "~~"
+            : type === "inline-code" ? "`"
+              : "*";
         if (vditor && savedText) {
           try {
             if (typeof vditor.deleteValue === "function") vditor.deleteValue();

@@ -24,6 +24,8 @@ export type EditorOptions = {
   previewActions?: unknown[];
   /** 墨览工作室：预览态选中文字也出格式条。工作台不要开，避免和 AI 引用框抢手势。 */
   previewFormatBar?: boolean;
+  /** 工作台：标题旁出「问这一节」。墨览 / VS Code 不要开。 */
+  sectionAsk?: boolean;
   onInput?: () => void;
   onCounter?: () => void;
   onSave?: () => void;

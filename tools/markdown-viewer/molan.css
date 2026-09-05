@@ -4065,14 +4065,26 @@
       z-index: 22;
       display: flex;
       flex-direction: row;
+      flex-wrap: wrap;
       align-items: center;
       gap: 2px;
+      max-width: min(360px, calc(100vw - 32px));
       padding: 4px;
       border: 1px solid var(--hairline-strong);
       border-radius: 12px;
       background: var(--paper-lift);
       box-shadow: var(--shadow);
       color: var(--ink);
+    }
+    .molan-insert-sep {
+      width: 1px;
+      align-self: stretch;
+      margin: 4px 2px;
+      background: var(--hairline);
+    }
+    .molan-insert-menu .molan-insert-item span {
+      font: 700 11px/1 var(--font-ui);
+      letter-spacing: -0.03em;
     }
     .molan-insert-menu[hidden] {
       display: none !important;
@@ -4426,6 +4438,13 @@
     .molan-format-bar [data-format="italic"] span {
       font-style: italic;
       font-weight: 500;
+    }
+    .molan-format-bar [data-format="strike"] span {
+      text-decoration: line-through;
+      font-weight: 600;
+    }
+    .molan-format-bar [data-format="inline-code"] span {
+      font: 600 13px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
     }
     .molan-format-bar [data-format="link"] svg {
       width: 16px;

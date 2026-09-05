@@ -170,8 +170,12 @@
       insertLink: "链接",
       formatBold: "加粗",
       formatItalic: "斜体",
+      formatStrike: "删除线",
+      formatInlineCode: "行内代码",
       formatLink: "链接",
       formatLinkPlaceholder: "https:// 或相对路径",
+      undo: "撤销",
+      redo: "重做",
       viewSource: "查看原文",
       sourceTitle: "原文",
       sourceReadonly: "只读",
@@ -2504,6 +2508,7 @@
     editorWrap?.classList.add("is-source-open");
     paintSourceBtn(true);
     keepSourceReadingSpot(spot);
+    syncHistoryChrome();
   }
 
   function closeSourceView(opts = {}) {
@@ -2522,6 +2527,7 @@
     editorWrap?.classList.remove("is-source-open");
     paintSourceBtn(false);
     if (spot) keepPreviewFromSourceSpot(spot);
+    syncHistoryChrome();
   }
 
   function toggleSourceView() {
@@ -2549,6 +2555,9 @@
     return el.style.display === "block" && !el.classList.contains("is-out");
   }
 
+  const UNDO_ICON = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 8H4V4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.4 13A8 8 0 1 0 6 6.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
+  const REDO_ICON = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M16 8h4V4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.6 13A8 8 0 1 1 18 6.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
+
   function applyEditorChromeI18n() {
     applySourceViewI18n();
     const outlineBtn = document.getElementById("outlineBtn");
@@ -2557,6 +2566,58 @@
       outlineBtn.title = label;
       outlineBtn.setAttribute("aria-label", label);
     }
+    const undoBtn = document.getElementById("undoBtn");
+    if (undoBtn) {
+      const label = t("undo");
+      undoBtn.title = label;
+      undoBtn.setAttribute("aria-label", label);
+    }
+    const redoBtn = document.getElementById("redoBtn");
+    if (redoBtn) {
+      const label = t("redo");
+      redoBtn.title = label;
+      redoBtn.setAttribute("aria-label", label);
+    }
+  }
+
+  function nativeHistoryEnabled(type) {
+    const root = outlineCtx?.getVditorRoot?.();
+    const native = root?.querySelector(`.vditor-toolbar [data-type="${type}"]`);
+    if (!native) return false;
+    return !native.classList.contains("vditor-menu--disabled");
+  }
+
+  function syncHistoryChrome() {
+    const undoBtn = document.getElementById("undoBtn");
+    const redoBtn = document.getElementById("redoBtn");
+    if (!undoBtn && !redoBtn) return;
+    const previewing = outlineCtx?.getPreviewing?.() ?? true;
+    const vditor = outlineCtx?.getVditor?.();
+    const docUndo = !!outlineCtx?.canUndoDoc?.();
+    const docRedo = !!outlineCtx?.canRedoDoc?.();
+    const editUndo = !previewing && !sourceOpen && !!vditor && nativeHistoryEnabled("undo");
+    const editRedo = !previewing && !sourceOpen && !!vditor && nativeHistoryEnabled("redo");
+    if (undoBtn) undoBtn.disabled = !(docUndo || editUndo);
+    if (redoBtn) redoBtn.disabled = !(docRedo || editRedo);
+  }
+
+  function runHistory(type) {
+    const previewing = outlineCtx?.getPreviewing?.() ?? true;
+    const vditor = outlineCtx?.getVditor?.();
+    if (previewing || sourceOpen || !vditor) {
+      if (type === "undo") outlineCtx?.undoDoc?.();
+      else outlineCtx?.redoDoc?.();
+      return;
+    }
+    if (nativeHistoryEnabled(type)) {
+      const root = outlineCtx?.getVditorRoot?.();
+      const native = root?.querySelector(`.vditor-toolbar [data-type="${type}"]`);
+      native?.click();
+      window.setTimeout(syncHistoryChrome, 80);
+      return;
+    }
+    if (type === "undo") outlineCtx?.undoDoc?.();
+    else outlineCtx?.redoDoc?.();
   }
 
   const OUTLINE_BTN_HTML = `<button type="button" class="icon-btn" id="outlineBtn" aria-haspopup="true" aria-expanded="false">${OUTLINE_ICON}${OUTLINE_CLOSE_ICON}</button>`;
@@ -2693,6 +2754,24 @@
     document.getElementById("editModePrefs")?.remove();
 
     if (actions) {
+      let historyWrap = document.getElementById("historyPrefs");
+      if (!historyWrap) {
+        historyWrap = document.createElement("div");
+        historyWrap.id = "historyPrefs";
+        historyWrap.className = "molan-chrome-prefs";
+        historyWrap.innerHTML = `
+          <button type="button" class="icon-btn" id="undoBtn" disabled>${UNDO_ICON}</button>
+          <button type="button" class="icon-btn" id="redoBtn" disabled>${REDO_ICON}</button>
+        `;
+      }
+      const findBtn = document.getElementById("molanFindBtn");
+      const copyBtn = document.getElementById("copyBtn");
+      if (historyWrap.parentElement !== actions) {
+        if (findBtn && findBtn.parentElement === actions) findBtn.after(historyWrap);
+        else if (copyBtn && copyBtn.parentElement === actions) actions.insertBefore(historyWrap, copyBtn);
+        else actions.insertBefore(historyWrap, actions.firstChild);
+      }
+
       let sourceWrap = document.getElementById("sourceViewPrefs");
       if (!sourceWrap) {
         sourceWrap = document.createElement("div");
@@ -2702,7 +2781,6 @@
           <button type="button" class="icon-btn" id="sourceViewBtn" aria-pressed="false">${SOURCE_ICON}</button>
         `;
       }
-      const copyBtn = document.getElementById("copyBtn");
       const afterCopy = copyBtn && copyBtn.parentElement === actions ? copyBtn.nextSibling : null;
       if (sourceWrap.parentElement !== actions) {
         if (afterCopy) actions.insertBefore(sourceWrap, afterCopy);
@@ -2730,7 +2808,25 @@
     const sourceBtn = document.getElementById("sourceViewBtn");
     const outlineBtn = document.getElementById("outlineBtn");
     applyEditorChromeI18n();
+    syncHistoryChrome();
     if (sourceOpen) fillSourceText();
+
+    const undoBtn = document.getElementById("undoBtn");
+    const redoBtn = document.getElementById("redoBtn");
+    if (undoBtn && !undoBtn.dataset.bound) {
+      undoBtn.dataset.bound = "1";
+      undoBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        runHistory("undo");
+      });
+    }
+    if (redoBtn && !redoBtn.dataset.bound) {
+      redoBtn.dataset.bound = "1";
+      redoBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        runHistory("redo");
+      });
+    }
 
     if (sourceBtn && !sourceBtn.dataset.bound) {
       sourceBtn.dataset.bound = "1";
@@ -2781,6 +2877,16 @@
           return;
         }
         closeOutline();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+        if (String(e.key).toLowerCase() !== "z") return;
+        if (e.target?.closest?.("input, textarea")) return;
+        if (!outlineCtx?.getPreviewing?.() && !sourceOpen) return;
+        const wantRedo = !!e.shiftKey;
+        if (wantRedo ? !outlineCtx?.canRedoDoc?.() : !outlineCtx?.canUndoDoc?.()) return;
+        e.preventDefault();
+        runHistory(wantRedo ? "redo" : "undo");
       });
     }
   }
@@ -2901,7 +3007,13 @@
   function applyFormatBarI18n() {
     const bar = document.getElementById("molanFormatBar");
     if (!bar) return;
-    const map = { bold: "formatBold", italic: "formatItalic", link: "formatLink" };
+    const map = {
+      bold: "formatBold",
+      italic: "formatItalic",
+      strike: "formatStrike",
+      "inline-code": "formatInlineCode",
+      link: "formatLink",
+    };
     bar.querySelectorAll("[data-format]").forEach((btn) => {
       const key = map[btn.getAttribute("data-format")];
       if (!key) return;
@@ -2934,6 +3046,8 @@
         <div class="molan-format-bar__actions">
           <button type="button" class="molan-insert-item" data-format="bold"><span>B</span></button>
           <button type="button" class="molan-insert-item" data-format="italic"><span>I</span></button>
+          <button type="button" class="molan-insert-item" data-format="strike"><span>S</span></button>
+          <button type="button" class="molan-insert-item" data-format="inline-code"><span>\`</span></button>
           <button type="button" class="molan-insert-item" data-format="link">
             <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 9.5l3-3M5 8.2l-1.2 1.2a2.2 2.2 0 1 0 3.1 3.1L8.2 11M11 7.8l1.2-1.2a2.2 2.2 0 1 0-3.1-3.1L7.8 5"/></svg>
           </button>
@@ -3065,6 +3179,8 @@
       let next = src;
       if (type === "bold") next = wrapInlineMarkdown(src, span.start, span.end, "**", "**");
       else if (type === "italic") next = wrapInlineMarkdown(src, span.start, span.end, "*", "*");
+      else if (type === "strike") next = wrapInlineMarkdown(src, span.start, span.end, "~~", "~~");
+      else if (type === "inline-code") next = wrapInlineMarkdown(src, span.start, span.end, "`", "`");
       else if (type === "link") next = wrapPreviewLink(src, span.start, span.end, href);
       if (next === src) return false;
       applyMarkdown(next);
@@ -3143,7 +3259,7 @@
         hideFormatBar();
         return;
       }
-      if (el.closest("pre, .vditor-ir__preview, .language-mermaid, .molan-find-bar, .molan-format-bar")) {
+      if (el.closest(".vditor-ir__node[data-type='code-block'], .vditor-ir__preview, .language-mermaid, .molan-find-bar, .molan-format-bar")) {
         hideFormatBar();
         return;
       }
@@ -3193,7 +3309,10 @@
       restoreRange();
       if (!clickToolbar(type)) {
         const vditor = getVditor?.();
-        const marker = type === "bold" ? "**" : "*";
+        const marker = type === "bold" ? "**"
+          : type === "strike" ? "~~"
+            : type === "inline-code" ? "`"
+              : "*";
         if (vditor && savedText) {
           try {
             if (typeof vditor.deleteValue === "function") vditor.deleteValue();
@@ -4736,16 +4855,29 @@
     math: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10L9 12l8 5H7"/></svg>',
     mermaid: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4.5" width="7" height="5.5" rx="1.2"/><rect x="13" y="14" width="7" height="5.5" rx="1.2"/><path d="M7.5 10v3.2h9V14"/></svg>',
     image: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="6" width="16" height="12" rx="2"/><circle cx="9" cy="10.5" r="1.4"/><path d="m5 16 4-3.2 3.2 2.6 2.6-2 4.2 3.4"/></svg>',
+    quote: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 17V10H5.8C5.8 7.6 7.4 6.2 9.8 6"/><path d="M16.2 17V10h-2.2c0-2.4 1.6-3.8 4-4"/></svg>',
+    hr: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16"/><circle cx="8" cy="12" r="1.2"/><circle cx="16" cy="12" r="1.2"/></svg>',
+    ul: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="7" r="1.2"/><circle cx="6" cy="12" r="1.2"/><circle cx="6" cy="17" r="1.2"/><path d="M10 7h8M10 12h8M10 17h8"/></svg>',
+    ol: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6.2V9M5 9h2M5.2 13.6c.4-.6 1.2-.8 1.8-.4.4.3.5.8.3 1.2L5 17.2h3"/><path d="M10 7h8M10 12h8M10 17h8"/></svg>',
     task: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5.5" width="6" height="6" rx="1.2"/><path d="m5.6 8.6 1.5 1.5 2.6-2.8M13 8h7M4 17h6M13 17h7"/></svg>',
   };
 
   const INSERT_ITEMS = [
+    { id: "h1", key: "insertH1", md: "# ", icon: "<span>H1</span>" },
+    { id: "h2", key: "insertH2", md: "## ", icon: "<span>H2</span>" },
+    { id: "h3", key: "insertH3", md: "### ", icon: "<span>H3</span>" },
+    { id: "quote", key: "insertQuote", md: "> ", icon: INSERT_ICON.quote },
+    { id: "hr", key: "insertHr", md: "---", icon: INSERT_ICON.hr },
+    { sep: true },
+    { id: "ul", key: "insertUl", md: "- ", icon: INSERT_ICON.ul },
+    { id: "ol", key: "insertOl", md: "1. ", icon: INSERT_ICON.ol },
+    { id: "task", key: "insertTask", md: "- [ ] ", icon: INSERT_ICON.task },
+    { sep: true },
     { id: "table", key: "insertTable", md: "| 列 1 | 列 2 |\n| --- | --- |\n|  |  |", icon: INSERT_ICON.table },
     { id: "code", key: "insertCode", md: "```\n\n```", icon: INSERT_ICON.code },
     { id: "math", key: "insertMath", md: "$$\n\n$$", icon: INSERT_ICON.math },
     { id: "mermaid", key: "insertMermaid", md: "```mermaid\nflowchart TD\n  A[开始] --> B[结束]\n```", icon: INSERT_ICON.mermaid },
     { id: "image", key: "insertImage", pick: "image", icon: INSERT_ICON.image },
-    { id: "task", key: "insertTask", md: "- [ ] ", icon: INSERT_ICON.task },
   ];
 
   function escapeMdAlt(name) {
@@ -5993,10 +6125,11 @@
     let hideTimer = 0;
     let moveRaf = 0;
 
-    const items = () => INSERT_ITEMS;
+    const items = () => INSERT_ITEMS.filter((row) => !row.sep);
 
     function paintMenu() {
       menu.innerHTML = INSERT_ITEMS.map((item) => {
+        if (item.sep) return '<span class="molan-insert-sep" aria-hidden="true"></span>';
         const label = t(item.key);
         return `<button type="button" class="molan-insert-item" role="menuitem" data-insert-id="${item.id}" title="${label}" aria-label="${label}">
             ${item.icon}
@@ -6771,6 +6904,7 @@
         };
       },
       decorate() {
+        if (opts.sectionAsk !== true) return;
         decorateSectionAsks(opts.getRoot(), askHeading);
       },
       expandToSection() {
@@ -6837,12 +6971,73 @@
     let vditorReady = null;
     let markdown = "";
     let previewing = options.defaultPreview !== false;
+    const docUndo = [];
+    const docRedo = [];
+
+    const readLiveMarkdown = () => {
+      if (sourceOpen) {
+        const { text } = sourceEls();
+        if (text) return text.value;
+      }
+      if (previewing || !vditor) return markdown;
+      try { return vditor.getValue(); } catch (_) { return markdown; }
+    };
+
+    const writeLiveMarkdown = (next) => {
+      markdown = String(next ?? "");
+      if (sourceOpen) {
+        const { text } = sourceEls();
+        if (text && text.value !== markdown) text.value = markdown;
+      }
+      if (previewing) {
+        const spot = sourceOpen ? captureSourceReadingSpot() : captureReadingSpot(true);
+        renderLitePreview(markdown, spot);
+      } else if (vditor) {
+        try { vditor.setValue(markdown, false); } catch (_) { /* ignore */ }
+      }
+      try { options.onInput?.(); } catch (_) { /* ignore */ }
+    };
+
+    const applyDocChange = (next) => {
+      const before = readLiveMarkdown();
+      const value = String(next ?? "");
+      if (value === before) return false;
+      docUndo.push(before);
+      if (docUndo.length > 80) docUndo.shift();
+      docRedo.length = 0;
+      writeLiveMarkdown(value);
+      syncHistoryChrome();
+      return true;
+    };
+
+    const undoDoc = () => {
+      if (!docUndo.length) return false;
+      docRedo.push(readLiveMarkdown());
+      writeLiveMarkdown(docUndo.pop());
+      syncHistoryChrome();
+      return true;
+    };
+
+    const redoDoc = () => {
+      if (!docRedo.length) return false;
+      docUndo.push(readLiveMarkdown());
+      writeLiveMarkdown(docRedo.pop());
+      syncHistoryChrome();
+      return true;
+    };
+
+    const clearDocHistory = () => {
+      docUndo.length = 0;
+      docRedo.length = 0;
+      syncHistoryChrome();
+    };
     let previewSeq = 0;
     let muteInput = false;
     const previewListeners = [];
     const previewSelection = bindPreviewSelection({
       getRoot: () => previewBody,
       isPreviewing: () => previewing,
+      sectionAsk: options.sectionAsk === true,
     });
     previewSelection.onSelection((focus) => {
       try { options.onSelection?.(focus); } catch (_) { /* ignore */ }
@@ -6874,14 +7069,7 @@
         try { return vditor.getValue(); } catch (_) { return markdown; }
       },
       applyMarkdown: (next) => {
-        markdown = String(next ?? "");
-        if (previewing) {
-          const spot = captureReadingSpot(true);
-          renderLitePreview(markdown, spot);
-        } else if (vditor) {
-          try { vditor.setValue(markdown, false); } catch (_) { /* ignore */ }
-        }
-        try { options.onInput?.(); } catch (_) { /* ignore */ }
+        applyDocChange(next);
       },
     });
     bindPreviewCodeCopy();
@@ -6911,6 +7099,7 @@
         try { cb(previewing); } catch (_) { /* ignore */ }
       });
       if (!previewing) previewSelection.clear();
+      syncHistoryChrome();
     };
 
     const syncLiteClass = () => {
@@ -6980,7 +7169,11 @@
         toast(t("cannotEdit"));
         return false;
       }
+      docUndo.push(markdown);
+      if (docUndo.length > 80) docUndo.shift();
+      docRedo.length = 0;
       markdown = next;
+      syncHistoryChrome();
       if (previewing) {
         const spot = captureReadingSpot(true);
         renderLitePreview(markdown, spot);
@@ -7028,8 +7221,9 @@
           undoDelay: 200,
           hint: { delay: 400 },
           toolbar: [
-            "bold", "italic", "link",
+            "bold", "italic", "strike", "inline-code", "link",
             "table",
+            "undo", "redo",
             "edit-mode", "outline",
           ],
           toolbarConfig: { pin: true, hide: false },
@@ -7050,6 +7244,7 @@
             if (previewing || muteInput) return;
             scheduleFitTables(vditorRoot);
             scheduleOutlineRefresh();
+            syncHistoryChrome();
             try {
               options.onInput?.();
             } catch (_) { /* ignore */ }
@@ -7073,6 +7268,7 @@
             revealVditorIcons();
             blockInsert.sync();
             scheduleOutlineRefresh();
+            syncHistoryChrome();
             resolve(vditor);
           },
         });
@@ -7094,6 +7290,7 @@
     const applySnippet = async (snippet, hover) => {
       const piece = String(snippet || "").replace(/^\n+/, "").replace(/\n+$/, "");
       if (!piece) return;
+      const before = readLiveMarkdown();
       const mermaidReady = maybePreloadMermaid(cdn, piece);
       const anchor = hover?.gapRect || hover?.el?.getBoundingClientRect?.();
       const viewportY = anchor ? anchor.top + Math.min(anchor.height || 26, 28) / 2 : null;
@@ -7140,6 +7337,12 @@
           if (vditor) {
             try { markdown = vditor.getValue(); } catch (_) { /* ignore */ }
           }
+          if (markdown !== before) {
+            docUndo.push(before);
+            if (docUndo.length > 80) docUndo.shift();
+            docRedo.length = 0;
+            syncHistoryChrome();
+          }
           releasePreviewOverlay();
         });
         try { options.onInput?.(); } catch (_) { /* ignore */ }
@@ -7170,6 +7373,7 @@
     const api = {
       async setValue(text, clearStack = true) {
         markdown = text ?? "";
+        if (clearStack) clearDocHistory();
         if (previewing) {
           renderLitePreview(markdown);
           if (sourceOpen) fillSourceText();
@@ -7309,6 +7513,10 @@
       getVditor: () => vditor,
       getVditorRoot: () => vditorRoot,
       getPreviewing: () => previewing,
+      canUndoDoc: () => docUndo.length > 0,
+      canRedoDoc: () => docRedo.length > 0,
+      undoDoc,
+      redoDoc,
       getMarkdown: () => {
         if (sourceOpen) {
           const { text } = sourceEls();

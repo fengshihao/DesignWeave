@@ -448,6 +448,7 @@
         };
       },
       decorate() {
+        if (opts.sectionAsk !== true) return;
         decorateSectionAsks(opts.getRoot(), askHeading);
       },
       expandToSection() {
