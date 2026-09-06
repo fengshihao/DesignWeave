@@ -1,7 +1,6 @@
 import express from "express";
 import cors from "cors";
 import fs from "node:fs";
-import path from "node:path";
 import { config, workspacesRoot } from "./config.js";
 import { getDb } from "./db.js";
 import {
@@ -12,7 +11,7 @@ import {
   signInUser,
   signUpFirstUser,
 } from "./auth.js";
-import { requireArchitect, requireSession } from "./acl.js";
+import { actorFrom, requireArchitect, requireSession } from "./acl.js";
 import { isArchitect } from "./roles.js";
 import { scanClaudeKnownProjects } from "./claudeProjects.js";
 import {
@@ -21,7 +20,6 @@ import {
 } from "./claudeRuntime.js";
 import {
   ensureRequirementsTable,
-  getRequirement,
   getRequirementBundle,
   importMarkdownToRequirement,
   setRequirementPhase,
@@ -37,27 +35,10 @@ import {
 import { defaultOpenPath, PRD_FILE } from "./prdPack.js";
 import type { DiskProjectPhase } from "./projectMeta.js";
 import { browseDir, mkdirUnder } from "./fsBrowse.js";
-import { listDocTree, listFolderStatus, readDocFile, writeDocFile } from "./files.js";
-import {
-  changedFiles,
-  isDirty,
-  isDirtyFolder,
-  listVersions,
-  readFileAt,
-  restoreFile,
-  revertLatestAiCommit,
-} from "./gitVault.js";
 import { ensureRunTables } from "./workbenchRuns.js";
 import { ensureChatSessionTables } from "./chatSessions.js";
-import { ensureLockTable, assertWritable } from "./projectLocks.js";
-import {
-  canWritePath,
-  defaultFileForRole,
-  folderOfPath,
-  parseDocFolder,
-  writableFolderOf,
-} from "./docFolders.js";
-import { recordFolderVersion } from "./folderVersion.js";
+import { assertWritable, ensureLockTable } from "./projectLocks.js";
+import { defaultFileForRole } from "./docFolders.js";
 import { registerWorkbenchRoutes } from "./workbenchRoutes.js";
 import { statusOf, errorBody } from "./httpError.js";
 import {
@@ -66,12 +47,19 @@ import {
   resetSystemPrompt,
   writeSystemPrompt,
 } from "./systemPrompt.js";
-import { ensureUserColumns } from "./data/users.js";
+import { ensureUserColumns, getUserByEmail } from "./data/users.js";
 import { ensureAuditTable, writeAudit } from "./data/audit.js";
 import { requestLog } from "./http/requestLog.js";
 import { registerUserRoutes } from "./http/users.js";
 import { registerProjectRoutes } from "./http/projects.js";
-import { getUserByEmail } from "./data/users.js";
+import { listProjectTree, readProjectDoc, writeProjectDoc } from "./app/docs.js";
+import {
+  listProjectVersions,
+  recordProjectVersion,
+  readVersionFile,
+  restoreVersionFile,
+  revertLatestAiVersion,
+} from "./app/versions.js";
 import { logLine } from "./log/logger.js";
 
 fs.mkdirSync(workspacesRoot(), { recursive: true });
@@ -372,22 +360,6 @@ app.put("/v1/workspace/code-dirs", requireArchitect, (req, res) => {
 
 registerProjectRoutes(app);
 
-app.put("/v1/requirements/:id/prd", (req, res) => {
-  try {
-    assertWritable(
-      req.params.id,
-      "product",
-      req.user!,
-      String(req.body?.clientId || "") || undefined
-    );
-    const content = String(req.body?.content ?? "");
-    const file = writeDocFile(req.params.id, PRD_FILE, content);
-    res.json({ prd: file.content });
-  } catch (err) {
-    res.status(statusOf(err, 404)).json(errorBody(err));
-  }
-});
-
 app.post("/v1/requirements/:id/import", (req, res) => {
   try {
     assertWritable(
@@ -454,191 +426,118 @@ app.post("/v1/fs/mkdir", requireArchitect, (req, res) => {
 
 app.get("/v1/requirements/:id/tree", (req, res) => {
   try {
-    res.json({ files: listDocTree(req.params.id), folders: listFolderStatus(req.params.id) });
+    res.json(listProjectTree(actorFrom(req.user!), req.params.id));
   } catch (err) {
-    res.status(404).json({
-      error: err instanceof Error ? err.message : "工程不存在",
-    });
+    res.status(statusOf(err, 404)).json(errorBody(err));
   }
 });
 
 app.get("/v1/requirements/:id/files", (req, res) => {
   try {
-    const tree = listDocTree(req.params.id);
+    const tree = listProjectTree(actorFrom(req.user!), req.params.id).files;
     const rel =
       typeof req.query.path === "string"
         ? req.query.path
         : defaultOpenPath(tree, defaultFileForRole(req.user!.role));
-    const file = readDocFile(req.params.id, rel);
+    const file = readProjectDoc(actorFrom(req.user!), req.params.id, rel);
     res.setHeader("ETag", file.etag);
     res.json(file);
   } catch (err) {
-    res.status(404).json({
-      error: err instanceof Error ? err.message : "文件不存在",
-    });
+    res.status(statusOf(err, 404)).json(errorBody(err));
   }
 });
 
 app.put("/v1/requirements/:id/files", (req, res) => {
   try {
     const rel = typeof req.query.path === "string" ? req.query.path : PRD_FILE;
-    const folder = folderOfPath(rel);
-    if (!folder || !canWritePath(req.user!.role, rel)) {
-      res.status(403).json({ error: "你不能改这篇。" });
-      return;
-    }
-    assertWritable(
-      req.params.id,
-      folder,
-      req.user!,
-      String(req.body?.clientId || req.query.clientId || "") || undefined
-    );
-    const content = String(req.body?.content ?? "");
-    const ifMatch = req.header("if-match") || undefined;
-    const file = writeDocFile(req.params.id, rel, content, ifMatch);
+    const file = writeProjectDoc(actorFrom(req.user!), req.params.id, rel, String(req.body?.content ?? ""), {
+      clientId: String(req.body?.clientId || req.query.clientId || "") || undefined,
+      ifMatch: req.header("if-match") || undefined,
+    });
     res.setHeader("ETag", file.etag);
     res.json(file);
   } catch (err) {
-    res.status(statusOf(err)).json({
-      error: err instanceof Error ? err.message : "保存失败",
-    });
+    res.status(statusOf(err)).json(errorBody(err));
+  }
+});
+
+app.put("/v1/requirements/:id/prd", (req, res) => {
+  try {
+    const file = writeProjectDoc(
+      actorFrom(req.user!),
+      req.params.id,
+      PRD_FILE,
+      String(req.body?.content ?? ""),
+      { clientId: String(req.body?.clientId || "") || undefined }
+    );
+    res.json({ prd: file.content });
+  } catch (err) {
+    res.status(statusOf(err, 404)).json(errorBody(err));
   }
 });
 
 app.get("/v1/requirements/:id/versions", (req, res) => {
-  const meta = getRequirement(req.params.id);
-  if (!meta) {
-    res.status(404).json({ error: "工程不存在" });
-    return;
+  try {
+    res.json(listProjectVersions(actorFrom(req.user!), req.params.id, req.query.folder));
+  } catch (err) {
+    res.status(statusOf(err, 404)).json(errorBody(err));
   }
-  const folder = parseDocFolder(req.query.folder, writableFolderOf(req.user!.role));
-  res.json({
-    versions: listVersions(meta.vaultPath),
-    uncommitted: isDirtyFolder(meta.vaultPath, folder),
-    changedFiles: changedFiles(meta.vaultPath).filter(
-      (f) => f === folder || f.startsWith(`${folder}/`)
-    ),
-  });
 });
 
 app.post("/v1/requirements/:id/versions", (req, res) => {
-  const meta = getRequirement(req.params.id);
-  if (!meta || !req.user) {
-    res.status(404).json({ error: "工程不存在" });
-    return;
-  }
   try {
-    const folder = parseDocFolder(req.body?.folder, writableFolderOf(req.user.role));
-    assertWritable(
-      req.params.id,
-      folder,
-      req.user,
-      String(req.body?.clientId || "") || undefined
-    );
-    const custom = String(req.body?.message || "").trim();
-    const markCaughtUp = Boolean(req.body?.markCaughtUp);
-    const files = changedFiles(meta.vaultPath).filter(
-      (f) => f === folder || f.startsWith(`${folder}/`)
-    );
-    const named =
-      files.find((f) => /(^|\/)PRD\.md$/i.test(f)) ||
-      files.find((f) => f.endsWith("方案.md") || f.endsWith("测试.md")) ||
-      files.find((f) => f.endsWith(".md") && !f.endsWith("meta.md") && !f.endsWith("跟上.md")) ||
-      files[0];
-    const message =
-      custom ||
-      (markCaughtUp ? `我：标成已跟上` : `我：保存 ${named ? path.basename(named) : "文档"}`);
-    const version = recordFolderVersion({
-      vaultPath: meta.vaultPath,
-      folder,
-      message,
-      author: { name: req.user.name, email: req.user.email },
-      markCaughtUp,
+    const result = recordProjectVersion(actorFrom(req.user!), req.params.id, {
+      folder: req.body?.folder,
+      message: req.body?.message,
+      clientId: String(req.body?.clientId || "") || undefined,
+      markCaughtUp: Boolean(req.body?.markCaughtUp),
     });
-    if (!version) {
-      res.json({ version: null, message: "没有需要记入的改动" });
+    if (!result.version) {
+      res.json(result);
       return;
     }
-    res.status(201).json({ version });
+    res.status(201).json(result);
   } catch (err) {
-    res.status(statusOf(err)).json({
-      error: err instanceof Error ? err.message : "版本没记下，请稍后再试",
-    });
+    res.status(statusOf(err)).json(errorBody(err));
   }
 });
 
 app.get("/v1/requirements/:id/versions/:sha/files", (req, res) => {
-  const meta = getRequirement(req.params.id);
-  if (!meta) {
-    res.status(404).json({ error: "工程不存在" });
-    return;
+  try {
+    const rel = typeof req.query.path === "string" ? req.query.path : PRD_FILE;
+    res.json(readVersionFile(actorFrom(req.user!), req.params.id, req.params.sha, rel));
+  } catch (err) {
+    res.status(statusOf(err, 404)).json(errorBody(err));
   }
-  const rel = typeof req.query.path === "string" ? req.query.path : PRD_FILE;
-  const content = readFileAt(meta.vaultPath, req.params.sha, rel);
-  if (content === null) {
-    res.status(404).json({ error: "这一版里还没有这篇" });
-    return;
-  }
-  res.json({ path: rel, content, version: req.params.sha });
 });
 
 app.post("/v1/requirements/:id/versions/:sha/restore", (req, res) => {
-  const meta = getRequirement(req.params.id);
-  if (!meta) {
-    res.status(404).json({ error: "工程不存在" });
-    return;
-  }
   try {
     const rel = typeof req.body?.path === "string" ? req.body.path : PRD_FILE;
-    const folder = folderOfPath(rel);
-    if (!folder) {
-      res.status(403).json({ error: "你不能改这篇。" });
-      return;
-    }
-    assertWritable(
-      req.params.id,
-      folder,
-      req.user!,
-      String(req.body?.clientId || "") || undefined
+    res.json(
+      restoreVersionFile(
+        actorFrom(req.user!),
+        req.params.id,
+        req.params.sha,
+        rel,
+        String(req.body?.clientId || "") || undefined
+      )
     );
-    restoreFile(meta.vaultPath, req.params.sha, rel);
-    const file = readDocFile(req.params.id, rel);
-    res.json({
-      path: rel,
-      content: file.content,
-      etag: file.etag,
-      uncommitted: isDirty(meta.vaultPath),
-    });
   } catch (err) {
-    res.status(statusOf(err)).json({
-      error: err instanceof Error ? err.message : "无法恢复这一篇",
-    });
+    res.status(statusOf(err)).json(errorBody(err));
   }
 });
 
 app.post("/v1/requirements/:id/versions/revert-latest-ai", (req, res) => {
-  const meta = getRequirement(req.params.id);
-  if (!meta || !req.user) {
-    res.status(404).json({ error: "工程不存在" });
-    return;
-  }
   try {
-    const folder = parseDocFolder(req.body?.folder, writableFolderOf(req.user.role));
-    assertWritable(
-      req.params.id,
-      folder,
-      req.user,
-      String(req.body?.clientId || "") || undefined
+    res.json(
+      revertLatestAiVersion(actorFrom(req.user!), req.params.id, {
+        folder: req.body?.folder,
+        clientId: String(req.body?.clientId || "") || undefined,
+      })
     );
-    const version = revertLatestAiCommit(meta.vaultPath, {
-      name: req.user.name,
-      email: req.user.email,
-    });
-    res.json({ version, bundle: getRequirementBundle(req.params.id) });
   } catch (err) {
-    res.status(statusOf(err)).json({
-      error: err instanceof Error ? err.message : "这一版没能撤销，当前纸面没变。",
-    });
+    res.status(statusOf(err)).json(errorBody(err));
   }
 });
 
