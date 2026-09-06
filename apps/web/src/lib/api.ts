@@ -39,6 +39,7 @@ export type DocFocus = {
 export type WorkbenchRun = {
   id: string;
   projectId: string;
+  sessionId?: string | null;
   userId: string;
   userName: string;
   mode: WorkbenchMode;
@@ -51,6 +52,25 @@ export type WorkbenchRun = {
   endedAt: string | null;
   error: string | null;
 };
+
+export type ChatSession = {
+  id: string;
+  projectId: string;
+  userId: string;
+  title: string;
+  status: "open" | "closed";
+  createdAt: string;
+  updatedAt: string;
+  closedAt: string | null;
+};
+
+export type RunEventRow = {
+  seq: number;
+  type: string;
+  payload: Record<string, unknown>;
+};
+
+export type WorkbenchRunWithEvents = WorkbenchRun & { events: RunEventRow[] };
 
 export type RequirementMeta = {
   id: string;
@@ -364,10 +384,10 @@ export const api = {
       { method: "POST", body: JSON.stringify({ path: filePath, clientId }) }
     ),
 
-  revertLatestAi: (id: string, clientId?: string) =>
+  revertLatestAi: (id: string, clientId?: string, folder?: DocFolder) =>
     request<{ version: { id: string; message: string } }>(
       `/v1/requirements/${id}/versions/revert-latest-ai`,
-      { method: "POST", body: JSON.stringify({ clientId }) }
+      { method: "POST", body: JSON.stringify({ clientId, folder }) }
     ),
 
   listFiles: (id: string) =>
@@ -431,6 +451,7 @@ export const api = {
     body: {
       message: string;
       clientId: string;
+      sessionId?: string;
       focus?: DocFocus;
       mode?: WorkbenchMode;
       folder?: DocFolder;
@@ -438,17 +459,18 @@ export const api = {
   ) =>
     request<{
       runId: string;
+      sessionId: string;
       run: WorkbenchRun;
-      events: Array<{ seq: number; type: string; payload: Record<string, unknown> }>;
+      events: RunEventRow[];
     }>(`/v1/requirements/${id}/runs`, {
       method: "POST",
       body: JSON.stringify(body),
     }),
 
-  cancelRun: (id: string, runId: string, clientId: string) =>
+  cancelRun: (id: string, runId: string, _clientId: string) =>
     request<{ cancelled: boolean }>(
       `/v1/requirements/${id}/runs/${runId}/cancel`,
-      { method: "POST", body: JSON.stringify({ clientId }) }
+      { method: "POST", body: JSON.stringify({}) }
     ),
 
   currentRun: (id: string, folder?: DocFolder) =>
@@ -456,14 +478,41 @@ export const api = {
       `/v1/requirements/${id}/runs/current${folder ? `?folder=${encodeURIComponent(folder)}` : ""}`
     ),
 
-  listRuns: (id: string, limit = 12) =>
-    request<{
-      runs: Array<
-        WorkbenchRun & {
-          events: Array<{ seq: number; type: string; payload: Record<string, unknown> }>;
-        }
-      >;
-    }>(`/v1/requirements/${id}/runs?limit=${limit}`),
+  listRuns: (id: string, limit = 12, sessionId?: string) =>
+    request<{ runs: WorkbenchRunWithEvents[] }>(
+      `/v1/requirements/${id}/runs?limit=${limit}${
+        sessionId ? `&sessionId=${encodeURIComponent(sessionId)}` : ""
+      }`
+    ),
+
+  openChatSession: (id: string) =>
+    request<{ session: ChatSession; runs: WorkbenchRunWithEvents[] }>(
+      `/v1/requirements/${id}/chat-sessions/open`
+    ),
+
+  listChatSessions: (id: string, q = "", limit = 30) =>
+    request<{ sessions: ChatSession[] }>(
+      `/v1/requirements/${id}/chat-sessions?limit=${limit}${
+        q ? `&q=${encodeURIComponent(q)}` : ""
+      }`
+    ),
+
+  createChatSession: (id: string, title?: string) =>
+    request<{ session: ChatSession; runs: WorkbenchRunWithEvents[] }>(
+      `/v1/requirements/${id}/chat-sessions`,
+      { method: "POST", body: JSON.stringify({ title }) }
+    ),
+
+  getChatSession: (id: string, sessionId: string) =>
+    request<ChatSession & { runs: WorkbenchRunWithEvents[] }>(
+      `/v1/requirements/${id}/chat-sessions/${sessionId}`
+    ),
+
+  closeChatSession: (id: string, sessionId: string) =>
+    request<{ session: ChatSession }>(`/v1/requirements/${id}/chat-sessions/${sessionId}/close`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
 
   addQuestion: (
     id: string,

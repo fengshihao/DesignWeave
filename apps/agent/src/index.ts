@@ -85,13 +85,14 @@ import {
   restoreFile,
   revertLatestAiCommit,
 } from "./gitVault.js";
-import { getActiveRunInFolder, ensureRunTables, deleteRunsForProject } from "./workbenchRuns.js";
+import { getActiveRunForUser, ensureRunTables, deleteRunsForProject } from "./workbenchRuns.js";
+import { deleteChatSessionsForProject, ensureChatSessionTables } from "./chatSessions.js";
 import {
-  assertWritable,
   ensureLockTable,
   forceReleaseLock,
   getLock,
   publicLock,
+  assertWritable,
 } from "./projectLocks.js";
 import {
   canCreateProject,
@@ -117,6 +118,7 @@ ensureRequirementsTable();
 ensureWorkspaceTables();
 ensureLockTable();
 ensureRunTables();
+ensureChatSessionTables();
 
 const app = express();
 app.use(
@@ -423,7 +425,7 @@ app.get("/v1/requirements", (req, res) => {
   const requirements = listRequirements().map((r) => ({
     ...r,
     lock: publicLock(getLock(r.id, folder), req.user!.id),
-    activeRun: getActiveRunInFolder(r.id, folder),
+    activeRun: getActiveRunForUser(r.id, req.user!.id),
     clarityLabel: clarityStatusLabel(r),
   }));
   const architect = isArchitect(req.user!.role);
@@ -485,6 +487,7 @@ app.delete("/v1/requirements/:id", requireArchitect, (req, res) => {
       return;
     }
     deleteRunsForProject(id);
+    deleteChatSessionsForProject(id);
     forceReleaseLock(id);
     const requirement = deleteRequirement(id);
     res.json({ ok: true, requirement });
@@ -518,7 +521,7 @@ app.get("/v1/requirements/:id", (req, res) => {
   res.json({
     ...bundle,
     lock: publicLock(getLock(req.params.id, folder), req.user!.id, clientId),
-    activeRun: getActiveRunInFolder(req.params.id, folder),
+    activeRun: getActiveRunForUser(req.params.id, req.user!.id),
   });
 });
 

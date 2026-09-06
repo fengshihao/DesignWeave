@@ -17,6 +17,7 @@ export type RunStatus =
 export type WorkbenchRun = {
   id: string;
   projectId: string;
+  sessionId: string | null;
   userId: string;
   userName: string;
   mode: WorkbenchMode;
@@ -67,6 +68,19 @@ export function ensureRunTables(): void {
   `);
   ensureFocusColumn();
   ensureFolderColumn();
+  ensureSessionIdColumn();
+}
+
+function ensureSessionIdColumn(): void {
+  const cols = getDb()
+    .prepare(`PRAGMA table_info(workbench_runs)`)
+    .all() as Array<{ name: string }>;
+  if (!cols.some((col) => col.name === "session_id")) {
+    getDb().exec(`ALTER TABLE workbench_runs ADD COLUMN session_id TEXT`);
+    getDb().exec(
+      `CREATE INDEX IF NOT EXISTS idx_workbench_runs_session ON workbench_runs(session_id, created_at DESC)`
+    );
+  }
 }
 
 function ensureFocusColumn(): void {
@@ -87,7 +101,7 @@ function ensureFolderColumn(): void {
   }
 }
 
-const RUN_COLS = `id, project_id, user_id, user_name, mode, message, focus, folder, status,
+const RUN_COLS = `id, project_id, session_id, user_id, user_name, mode, message, focus, folder, status,
               created_at, updated_at, ended_at, error`;
 
 function parseStoredFocus(raw: unknown): WorkbenchFocus | null {
@@ -105,6 +119,7 @@ function parseStoredFocus(raw: unknown): WorkbenchFocus | null {
 function mapRun(r: {
   id: string;
   project_id: string;
+  session_id?: string | null;
   user_id: string;
   user_name: string;
   mode: string;
@@ -120,6 +135,7 @@ function mapRun(r: {
   return {
     id: r.id,
     projectId: r.project_id,
+    sessionId: r.session_id ?? null,
     userId: r.user_id,
     userName: r.user_name,
     mode: r.mode as WorkbenchMode,
@@ -175,6 +191,30 @@ export function getActiveRunInFolder(projectId: string, folder: DocFolder): Work
   return r ? mapRun(r) : null;
 }
 
+export function getActiveRunForUser(projectId: string, userId: string): WorkbenchRun | null {
+  ensureRunTables();
+  const r = getDb()
+    .prepare(
+      `SELECT ${RUN_COLS}
+       FROM workbench_runs
+       WHERE project_id = ? AND user_id = ? AND status IN ('queued', 'running')
+       ORDER BY created_at DESC LIMIT 1`
+    )
+    .get(projectId, userId) as Parameters<typeof mapRun>[0] | undefined;
+  return r ? mapRun(r) : null;
+}
+
+export function assertRunOwnedByUser(runId: string, userId: string, projectId?: string): WorkbenchRun {
+  const run = getRun(runId);
+  if (!run || run.userId !== userId) {
+    throw new HttpError("这一轮不存在", 404);
+  }
+  if (projectId && run.projectId !== projectId) {
+    throw new HttpError("这一轮不存在", 404);
+  }
+  return run;
+}
+
 export function listProjectRuns(projectId: string, limit = 20): WorkbenchRun[] {
   ensureRunTables();
   const rows = getDb()
@@ -185,6 +225,53 @@ export function listProjectRuns(projectId: string, limit = 20): WorkbenchRun[] {
     )
     .all(projectId, limit) as Array<Parameters<typeof mapRun>[0]>;
   return rows.map(mapRun);
+}
+
+export function listUserProjectRuns(
+  projectId: string,
+  userId: string,
+  limit = 20
+): WorkbenchRun[] {
+  ensureRunTables();
+  const rows = getDb()
+    .prepare(
+      `SELECT ${RUN_COLS}
+       FROM workbench_runs WHERE project_id = ? AND user_id = ?
+       ORDER BY created_at DESC LIMIT ?`
+    )
+    .all(projectId, userId, limit) as Array<Parameters<typeof mapRun>[0]>;
+  return rows.map(mapRun);
+}
+
+export function listUserSessionRunsWithEvents(
+  sessionId: string,
+  userId: string,
+  limit = 50
+): WorkbenchRunWithEvents[] {
+  ensureRunTables();
+  const rows = getDb()
+    .prepare(
+      `SELECT ${RUN_COLS}
+       FROM workbench_runs
+       WHERE session_id = ? AND user_id = ?
+       ORDER BY created_at ASC LIMIT ?`
+    )
+    .all(sessionId, userId, limit) as Array<Parameters<typeof mapRun>[0]>;
+  return rows.map((run) => ({
+    ...mapRun(run),
+    events: listEvents(run.id),
+  }));
+}
+
+export function listUserProjectRunsWithEvents(
+  projectId: string,
+  userId: string,
+  limit = 12
+): WorkbenchRunWithEvents[] {
+  return listUserProjectRuns(projectId, userId, limit).map((run) => ({
+    ...run,
+    events: listEvents(run.id),
+  }));
 }
 
 export type WorkbenchRunWithEvents = WorkbenchRun & { events: RunEvent[] };
@@ -201,6 +288,7 @@ export function listProjectRunsWithEvents(
 
 export function createRun(input: {
   projectId: string;
+  sessionId: string;
   userId: string;
   userName: string;
   mode: WorkbenchMode;
@@ -209,7 +297,7 @@ export function createRun(input: {
   focus?: WorkbenchFocus | null;
 }): WorkbenchRun {
   ensureRunTables();
-  if (getActiveRunInFolder(input.projectId, input.folder)) {
+  if (getActiveRunForUser(input.projectId, input.userId)) {
     throw new HttpError("还有一轮 AI 没跑完，等它结束或取消后再发。", 409);
   }
   const now = new Date().toISOString();
@@ -218,12 +306,13 @@ export function createRun(input: {
   getDb()
     .prepare(
       `INSERT INTO workbench_runs
-       (id, project_id, user_id, user_name, mode, message, focus, folder, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)`
+       (id, project_id, session_id, user_id, user_name, mode, message, focus, folder, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)`
     )
     .run(
       id,
       input.projectId,
+      input.sessionId,
       input.userId,
       input.userName,
       input.mode,
@@ -234,7 +323,7 @@ export function createRun(input: {
       now
     );
   const userId = userMessageId(id);
-  appendAgui(id, agui.runStarted(input.projectId, input.mode));
+  appendAgui(id, agui.runStarted(input.sessionId, input.mode));
   if (focus?.quote) {
     appendAgui(
       id,

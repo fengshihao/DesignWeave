@@ -12,24 +12,36 @@ import {
   type DocFolder,
 } from "./docFolders.js";
 import {
-  assertHoldsLock,
   claimLock,
   forceReleaseLock,
   getLock,
   heartbeatLock,
   publicLock,
   releaseLock,
+  assertHoldsLock,
 } from "./projectLocks.js";
 import {
   cancelRun,
   createRun,
-  getActiveRunInFolder,
+  assertRunOwnedByUser,
+  getActiveRunForUser,
   getRun,
   listEvents,
-  listProjectRunsWithEvents,
+  listUserProjectRunsWithEvents,
+  listUserSessionRunsWithEvents,
   pipeRunStream,
   type WorkbenchMode,
 } from "./workbenchRuns.js";
+import {
+  closeChatSession,
+  createChatSession,
+  getChatSessionWithRuns,
+  getOrCreateOpenChatSession,
+  listChatSessions,
+  requireChatSessionForUser,
+  searchChatSessions,
+  touchChatSession,
+} from "./chatSessions.js";
 import { executeWorkbenchRun } from "./workbenchAgent.js";
 import { parseWorkbenchFocus } from "./workbenchPrompt.js";
 import { gateWorkbenchMode } from "./clarifyGate.js";
@@ -70,6 +82,7 @@ function parseMode(raw: unknown): WorkbenchMode {
   }
   return "coauthor";
 }
+
 
 export function registerWorkbenchRoutes(app: Express): void {
   app.post("/v1/requirements/:id/lock/claim", (req, res) => {
@@ -139,8 +152,69 @@ export function registerWorkbenchRoutes(app: Express): void {
       const folder = folderFromReq(req);
       res.json({
         lock: publicLock(getLock(req.params.id, folder), req.user!.id, clientId),
-        activeRun: getActiveRunInFolder(req.params.id, folder),
+        activeRun: getActiveRunForUser(req.params.id, req.user!.id),
       });
+    } catch (err) {
+      fail(res, err);
+    }
+  });
+
+  app.get("/v1/requirements/:id/chat-sessions", (req, res) => {
+    try {
+      requireProject(req);
+      const limit = Math.min(50, Math.max(1, Number(req.query.limit || 30) || 30));
+      const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+      const sessions = q
+        ? searchChatSessions(req.params.id, req.user!.id, q, limit)
+        : listChatSessions(req.params.id, req.user!.id, limit);
+      res.json({ sessions });
+    } catch (err) {
+      fail(res, err);
+    }
+  });
+
+  app.post("/v1/requirements/:id/chat-sessions", (req, res) => {
+    try {
+      requireProject(req);
+      const title = typeof req.body?.title === "string" ? req.body.title : undefined;
+      const session = createChatSession({
+        projectId: req.params.id,
+        userId: req.user!.id,
+        title,
+      });
+      res.status(201).json({ session, runs: [] });
+    } catch (err) {
+      fail(res, err);
+    }
+  });
+
+  app.get("/v1/requirements/:id/chat-sessions/open", (req, res) => {
+    try {
+      requireProject(req);
+      const session = getOrCreateOpenChatSession(req.params.id, req.user!.id);
+      const runs = listUserSessionRunsWithEvents(session.id, req.user!.id);
+      res.json({ session, runs });
+    } catch (err) {
+      fail(res, err);
+    }
+  });
+
+  app.get("/v1/requirements/:id/chat-sessions/:sid", (req, res) => {
+    try {
+      requireProject(req);
+      const detail = getChatSessionWithRuns(req.params.sid, req.user!.id, req.params.id);
+      res.json(detail);
+    } catch (err) {
+      fail(res, err);
+    }
+  });
+
+  app.post("/v1/requirements/:id/chat-sessions/:sid/close", (req, res) => {
+    try {
+      requireProject(req);
+      requireChatSessionForUser(req.params.sid, req.user!.id, req.params.id);
+      const session = closeChatSession(req.params.sid, req.user!.id);
+      res.json({ session });
     } catch (err) {
       fail(res, err);
     }
@@ -180,8 +254,19 @@ export function registerWorkbenchRoutes(app: Express): void {
         }
       }
 
+
+      const sessionId =
+        typeof req.body?.sessionId === "string" && req.body.sessionId.trim()
+          ? req.body.sessionId.trim()
+          : getOrCreateOpenChatSession(meta.id, req.user!.id).id;
+      requireChatSessionForUser(sessionId, req.user!.id, meta.id);
+      if (getActiveRunForUser(meta.id, req.user!.id)) {
+        throw new HttpError("还有一轮 AI 没跑完，等它结束或取消后再发。", 409);
+      }
+
       const run = createRun({
         projectId: meta.id,
+        sessionId,
         userId: req.user!.id,
         userName: req.user!.name,
         mode,
@@ -189,7 +274,8 @@ export function registerWorkbenchRoutes(app: Express): void {
         folder,
         focus,
       });
-      res.status(201).json({ runId: run.id, run, events: listEvents(run.id) });
+      touchChatSession(sessionId, message.slice(0, 80));
+      res.status(201).json({ runId: run.id, run, events: listEvents(run.id), sessionId });
       void executeWorkbenchRun(run.id);
     } catch (err) {
       fail(res, err);
@@ -200,7 +286,14 @@ export function registerWorkbenchRoutes(app: Express): void {
     try {
       requireProject(req);
       const limit = Math.min(30, Math.max(1, Number(req.query.limit || 12) || 12));
-      res.json({ runs: listProjectRunsWithEvents(req.params.id, limit) });
+      const sessionId =
+        typeof req.query.sessionId === "string" ? req.query.sessionId.trim() : "";
+      if (sessionId) {
+        requireChatSessionForUser(sessionId, req.user!.id, req.params.id);
+        res.json({ runs: listUserSessionRunsWithEvents(sessionId, req.user!.id, limit) });
+        return;
+      }
+      res.json({ runs: listUserProjectRunsWithEvents(req.params.id, req.user!.id, limit) });
     } catch (err) {
       fail(res, err);
     }
@@ -209,7 +302,8 @@ export function registerWorkbenchRoutes(app: Express): void {
   app.get("/v1/requirements/:id/runs/current", (req, res) => {
     try {
       requireProject(req);
-      res.json({ run: getActiveRunInFolder(req.params.id, folderFromReq(req)) });
+      const run = getActiveRunForUser(req.params.id, req.user!.id);
+      res.json({ run });
     } catch (err) {
       fail(res, err);
     }
@@ -218,10 +312,7 @@ export function registerWorkbenchRoutes(app: Express): void {
   app.get("/v1/requirements/:id/runs/:runId/events", (req, res) => {
     try {
       requireProject(req);
-      const run = getRun(req.params.runId);
-      if (!run || run.projectId !== req.params.id) {
-        throw new HttpError("这一轮不存在", 404);
-      }
+      const run = assertRunOwnedByUser(req.params.runId, req.user!.id, req.params.id);
       const after = Number(req.query.after || 0) || 0;
       res.json({ run, events: listEvents(run.id, after) });
     } catch (err) {
@@ -232,10 +323,7 @@ export function registerWorkbenchRoutes(app: Express): void {
   app.get("/v1/requirements/:id/runs/:runId/stream", (req, res) => {
     try {
       requireProject(req);
-      const run = getRun(req.params.runId);
-      if (!run || run.projectId !== req.params.id) {
-        throw new HttpError("这一轮不存在", 404);
-      }
+      const run = assertRunOwnedByUser(req.params.runId, req.user!.id, req.params.id);
       const after = Number(req.query.after || 0) || 0;
       void pipeRunStream(run.id, after, res);
     } catch (err) {
@@ -246,14 +334,11 @@ export function registerWorkbenchRoutes(app: Express): void {
   app.post("/v1/requirements/:id/runs/:runId/cancel", (req, res) => {
     try {
       requireProject(req);
-      const clientId = String(req.body?.clientId || "");
-      const run = getRun(req.params.runId);
-      if (!run || run.projectId !== req.params.id) {
-        throw new HttpError("这一轮不存在", 404);
-      }
+      const run = assertRunOwnedByUser(req.params.runId, req.user!.id, req.params.id);
       const askerCancelling = run.mode === "ask" && run.userId === req.user!.id;
       if (!askerCancelling) {
-        assertHoldsLock(req.params.id, folderFromReq(req), req.user!, clientId || undefined);
+        const clientId = String(req.body?.clientId || "");
+        assertHoldsLock(req.params.id, run.folder, req.user!, clientId || undefined);
       }
       const cancelled = cancelRun(run.id);
       res.json({ cancelled });
