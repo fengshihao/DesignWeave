@@ -9,6 +9,7 @@ import { getRequirement, type RequirementMeta } from "./requirements.js";
 import { listDocTree } from "./files.js";
 import { getDb } from "./db.js";
 import { ROLE_LABELS, asAppRole, type AppRole } from "./roles.js";
+import { canWriteFile } from "./fileOwnership.js";
 import {
   appendAgui,
   beginRunAbort,
@@ -75,12 +76,17 @@ function snapshotMtimes(root: string): Map<string, number> {
 function emitChangedFiles(
   runId: string,
   root: string,
-  prev: Map<string, number>
+  prev: Map<string, number>,
+  role: AppRole
 ): Map<string, number> {
   const next = snapshotMtimes(root);
   for (const [rel, mtime] of next) {
     if (prev.get(rel) !== mtime) {
-      appendAgui(runId, agui.custom("file", { path: rel }));
+      if (canWriteFile(role, rel)) {
+        appendAgui(runId, agui.custom("file", { path: rel }));
+      } else {
+        appendAgui(runId, agui.error(`无权写入「${rel}」，已跳过。`));
+      }
     }
   }
   return next;
@@ -255,7 +261,8 @@ async function runMock(
   folder: DocFolder,
   selectedDirs: string[],
   signal: AbortSignal,
-  ask: boolean
+  ask: boolean,
+  role: AppRole
 ): Promise<void> {
   if (ask) {
     hint(runId, "演示模式：本机没有模型密钥，只回答、不改文件。");
@@ -288,6 +295,10 @@ async function runMock(
 
   const stamp = new Date().toISOString().replace("T", " ").slice(0, 16);
   const rel = demoWriteRelPath(focus, FOLDER_MAIN_FILE[folder]);
+  if (!canWriteFile(role, rel)) {
+    appendAgui(runId, agui.error(`无权写入「${rel}」。`));
+    return;
+  }
   const target = path.join(meta.vaultPath, rel);
   const prev = fs.existsSync(target) ? fs.readFileSync(target, "utf8") : `# ${meta.title}\n`;
   const extra = `
@@ -333,7 +344,7 @@ async function runClaude(
 
   for await (const raw of q) {
     if (signal.aborted) throw new Error("已取消");
-    snap = emitChangedFiles(runId, meta.vaultPath, snap);
+    snap = emitChangedFiles(runId, meta.vaultPath, snap, audience.role);
     const msg = raw as {
       type?: string;
       message?: {
@@ -360,7 +371,7 @@ async function runClaude(
     }
   }
   finishAssistant(runId, started);
-  emitChangedFiles(runId, meta.vaultPath, snap);
+  emitChangedFiles(runId, meta.vaultPath, snap, audience.role);
 }
 
 export async function executeWorkbenchRun(runId: string): Promise<void> {
@@ -399,7 +410,17 @@ export async function executeWorkbenchRun(runId: string): Promise<void> {
 
   try {
     if (!config.anthropicApiKey) {
-      await runMock(runId, meta, run.message, run.focus, folder, roots, controller.signal, ask);
+      await runMock(
+        runId,
+        meta,
+        run.message,
+        run.focus,
+        folder,
+        roots,
+        controller.signal,
+        ask,
+        audienceOf(run.userId).role
+      );
     } else {
       await runClaude(
         runId,

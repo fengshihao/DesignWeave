@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { formatFocusChip, type ChatBlock, type ChatTurn } from "@designweave/molan-protocol";
-import type { WorkbenchRun } from "@/lib/api";
+import type { WorkbenchRun, ChatSession } from "@/lib/api";
 import type { EntrustSize } from "@/lib/remember";
 
 const SIZE_LABEL: Record<EntrustSize, string> = {
@@ -66,12 +66,23 @@ export function EntrustLayer(props: {
   onSend: () => void;
   onCancel: () => void;
   onOpenFile?: (path: string) => void;
-  youHold: boolean;
+  canCompose: boolean;
   aiRunning: boolean;
   busy: boolean;
   activeRun: WorkbenchRun | null;
   focus?: { headingPath: string[]; quote: string; before?: string; after?: string } | null;
   onClearFocus?: () => void;
+  showHistory?: boolean;
+  onToggleHistory?: () => void;
+  historyQuery?: string;
+  onHistoryQueryChange?: (value: string) => void;
+  onHistorySearch?: () => void;
+  historySessions?: ChatSession[];
+  onSelectHistorySession?: (session: ChatSession) => void;
+  onNewChat?: () => void;
+  activeSessionTitle?: string;
+  activeSessionId?: string;
+  replayMode?: boolean;
 }) {
   const overlayRef = useRef<HTMLElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -80,8 +91,9 @@ export function EntrustLayer(props: {
   const dragRef = useRef<{ pointerId: number; startX: number; startW: number } | null>(null);
   const [showJump, setShowJump] = useState(false);
   const floating = props.size !== "collapsed";
-  const placeholder = "说一句，AI 改文档…";
-  const canSend = Boolean(props.message.trim()) && !props.aiRunning && !props.busy;
+  const placeholder = props.replayMode ? "历史对话只读" : "说一句，AI 改文档…";
+  const canSend =
+    Boolean(props.message.trim()) && props.canCompose && !props.aiRunning && !props.busy;
   const focusChip = props.focus?.quote ? formatFocusChip(props.focus) : "";
 
   useEffect(() => {
@@ -186,16 +198,78 @@ export function EntrustLayer(props: {
         />
       ) : null}
       <div className={floating ? "entrust-head" : "entrust-bar"}>
-        <span className="entrust-title">托付</span>
-        <button
-          className="btn ghost"
-          type="button"
-          onClick={() => props.onSizeChange(nextSize(props.size))}
-        >
-          {SIZE_LABEL[nextSize(props.size)]}
-        </button>
+        <span className="entrust-title" title={props.activeSessionTitle || "托付"}>
+          {props.activeSessionTitle || "托付"}
+        </span>
+        <div className="entrust-head-actions">
+          {floating ? (
+            <>
+              <button className="btn ghost" type="button" onClick={() => props.onNewChat?.()}>
+                新对话
+              </button>
+              <button className="btn ghost" type="button" onClick={() => props.onToggleHistory?.()}>
+                {props.showHistory ? "返回" : "历史"}
+              </button>
+            </>
+          ) : null}
+          <button
+            className="btn ghost"
+            type="button"
+            onClick={() => props.onSizeChange(nextSize(props.size))}
+          >
+            {SIZE_LABEL[nextSize(props.size)]}
+          </button>
+        </div>
       </div>
-      {floating ? (
+      {floating && props.showHistory ? (
+        <div className="entrust-history">
+          <form
+            className="entrust-history-search"
+            onSubmit={(e) => {
+              e.preventDefault();
+              props.onHistorySearch?.();
+            }}
+          >
+            <input
+              type="search"
+              value={props.historyQuery || ""}
+              onChange={(e) => props.onHistoryQueryChange?.(e.target.value)}
+              placeholder="搜索我的对话…"
+              aria-label="搜索我的对话"
+            />
+            <button className="btn ghost" type="submit">搜索</button>
+          </form>
+          <ul className="entrust-history-list">
+            {(props.historySessions || []).length === 0 ? (
+              <li className="entrust-history-empty">还没有历史对话</li>
+            ) : (
+              (props.historySessions || []).map((session) => (
+                <li key={session.id}>
+                  <button
+                    type="button"
+                    className={`entrust-history-item${
+                      session.id === props.activeSessionId ? " is-active" : ""
+                    }`}
+                    onClick={() => props.onSelectHistorySession?.(session)}
+                  >
+                    <span className="entrust-history-title">{session.title}</span>
+                    <span className="entrust-history-meta">
+                      {session.status === "open" ? "进行中" : "已结束"} ·{" "}
+                      {new Date(session.updatedAt).toLocaleString("zh-CN", {
+                        month: "numeric",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </button>
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+      ) : null}
+      {floating && !props.showHistory ? (
         <div className="entrust-stream">
           <div className="entrust-body" ref={bodyRef} onScroll={onBodyScroll}>
             {props.turns.length === 0 ? (
@@ -221,7 +295,7 @@ export function EntrustLayer(props: {
           ) : null}
         </div>
       ) : null}
-      {props.youHold || props.aiRunning ? (
+      {props.canCompose ? (
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -250,7 +324,7 @@ export function EntrustLayer(props: {
               value={props.message}
               onChange={(e) => props.onMessageChange(e.target.value)}
               onKeyDown={onKeyDown}
-              disabled={props.aiRunning || props.busy}
+              disabled={props.aiRunning || props.busy || props.replayMode}
               rows={floating ? 2 : 1}
               aria-label={placeholder}
               placeholder={placeholder}

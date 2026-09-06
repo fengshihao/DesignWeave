@@ -35,6 +35,12 @@ export function canCreateProject(role: AppRole): boolean {
   return role === "architect" || role === "designer";
 }
 
+export function canWritePath(role: AppRole, relPath: string): boolean {
+  const folder = folderOfPath(relPath);
+  if (!folder) return false;
+  return writableFolderOf(role) === folder;
+}
+
 export function followHintFor(folder: DocFolder): string {
   return folder === "qa" ? "上游改过，还没跟上。" : "产品改过，还没跟上。";
 }

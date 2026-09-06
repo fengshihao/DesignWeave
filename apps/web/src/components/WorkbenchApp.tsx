@@ -12,11 +12,13 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   api,
+  type ChatSession,
   type DocFolder,
   type ProjectLockInfo,
   type RequirementMeta,
   type SessionUser,
   type WorkbenchRun,
+  type WorkbenchRunWithEvents,
 } from "@/lib/api";
 import {
   canCreateProject,
@@ -26,6 +28,7 @@ import {
   followHintFor,
   writableFolderOf,
 } from "@/lib/docFolders";
+import { canWriteFile, editBlockedLabel } from "@/lib/fileOwnership";
 import { MolanFrame, type MolanHandle } from "@/components/MolanFrame";
 import { EntrustLayer } from "@/components/EntrustLayer";
 import { SelectionAsk, type SelectionAskFocus } from "@/components/SelectionAsk";
@@ -75,6 +78,23 @@ function clientId(): string {
 
 function isReady(r: Pick<RequirementMeta, "phase" | "clarity">): boolean {
   return r.clarity === "ready" || r.phase === "ready";
+}
+
+function runsToAguiEvents(runs: WorkbenchRunWithEvents[]): AguiEvent[] {
+  const historical: AguiEvent[] = [];
+  for (const run of runs) {
+    for (const ev of run.events) {
+      historical.push(
+        toAguiEvent({
+          seq: ev.seq,
+          type: ev.type,
+          payload: ev.payload,
+          runId: run.id,
+        })
+      );
+    }
+  }
+  return historical;
 }
 
 export function WorkbenchApp(props: { user: SessionUser }) {
@@ -535,7 +555,15 @@ function ProjectPaper(props: {
   const [entrustWidth, setEntrustWidth] = useState(420);
   const [toast, setToast] = useState("");
   const [previewFocus, setPreviewFocus] = useState<SelectionAskFocus | null>(null);
+  const [chatSession, setChatSession] = useState<ChatSession | null>(null);
+  const [showEntrustHistory, setShowEntrustHistory] = useState(false);
+  const [historyQuery, setHistoryQuery] = useState("");
+  const [historySessions, setHistorySessions] = useState<ChatSession[]>([]);
+  const [replaySession, setReplaySession] = useState(false);
   const { width: railWidth, onWidthChange: onRailWidthChange } = useRailWidth();
+
+  const chatSessionRef = useRef<ChatSession | null>(null);
+  chatSessionRef.current = chatSession;
 
   activeRunRef.current = activeRun;
   editingRef.current = editing;
@@ -548,15 +576,19 @@ function ProjectPaper(props: {
   const aiRunning = Boolean(
     activeRun && (activeRun.status === "queued" || activeRun.status === "running")
   );
+  const canEditCurrent = canWriteFile(props.user.role, currentPath);
   const turns = reduceAguiEvents(events);
-  const readOnly = !youHold || aiRunning || Boolean(history);
+  const readOnly = !canEditCurrent || aiRunning || Boolean(history) || replaySession;
   const editBlockedReason = history
     ? "这是旧版，返回纸面后再改。"
-    : aiRunning
-      ? "AI 进行中，暂时不能改。"
-      : youHold
-        ? ""
-        : previewReason || "现在是预览，不能编辑。";
+    : replaySession
+      ? "正在查看历史对话，切回当前对话后再改。"
+      : !canEditCurrent
+        ? editBlockedLabel(props.user.role, currentPath)
+        : aiRunning
+          ? "AI 进行中，暂时不能改。"
+          : "";
+  const canSendEntrust = !replaySession && !aiRunning && !busy;
 
   function changeEntrustSize(next: EntrustSize) {
     setEntrustSize(next);
@@ -645,20 +677,10 @@ function ProjectPaper(props: {
     setEtag(file.etag);
     setDirty(false);
     setHistory(null);
-    const timeline = await api.listRuns(id);
-    const historical: AguiEvent[] = [];
-    for (const run of [...timeline.runs].reverse()) {
-      for (const ev of run.events) {
-        historical.push(
-          toAguiEvent({
-            seq: ev.seq,
-            type: ev.type,
-            payload: ev.payload,
-            runId: run.id,
-          })
-        );
-      }
-    }
+    const chat = await api.openChatSession(id);
+    setChatSession(chat.session);
+    setReplaySession(false);
+    const historical = runsToAguiEvents(chat.runs);
     setEvents(historical);
     if (data.activeRun && (data.activeRun.status === "queued" || data.activeRun.status === "running")) {
       const fromActive = historical.filter((ev) => ev.runId === data.activeRun?.id);
@@ -684,7 +706,61 @@ function ProjectPaper(props: {
   }, [bootstrap, cid]);
 
   useEffect(() => {
-    if (!cid) return;
+    return () => {
+      const session = chatSessionRef.current;
+      if (session?.status === "open") {
+        void api.closeChatSession(id, session.id).catch(() => undefined);
+      }
+    };
+  }, [id]);
+
+  const refreshHistorySessions = useCallback(
+    async (q = historyQuery) => {
+      const res = await api.listChatSessions(id, q);
+      setHistorySessions(res.sessions);
+    },
+    [historyQuery, id]
+  );
+
+  const startNewChat = useCallback(async () => {
+    if (chatSession?.status === "open") {
+      await api.closeChatSession(id, chatSession.id);
+    }
+    const created = await api.createChatSession(id);
+    setChatSession(created.session);
+    setEvents([]);
+    setReplaySession(false);
+    setShowEntrustHistory(false);
+    setActiveRun(null);
+    followSeq.current = 0;
+  }, [chatSession, id]);
+
+  const openHistorySession = useCallback(
+    async (session: ChatSession) => {
+      const detail = await api.getChatSession(id, session.id);
+      setChatSession(detail);
+      setEvents(runsToAguiEvents(detail.runs));
+      setReplaySession(detail.status === "closed");
+      setShowEntrustHistory(false);
+      const active = detail.runs.find(
+        (r) => r.status === "queued" || r.status === "running"
+      );
+      setActiveRun(active ?? null);
+      if (active) {
+        const evs = runsToAguiEvents([active]);
+        followSeq.current = maxSeq(evs);
+      }
+    },
+    [id]
+  );
+
+  useEffect(() => {
+    if (!showEntrustHistory) return;
+    void refreshHistorySessions().catch(() => undefined);
+  }, [refreshHistorySessions, showEntrustHistory]);
+
+  useEffect(() => {
+    if (!cid || !youHold) return;
     const timer = setInterval(() => {
       void api
         .heartbeatLock(id, cid, viewFolder === heldFolder && editingRef.current, heldFolder)
@@ -694,7 +770,7 @@ function ProjectPaper(props: {
         .catch(() => undefined);
     }, 20000);
     return () => clearInterval(timer);
-  }, [cid, heldFolder, id, viewFolder]);
+  }, [cid, heldFolder, id, viewFolder, youHold]);
 
   useEffect(() => {
     if (!cid) return;
@@ -890,6 +966,7 @@ function ProjectPaper(props: {
         clientId: cid,
         mode: asking ? "ask" : "coauthor",
         folder: asking ? heldFolder : viewFolder,
+        sessionId: chatSession?.id,
         focus: {
           file: currentPath,
           headingPath: previewFocus?.quote ? previewFocus.headingPath : [],
@@ -900,6 +977,14 @@ function ProjectPaper(props: {
       });
       setMessage("");
       setActiveRun(started.run);
+      if (started.sessionId) {
+        setChatSession((prev) =>
+          prev
+            ? { ...prev, id: started.sessionId, status: "open" }
+            : { id: started.sessionId, projectId: id, userId: props.user.id, title: "新对话", status: "open", createdAt: "", updatedAt: "", closedAt: null }
+        );
+      }
+      setReplaySession(false);
       ingestEvents(
         started.events.map((ev) =>
           toAguiEvent({
@@ -1038,9 +1123,6 @@ function ProjectPaper(props: {
                   }}
                 />
               ) : null}
-              {!youHold && !lock ? (
-                <RailMenuItem label="开始编辑" onClick={() => void bootstrap()} />
-              ) : null}
             </>
           }
         />
@@ -1061,7 +1143,7 @@ function ProjectPaper(props: {
                 onDirtyChange={setDirty}
                 onEditingChange={(next) => {
                   setEditing(next);
-                  if (youHold) {
+                  if (canEditCurrent) {
                     void api
                       .heartbeatLock(id, cid, next, heldFolder)
                       .then((r) => setLock(r.lock))
@@ -1095,9 +1177,10 @@ function ProjectPaper(props: {
               }}
               onAskAuthor={youHold ? undefined : () => void addQuestionToAuthor()}
               authorActionLabel="向作者提一个问题"
-              disabled={aiRunning || busy}
-              canSend={Boolean(message.trim()) && !aiRunning && !busy}
+              disabled={!canSendEntrust}
+              canSend={Boolean(message.trim()) && canSendEntrust}
               placeholder={youHold ? "对这块说一句，回车发给 AI…" : "写一句问题…"}
+              hint={replaySession ? "这是已结束的历史对话。" : undefined}
             />
             <EntrustLayer
               size={entrustSize}
@@ -1116,7 +1199,7 @@ function ProjectPaper(props: {
                 void api.cancelRun(id, activeRun.id, cid);
               }}
               onOpenFile={(path) => void openFile(path)}
-              youHold={youHold}
+              canCompose={canSendEntrust}
               aiRunning={aiRunning}
               busy={busy}
               activeRun={activeRun}
@@ -1125,6 +1208,17 @@ function ProjectPaper(props: {
                 setPreviewFocus(null);
                 molanRef.current?.clearSelection();
               }}
+              showHistory={showEntrustHistory}
+              onToggleHistory={() => setShowEntrustHistory((v) => !v)}
+              historyQuery={historyQuery}
+              onHistoryQueryChange={setHistoryQuery}
+              onHistorySearch={() => void refreshHistorySessions()}
+              historySessions={historySessions}
+              onSelectHistorySession={(session) => void openHistorySession(session)}
+              onNewChat={() => void startNewChat()}
+              activeSessionTitle={chatSession?.title || "新对话"}
+              activeSessionId={chatSession?.id}
+              replayMode={replaySession}
             />
           </div>
         </section>
@@ -1151,7 +1245,7 @@ function ProjectPaper(props: {
         open={showVersions}
         versions={versions}
         readOnly={readOnly}
-        canRevertAi={versions[0]?.author === "AI" && youHold && !aiRunning}
+        canRevertAi={versions[0]?.author === "AI" && canEditCurrent && !aiRunning}
         onClose={() => setShowVersions(false)}
         onOpen={(sha, message) => {
           void api
