@@ -29,6 +29,7 @@ export type RequirementMeta = {
   title: string;
   summary: string;
   owner: string;
+  ownerId: string;
   source: ProjectSource;
   phase: DiskProjectPhase;
   clarity: ClarityState;
@@ -145,6 +146,7 @@ function toRequirement(dir: string, disk: DiskProjectMeta): RequirementMeta {
     title: disk.title,
     summary: "",
     owner: disk.owner,
+    ownerId: disk.ownerId || "",
     source: disk.source,
     phase: disk.phase,
     clarity: disk.clarity,
@@ -190,6 +192,7 @@ export function listOrphanRequirements(): RequirementMeta[] {
         title: disk?.title || r.title,
         summary: r.summary,
         owner: disk?.owner || "",
+        ownerId: disk?.ownerId || "",
         source: disk?.source || "template",
         phase: disk?.phase || "filling",
         clarity: disk?.clarity || "pending",
@@ -222,6 +225,7 @@ export function getRequirement(id: string): RequirementMeta | null {
     title: row.title,
     summary: row.summary,
     owner: "",
+    ownerId: "",
     source: "template",
     phase: "filling",
     clarity: "pending",
@@ -235,7 +239,7 @@ export function getRequirement(id: string): RequirementMeta | null {
 
 export function patchProjectMeta(
   id: string,
-  patch: Partial<Pick<DiskProjectMeta, "phase" | "clarity" | "title" | "owner">>
+  patch: Partial<Pick<DiskProjectMeta, "phase" | "clarity" | "title" | "owner" | "ownerId">>
 ): RequirementMeta {
   const meta = getRequirement(id);
   if (!meta) throw new HttpError("工程不存在", 404);
@@ -243,6 +247,7 @@ export function patchProjectMeta(
     id: meta.id,
     title: patch.title ?? meta.title,
     owner: patch.owner ?? meta.owner,
+    ownerId: patch.ownerId ?? meta.ownerId,
     source: meta.source,
     phase: patch.phase ?? meta.phase,
     clarity: patch.clarity ?? meta.clarity,
@@ -256,9 +261,51 @@ export function patchProjectMeta(
   return updated;
 }
 
+/** 改标题；必要时同步改文件夹名。id 不变。 */
+export function renameRequirement(id: string, title: string): RequirementMeta {
+  const meta = getRequirement(id);
+  if (!meta) throw new HttpError("工程不存在", 404);
+  const nextTitle = title.trim();
+  if (!nextTitle) throw new HttpError("请填写工程名称", 400);
+  if (nextTitle === meta.title) return meta;
+
+  const root = path.dirname(meta.vaultPath);
+  const siblings = fs
+    .readdirSync(root, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && d.name !== meta.folderName)
+    .map((d) => d.name);
+  const folderName = uniqueFolderName(siblings, nextTitle);
+  let vaultPath = meta.vaultPath;
+  if (folderName !== meta.folderName) {
+    const nextPath = path.join(root, folderName);
+    if (fs.existsSync(nextPath)) {
+      throw new HttpError("已经有这个名字的工程文件夹了。", 409);
+    }
+    fs.renameSync(meta.vaultPath, nextPath);
+    vaultPath = nextPath;
+  }
+  const now = new Date().toISOString();
+  const disk: DiskProjectMeta = {
+    id: meta.id,
+    title: nextTitle,
+    owner: meta.owner,
+    ownerId: meta.ownerId,
+    source: meta.source,
+    phase: meta.phase,
+    clarity: meta.clarity,
+    createdAt: meta.createdAt,
+    updatedAt: now,
+  };
+  writeMetaFile(vaultPath, disk);
+  const updated = toRequirement(vaultPath, disk);
+  cacheUpsert(updated);
+  return updated;
+}
+
 export function createRequirement(input: {
   title: string;
   owner: string;
+  ownerId?: string;
   source?: ProjectSource;
   importMarkdown?: string;
 }): RequirementMeta {
@@ -288,6 +335,7 @@ export function createRequirement(input: {
       dest: vaultPath,
       title,
       owner: input.owner,
+      ownerId: input.ownerId || "",
       id,
       original: input.importMarkdown!.trim(),
       createdAt: now,
@@ -297,6 +345,7 @@ export function createRequirement(input: {
       id,
       title,
       owner: input.owner,
+      ownerId: input.ownerId || "",
       source: "template",
       phase: "filling",
       clarity: "pending",

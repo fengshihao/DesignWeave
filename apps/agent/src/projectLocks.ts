@@ -228,6 +228,11 @@ export function releaseLock(
     .run(projectId, folder);
 }
 
+export function releaseLocksForUser(userId: string): void {
+  ensureLockTable();
+  getDb().prepare(`DELETE FROM folder_locks WHERE holder_id = ?`).run(userId);
+}
+
 export function forceReleaseLock(projectId: string, folder?: DocFolder): void {
   if (folder) {
     getDb()

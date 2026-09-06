@@ -42,6 +42,7 @@ test("meta.md 读写稳定 id，不含代码仓勾选", () => {
     id: "abc12345",
     title: "设置页夜间模式",
     owner: "阿朱",
+    ownerId: "user_1",
     source: "template",
     phase: "filling",
     clarity: "pending",
@@ -49,6 +50,7 @@ test("meta.md 读写稳定 id，不含代码仓勾选", () => {
     updatedAt: "2026-08-22T00:00:00.000Z",
   });
   assert.match(text, /^id: abc12345$/m);
+  assert.match(text, /ownerId: "user_1"/);
   assert.doesNotMatch(text, /primaryRepo|relatedRepos/);
   const parsed = parseMetaMarkdown(text);
   assert.equal(parsed.id, "abc12345");
@@ -222,6 +224,7 @@ test("扫盘只认带 meta.md 的子目录", () => {
       id: "scan01",
       title: "设置页夜间模式",
       owner: "阿朱",
+      ownerId: "",
       source: "template",
       phase: "filling",
       clarity: "pending",

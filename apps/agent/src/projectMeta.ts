@@ -19,6 +19,7 @@ export type DiskProjectMeta = {
   id: string;
   title: string;
   owner: string;
+  ownerId: string;
   source: ProjectSource;
   phase: DiskProjectPhase;
   clarity: ClarityState;
@@ -72,6 +73,7 @@ export function parseMetaMarkdown(text: string): Partial<DiskProjectMeta> {
     id: out.id || undefined,
     title: out.title || undefined,
     owner: out.owner || "",
+    ownerId: out.ownerId || "",
     source,
     phase: clarity === "ready" ? "ready" : phase,
     clarity,
@@ -85,6 +87,7 @@ export function serializeMetaMarkdown(meta: DiskProjectMeta): string {
 id: ${meta.id}
 title: ${JSON.stringify(meta.title)}
 owner: ${JSON.stringify(meta.owner)}
+ownerId: ${JSON.stringify(meta.ownerId || "")}
 source: ${meta.source}
 phase: ${meta.phase}
 clarity: ${meta.clarity}
@@ -106,6 +109,7 @@ export function readMetaFile(dir: string): DiskProjectMeta | null {
     id: parsed.id,
     title: parsed.title,
     owner: parsed.owner || "",
+    ownerId: parsed.ownerId || "",
     source: parsed.source || "template",
     phase: parsed.phase || "filling",
     clarity: parsed.clarity || "pending",

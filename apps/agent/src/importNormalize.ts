@@ -104,6 +104,7 @@ export function normalizeImportedPrd(input: {
   dest: string;
   title: string;
   owner: string;
+  ownerId?: string;
   id: string;
   original: string;
   createdAt: string;
@@ -113,6 +114,7 @@ export function normalizeImportedPrd(input: {
     id: input.id,
     title: input.title,
     owner: input.owner,
+    ownerId: input.ownerId || "",
     source: "import",
     phase: "imported",
     clarity: "pending",

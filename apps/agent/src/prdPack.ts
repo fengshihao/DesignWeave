@@ -58,6 +58,7 @@ export function copyPrdPack(
     id: string;
     title: string;
     owner: string;
+    ownerId?: string;
     source: ProjectSource;
     phase: DiskProjectPhase;
     clarity: ClarityState;
@@ -85,6 +86,7 @@ export function copyPrdPack(
     id: input.id,
     title: input.title,
     owner: input.owner,
+    ownerId: input.ownerId || "",
     source: input.source,
     phase: input.phase,
     clarity: input.clarity,

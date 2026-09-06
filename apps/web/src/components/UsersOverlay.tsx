@@ -7,7 +7,7 @@ export function UsersOverlay(props: {
   open: boolean;
   onClose: () => void;
 }) {
-  const [users, setUsers] = useState<Array<SessionUser & { createdAt?: string }>>([]);
+  const [users, setUsers] = useState<SessionUser[]>([]);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -27,6 +27,7 @@ export function UsersOverlay(props: {
     try {
       const list = await api.listUsers();
       setUsers(list.users);
+      setError("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "加载失败");
     }
@@ -44,11 +45,11 @@ export function UsersOverlay(props: {
     setBusy(true);
     setError("");
     try {
-      await api.createUser({ name, email, password, role });
+      const res = await api.createUser({ name, email, password, role });
       setCreated({
         name,
         email,
-        password,
+        password: res.password || password,
         origin: window.location.origin,
         roleLabel: role === "tester" ? "测试" : "产品经理",
       });
@@ -65,6 +66,59 @@ export function UsersOverlay(props: {
     }
   }
 
+  async function toggleRole(user: SessionUser) {
+    if (user.role === "architect") return;
+    setBusy(true);
+    setError("");
+    try {
+      await api.updateUser(user.id, {
+        role: user.role === "tester" ? "designer" : "tester",
+      });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "改角色失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleDisabled(user: SessionUser) {
+    if (user.role === "architect") return;
+    setBusy(true);
+    setError("");
+    try {
+      if (user.status === "disabled") await api.enableUser(user.id);
+      else await api.disableUser(user.id);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "操作失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resetPassword(user: SessionUser) {
+    const next = window.prompt(`给 ${user.name} 设新密码（至少 8 位）`);
+    if (!next) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await api.resetUserPassword(user.id, next);
+      setCreated({
+        name: user.name,
+        email: user.email,
+        password: res.password,
+        origin: window.location.origin,
+        roleLabel: user.roleLabel,
+      });
+      setCopied(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "重置失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="overlay-mask" onClick={props.onClose}>
       <div className="overlay-panel users-panel" onClick={(e) => e.stopPropagation()}>
@@ -76,7 +130,7 @@ export function UsersOverlay(props: {
         </header>
         <form onSubmit={(e) => void onCreate(e)} className="create-form">
           <p className="muted" style={{ margin: 0 }}>
-            创建账号后把邮箱和密码交给对方。一人一账号一角色。
+            只能有一名架构师。可创建产品经理 / 测试；可改角色、停用、重置密码。
           </p>
           <div className="field">
             <label>角色</label>
@@ -117,7 +171,7 @@ export function UsersOverlay(props: {
           </div>
           {error ? <p className="picker-error">{error}</p> : null}
           <button className="btn primary" type="submit" disabled={busy}>
-            {busy ? "创建中…" : "创建账号"}
+            {busy ? "处理中…" : "创建账号"}
           </button>
         </form>
         {created ? (
@@ -145,8 +199,39 @@ export function UsersOverlay(props: {
             <li key={u.id}>
               <span>
                 {u.name} · {u.email}
+                {u.status === "disabled" ? " · 已停用" : ""}
               </span>
-              <span className="tag">{u.roleLabel}</span>
+              <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <span className="tag">{u.roleLabel}</span>
+                {u.role !== "architect" ? (
+                  <>
+                    <button
+                      className="btn ghost"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void toggleRole(u)}
+                    >
+                      {u.role === "tester" ? "改成产品" : "改成测试"}
+                    </button>
+                    <button
+                      className="btn ghost"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void toggleDisabled(u)}
+                    >
+                      {u.status === "disabled" ? "启用" : "停用"}
+                    </button>
+                    <button
+                      className="btn ghost"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void resetPassword(u)}
+                    >
+                      重置密码
+                    </button>
+                  </>
+                ) : null}
+              </span>
             </li>
           ))}
         </ul>

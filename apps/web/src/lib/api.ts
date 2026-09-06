@@ -7,6 +7,10 @@ export type SessionUser = {
   email: string;
   role: AppRole;
   roleLabel: string;
+  status?: "active" | "disabled";
+  createdAt?: string;
+  updatedAt?: string;
+  createdBy?: string | null;
 };
 
 export type ClaudeKnownProject = {
@@ -161,16 +165,64 @@ export const api = {
 
   me: () => request<{ user: SessionUser }>("/v1/me"),
 
-  listUsers: () =>
-    request<{
-      users: Array<SessionUser & { createdAt?: string }>;
-    }>("/v1/users"),
+  updateMe: (name: string) =>
+    request<{ user: SessionUser }>("/v1/me", {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    }),
 
-  createUser: (body: { name: string; email: string; password: string; role?: "designer" | "tester" }) =>
-    request<{ user: SessionUser }>("/v1/users", {
+  changeMyPassword: (body: { current: string; next: string }) =>
+    request<{ ok: boolean }>("/v1/me/password", {
       method: "POST",
       body: JSON.stringify(body),
     }),
+
+  listUsers: () =>
+    request<{
+      users: SessionUser[];
+    }>("/v1/users"),
+
+  createUser: (body: { name: string; email: string; password: string; role?: "designer" | "tester" }) =>
+    request<{ user: SessionUser; password: string }>("/v1/users", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  updateUser: (id: string, body: { name?: string; role?: "designer" | "tester" }) =>
+    request<{ user: SessionUser }>(`/v1/users/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+
+  disableUser: (id: string) =>
+    request<{ user: SessionUser }>(`/v1/users/${id}/disable`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+
+  enableUser: (id: string) =>
+    request<{ user: SessionUser }>(`/v1/users/${id}/enable`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+
+  resetUserPassword: (id: string, password: string) =>
+    request<{ user: SessionUser; password: string }>(`/v1/users/${id}/reset-password`, {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    }),
+
+  listAudit: (limit = 50) =>
+    request<{
+      events: Array<{
+        id: string;
+        ts: string;
+        action: string;
+        actorName: string | null;
+        result: string;
+        targetId: string | null;
+      }>;
+    }>(`/v1/audit?limit=${limit}`),
 
   listClaudeProjects: () =>
     request<{

@@ -1,5 +1,10 @@
 import type { NextFunction, Request, Response } from "express";
-import { getAuthSession } from "./auth.js";
+import {
+  expireAuthCookieHeaders,
+  getAuthSession,
+  revokeSessionToken,
+} from "./auth.js";
+import { isUserDisabled } from "./data/users.js";
 import { isArchitect, isAppRole, ROLE_LABELS, type AppRole } from "./roles.js";
 
 export type SessionUser = {
@@ -40,7 +45,15 @@ export async function requireSession(
     const session = await getAuthSession(req.headers);
     const role = session?.user?.role;
     if (!session?.user || !isAppRole(role)) {
-      res.status(401).json({ error: "请先登录" });
+      res.status(401).json({ error: "请先登录", code: "unauthenticated" });
+      return;
+    }
+    if (isUserDisabled(session.user.id)) {
+      await revokeSessionToken(req.headers);
+      for (const cookie of expireAuthCookieHeaders()) {
+        res.append("Set-Cookie", cookie);
+      }
+      res.status(401).json({ error: "账号已停用", code: "unauthenticated" });
       return;
     }
     req.user = {
@@ -51,7 +64,7 @@ export async function requireSession(
     };
     next();
   } catch {
-    res.status(401).json({ error: "请先登录" });
+    res.status(401).json({ error: "请先登录", code: "unauthenticated" });
   }
 }
 
@@ -61,11 +74,11 @@ export function requireArchitect(
   next: NextFunction
 ): void {
   if (!req.user) {
-    res.status(401).json({ error: "请先登录" });
+    res.status(401).json({ error: "请先登录", code: "unauthenticated" });
     return;
   }
   if (!isArchitect(req.user.role)) {
-    res.status(403).json({ error: "需要架构师权限才能改环境和代码仓。" });
+    res.status(403).json({ error: "需要架构师权限。", code: "forbidden" });
     return;
   }
   next();
@@ -78,5 +91,14 @@ export function publicUser(user: SessionUser) {
     email: user.email,
     role: user.role,
     roleLabel: ROLE_LABELS[user.role],
+  };
+}
+
+export function actorFrom(user: SessionUser) {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
   };
 }
