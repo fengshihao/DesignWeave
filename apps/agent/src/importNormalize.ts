@@ -79,18 +79,21 @@ function mergeChunksIntoPrd(prd: string, grouped: Map<PrdSection, HeadingChunk[]
 
 function writeGaps(dest: string, unmatched: HeadingChunk[]): void {
   const gapLines = [
-    "# 待补齐",
+    "# 缺口与待确认",
     "",
-    "这篇由 AI 维护，不对外。每一条对应 PRD.md 里的章节。人答完应写回 PRD，而不是只留在对话里。",
+    "> AI 维护，不对外。每条对应 PRD.md 章节。人答完写回 PRD，不只在对话里留。",
     "",
   ];
   if (unmatched.length) {
-    gapLines.push("## 未能归入 PRD 章节的原文", "");
+    gapLines.push("## 未能归入 PRD 的原文", "");
     for (const c of unmatched) {
       gapLines.push(`### ${c.title}`, "", c.body || "（空）", "");
     }
   } else {
-    gapLines.push("（导入章节都对上了 PRD。仍须检查清晰度：占位、含糊、缺验收都不算过。）", "");
+    gapLines.push(
+      "（导入章节都对上了 PRD。仍须检查清晰度：占位、含糊、缺验收都不算过。）",
+      ""
+    );
   }
   const gapsDir = path.join(dest, "product");
   fs.mkdirSync(gapsDir, { recursive: true });
