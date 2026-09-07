@@ -2,9 +2,9 @@ import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { fromNodeHeaders, toNodeHandler } from "better-auth/node";
 import { admin } from "better-auth/plugins";
-import type { IncomingHttpHeaders } from "node:http";
+import type { IncomingHttpHeaders, IncomingMessage, ServerResponse } from "node:http";
 import { config } from "./config.js";
-import { getDb } from "./db.js";
+import { getDb, registerDbCloseHook } from "./db.js";
 import {
   ac,
   architectRole,
@@ -32,62 +32,88 @@ const trustedOrigins = Array.from(
   ])
 );
 
-const auth = betterAuth({
-  baseURL: webOrigin,
-  secret: config.authSecret,
-  trustedOrigins,
-  database: getDb(),
-  emailAndPassword: {
-    enabled: true,
-    minPasswordLength: 8,
-  },
-  plugins: [
-    admin({
-      ac,
-      roles: {
-        architect: architectRole,
-        designer: designerRole,
-        tester: testerRole,
-      },
-      defaultRole: ROLES.designer,
-      adminRoles: [ROLES.architect],
-    }),
-  ],
-  databaseHooks: {
-    user: {
-      create: {
-        before: async (user) => {
-          if (countUsers() === 0) {
-            return { data: { ...user, role: ROLES.architect } };
-          }
-          const incoming =
-            "role" in user && typeof user.role === "string" ? user.role : "";
-          return { data: { ...user, role: asAppRole(incoming) } };
+type AuthInstance = ReturnType<typeof createAuth>;
+
+let auth: AuthInstance | null = null;
+let nodeHandler: ReturnType<typeof toNodeHandler> | null = null;
+
+function createAuth() {
+  return betterAuth({
+    baseURL: webOrigin,
+    secret: config.authSecret,
+    trustedOrigins,
+    database: getDb(),
+    emailAndPassword: {
+      enabled: true,
+      minPasswordLength: 8,
+    },
+    plugins: [
+      admin({
+        ac,
+        roles: {
+          architect: architectRole,
+          designer: designerRole,
+          tester: testerRole,
+        },
+        defaultRole: ROLES.designer,
+        adminRoles: [ROLES.architect],
+      }),
+    ],
+    databaseHooks: {
+      user: {
+        create: {
+          before: async (user) => {
+            if (countUsers() === 0) {
+              return { data: { ...user, role: ROLES.architect } };
+            }
+            const incoming =
+              "role" in user && typeof user.role === "string" ? user.role : "";
+            return { data: { ...user, role: asAppRole(incoming) } };
+          },
         },
       },
     },
-  },
-  hooks: {
-    before: createAuthMiddleware(async (ctx) => {
-      if (ctx.path !== "/sign-up/email") return;
-      if (countUsers() > 0) {
-        throw new APIError("FORBIDDEN", {
-          message: "请让架构师创建账号",
-        });
-      }
-    }),
-  },
-  advanced: {
-    useSecureCookies: webOrigin.startsWith("https://"),
-    defaultCookieAttributes: {
-      sameSite: "lax",
-      httpOnly: true,
-      path: "/",
+    hooks: {
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== "/sign-up/email") return;
+        if (countUsers() > 0) {
+          throw new APIError("FORBIDDEN", {
+            message: "请让架构师创建账号",
+          });
+        }
+      }),
     },
-  },
-});
+    advanced: {
+      useSecureCookies: webOrigin.startsWith("https://"),
+      defaultCookieAttributes: {
+        sameSite: "lax",
+        httpOnly: true,
+        path: "/",
+      },
+    },
+  });
+}
 
-export const handleAuthRequest = toNodeHandler(auth);
+function getAuth(): AuthInstance {
+  if (!auth) {
+    auth = createAuth();
+    nodeHandler = toNodeHandler(auth);
+  }
+  return auth;
+}
+
+/** DB 换了就丢掉 Better Auth 单例，避免测例挂旧库。 */
+export function resetAuth(): void {
+  auth = null;
+  nodeHandler = null;
+}
+
+registerDbCloseHook(resetAuth);
+
+export function handleAuthRequest(req: IncomingMessage, res: ServerResponse): void {
+  getAuth();
+  nodeHandler!(req, res);
+}
 
 export function ensureAuthOrigin(headers: IncomingHttpHeaders): IncomingHttpHeaders {
   if (headers.origin || headers.Origin) return headers;
@@ -99,7 +125,7 @@ export function authHeaders(headers: IncomingHttpHeaders) {
 }
 
 export function getAuthSession(headers: IncomingHttpHeaders) {
-  return auth.api.getSession({
+  return getAuth().api.getSession({
     headers: authHeaders(headers),
   });
 }
@@ -134,7 +160,7 @@ export function signInUser(input: {
   password: string;
   headers: IncomingHttpHeaders;
 }) {
-  return auth.api.signInEmail({
+  return getAuth().api.signInEmail({
     body: {
       email: input.email.trim().toLowerCase(),
       password: input.password,
@@ -150,7 +176,7 @@ export function signUpFirstUser(input: {
   password: string;
   headers: IncomingHttpHeaders;
 }) {
-  return auth.api.signUpEmail({
+  return getAuth().api.signUpEmail({
     body: {
       name: input.name,
       email: input.email,
@@ -168,7 +194,7 @@ export function createAppUser(input: {
   role: "designer" | "tester";
   headers: IncomingHttpHeaders;
 }) {
-  return auth.api.createUser({
+  return getAuth().api.createUser({
     headers: fromNodeHeaders(input.headers),
     body: {
       name: input.name,
@@ -190,9 +216,8 @@ export function createDesignerUser(input: {
 }
 
 export function listAuthUsers(headers: IncomingHttpHeaders) {
-  return auth.api.listUsers({
+  return getAuth().api.listUsers({
     headers: fromNodeHeaders(headers),
     query: { limit: 100, sortBy: "createdAt", sortDirection: "asc" },
   });
 }
-

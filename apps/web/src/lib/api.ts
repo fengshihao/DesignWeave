@@ -305,7 +305,7 @@ export const api = {
       orphans: RequirementMeta[];
       workspaceRootSet: boolean;
       hasApprovedCodeDirs: boolean;
-    }>("/v1/requirements"),
+    }>("/v1/projects"),
 
   createRequirement: (body: {
     title: string;
@@ -313,18 +313,18 @@ export const api = {
     importMarkdown?: string;
   }) =>
     request<{ requirement: RequirementMeta; bundle: RequirementBundle }>(
-      "/v1/requirements",
+      "/v1/projects",
       { method: "POST", body: JSON.stringify(body) }
     ),
 
   deleteRequirement: (id: string) =>
-    request<{ ok: boolean; requirement: RequirementMeta }>(`/v1/requirements/${id}`, {
+    request<{ ok: boolean; requirement: RequirementMeta }>(`/v1/projects/${id}`, {
       method: "DELETE",
     }),
 
   abandonRequirement: (id: string) =>
     request<{ ok: boolean; requirement: RequirementMeta }>(
-      `/v1/requirements/${id}/abandon`,
+      `/v1/projects/${id}/abandon`,
       { method: "POST" }
     ),
 
@@ -333,18 +333,18 @@ export const api = {
     if (clientId) q.set("clientId", clientId);
     if (folder) q.set("folder", folder);
     const qs = q.toString();
-    return request<RequirementBundle>(`/v1/requirements/${id}${qs ? `?${qs}` : ""}`);
+    return request<RequirementBundle>(`/v1/projects/${id}${qs ? `?${qs}` : ""}`);
   },
 
   savePrd: (id: string, content: string) =>
-    request<{ prd: string }>(`/v1/requirements/${id}/prd`, {
+    request<{ prd: string }>(`/v1/projects/${id}/prd`, {
       method: "PUT",
       body: JSON.stringify({ content }),
     }),
 
   setPhase: (id: string, phase: RequirementMeta["phase"]) =>
     request<{ requirement: RequirementMeta }>(
-      `/v1/requirements/${id}/phase`,
+      `/v1/projects/${id}/phase`,
       { method: "PATCH", body: JSON.stringify({ phase }) }
     ),
 
@@ -352,25 +352,9 @@ export const api = {
     request<{
       originalImport: string;
       bundle: RequirementBundle;
-    }>(`/v1/requirements/${id}/import`, {
+    }>(`/v1/projects/${id}/import`, {
       method: "POST",
       body: JSON.stringify({ markdown, clientId }),
-    }),
-
-  chat: (
-    id: string,
-    body: { message: string; mode: "guide" | "gaps" | "normalize" }
-  ) =>
-    request<{
-      reply: string;
-      questions: string[];
-      prd: string;
-      gaps: string;
-      mockMode: boolean;
-      bundle: RequirementBundle;
-    }>(`/v1/requirements/${id}/chat`, {
-      method: "POST",
-      body: JSON.stringify(body),
     }),
 
   browseFs: (dir?: string) =>
@@ -408,7 +392,7 @@ export const api = {
       uncommitted: boolean;
       changedFiles: string[];
     }>(
-      `/v1/requirements/${id}/versions${folder ? `?folder=${encodeURIComponent(folder)}` : ""}`
+      `/v1/projects/${id}/versions${folder ? `?folder=${encodeURIComponent(folder)}` : ""}`
     ),
 
   recordVersion: (id: string, message?: string, clientId?: string, folder?: DocFolder, markCaughtUp?: boolean) =>
@@ -420,25 +404,25 @@ export const api = {
         createdAt: string;
       } | null;
       message?: string;
-    }>(`/v1/requirements/${id}/versions`, {
+    }>(`/v1/projects/${id}/versions`, {
       method: "POST",
       body: JSON.stringify({ message, clientId, folder, markCaughtUp }),
     }),
 
   readVersionFile: (id: string, sha: string, filePath = "PRD.md") =>
     request<{ path: string; content: string; version: string }>(
-      `/v1/requirements/${id}/versions/${sha}/files?path=${encodeURIComponent(filePath)}`
+      `/v1/projects/${id}/versions/${sha}/files?path=${encodeURIComponent(filePath)}`
     ),
 
   restoreFile: (id: string, sha: string, filePath = "PRD.md", clientId?: string) =>
     request<{ path: string; content: string; uncommitted: boolean; etag?: string }>(
-      `/v1/requirements/${id}/versions/${sha}/restore`,
+      `/v1/projects/${id}/versions/${sha}/restore`,
       { method: "POST", body: JSON.stringify({ path: filePath, clientId }) }
     ),
 
   revertLatestAi: (id: string, clientId?: string, folder?: DocFolder) =>
     request<{ version: { id: string; message: string } }>(
-      `/v1/requirements/${id}/versions/revert-latest-ai`,
+      `/v1/projects/${id}/versions/revert-latest-ai`,
       { method: "POST", body: JSON.stringify({ clientId, folder }) }
     ),
 
@@ -446,11 +430,11 @@ export const api = {
     request<{
       files: Array<{ path: string; name: string; isDir: boolean }>;
       folders?: Array<{ id: DocFolder; label: string; pendingFollow: boolean }>;
-    }>(`/v1/requirements/${id}/tree`),
+    }>(`/v1/projects/${id}/tree`),
 
   readFile: (id: string, filePath: string) =>
     request<{ path: string; content: string; etag: string }>(
-      `/v1/requirements/${id}/files?path=${encodeURIComponent(filePath)}`
+      `/v1/projects/${id}/files?path=${encodeURIComponent(filePath)}`
     ),
 
   writeFile: (
@@ -461,7 +445,7 @@ export const api = {
     clientId?: string
   ) =>
     request<{ path: string; content: string; etag: string }>(
-      `/v1/requirements/${id}/files?path=${encodeURIComponent(filePath)}`,
+      `/v1/projects/${id}/files?path=${encodeURIComponent(filePath)}`,
       {
         method: "PUT",
         headers: { "If-Match": etag },
@@ -475,25 +459,25 @@ export const api = {
       otherDevice: boolean;
       previewReason?: string;
       lock: ProjectLockInfo;
-    }>(`/v1/requirements/${id}/lock/claim`, {
+    }>(`/v1/projects/${id}/lock/claim`, {
       method: "POST",
       body: JSON.stringify({ clientId, folder }),
     }),
 
   heartbeatLock: (id: string, clientId: string, editing: boolean, folder?: DocFolder) =>
-    request<{ lock: ProjectLockInfo }>(`/v1/requirements/${id}/lock/heartbeat`, {
+    request<{ lock: ProjectLockInfo }>(`/v1/projects/${id}/lock/heartbeat`, {
       method: "POST",
       body: JSON.stringify({ clientId, editing, folder }),
     }),
 
   releaseLock: (id: string, clientId: string, folder?: DocFolder) =>
     request<{ ok: boolean; lock: ProjectLockInfo }>(
-      `/v1/requirements/${id}/lock/release`,
+      `/v1/projects/${id}/lock/release`,
       { method: "POST", body: JSON.stringify({ clientId, folder }) }
     ),
 
   forceReleaseLock: (id: string, folder?: DocFolder) =>
-    request<{ ok: boolean }>(`/v1/requirements/${id}/lock/force-release`, {
+    request<{ ok: boolean }>(`/v1/projects/${id}/lock/force-release`, {
       method: "POST",
       body: JSON.stringify({ folder }),
     }),
@@ -514,54 +498,54 @@ export const api = {
       sessionId: string;
       run: WorkbenchRun;
       events: RunEventRow[];
-    }>(`/v1/requirements/${id}/runs`, {
+    }>(`/v1/projects/${id}/runs`, {
       method: "POST",
       body: JSON.stringify(body),
     }),
 
   cancelRun: (id: string, runId: string, _clientId: string) =>
     request<{ cancelled: boolean }>(
-      `/v1/requirements/${id}/runs/${runId}/cancel`,
+      `/v1/projects/${id}/runs/${runId}/cancel`,
       { method: "POST", body: JSON.stringify({}) }
     ),
 
   currentRun: (id: string, folder?: DocFolder) =>
     request<{ run: WorkbenchRun | null }>(
-      `/v1/requirements/${id}/runs/current${folder ? `?folder=${encodeURIComponent(folder)}` : ""}`
+      `/v1/projects/${id}/runs/current${folder ? `?folder=${encodeURIComponent(folder)}` : ""}`
     ),
 
   listRuns: (id: string, limit = 12, sessionId?: string) =>
     request<{ runs: WorkbenchRunWithEvents[] }>(
-      `/v1/requirements/${id}/runs?limit=${limit}${
+      `/v1/projects/${id}/runs?limit=${limit}${
         sessionId ? `&sessionId=${encodeURIComponent(sessionId)}` : ""
       }`
     ),
 
   openChatSession: (id: string) =>
     request<{ session: ChatSession; runs: WorkbenchRunWithEvents[] }>(
-      `/v1/requirements/${id}/chat-sessions/open`
+      `/v1/projects/${id}/chat-sessions/open`
     ),
 
   listChatSessions: (id: string, q = "", limit = 30) =>
     request<{ sessions: ChatSession[] }>(
-      `/v1/requirements/${id}/chat-sessions?limit=${limit}${
+      `/v1/projects/${id}/chat-sessions?limit=${limit}${
         q ? `&q=${encodeURIComponent(q)}` : ""
       }`
     ),
 
   createChatSession: (id: string, title?: string) =>
     request<{ session: ChatSession; runs: WorkbenchRunWithEvents[] }>(
-      `/v1/requirements/${id}/chat-sessions`,
+      `/v1/projects/${id}/chat-sessions`,
       { method: "POST", body: JSON.stringify({ title }) }
     ),
 
   getChatSession: (id: string, sessionId: string) =>
     request<ChatSession & { runs: WorkbenchRunWithEvents[] }>(
-      `/v1/requirements/${id}/chat-sessions/${sessionId}`
+      `/v1/projects/${id}/chat-sessions/${sessionId}`
     ),
 
   closeChatSession: (id: string, sessionId: string) =>
-    request<{ session: ChatSession }>(`/v1/requirements/${id}/chat-sessions/${sessionId}/close`, {
+    request<{ session: ChatSession }>(`/v1/projects/${id}/chat-sessions/${sessionId}/close`, {
       method: "POST",
       body: JSON.stringify({}),
     }),
@@ -579,7 +563,7 @@ export const api = {
       ok: boolean;
       path: string;
       version: { id: string; message: string } | null;
-    }>(`/v1/requirements/${id}/questions`, {
+    }>(`/v1/projects/${id}/questions`, {
       method: "POST",
       body: JSON.stringify(body),
     }),

@@ -4,6 +4,7 @@ import Database from "better-sqlite3";
 import { config, dbPath } from "./config.js";
 
 let db: Database.Database | null = null;
+const closeHooks: Array<() => void> = [];
 
 function liveDbPath(): string {
   const raw = process.env.DATA_DIR;
@@ -14,10 +15,17 @@ function liveDbPath(): string {
   return dbPath();
 }
 
+/** 关库时通知依赖方（如 Better Auth）丢掉旧连接。 */
+export function registerDbCloseHook(fn: () => void): void {
+  closeHooks.push(fn);
+}
+
 export function closeDb(): void {
-  if (!db) return;
-  db.close();
-  db = null;
+  if (db) {
+    db.close();
+    db = null;
+  }
+  for (const hook of closeHooks) hook();
 }
 
 export function getDb(): Database.Database {

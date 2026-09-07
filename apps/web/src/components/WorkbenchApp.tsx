@@ -815,7 +815,7 @@ function ProjectPaper(props: {
   const followRun = useCallback(
     async (runId: string, after = 0) => {
       followSeq.current = after;
-      const res = await fetch(`/v1/requirements/${id}/runs/${runId}/stream?after=${after}`, {
+      const res = await fetch(`/v1/projects/${id}/runs/${runId}/stream?after=${after}`, {
         credentials: "include",
         cache: "no-store",
       });

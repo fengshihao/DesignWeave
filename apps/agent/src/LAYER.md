@@ -21,3 +21,6 @@ log/      JSON 一行日志
 | `app/runs.ts` | chat session + 托付 run |
 
 新规则不要写回 `index.ts` / `workbenchRoutes.ts`，只做 HTTP 适配。
+
+工作台资源双挂：`/v1/projects`（正名）与 `/v1/requirements`（过渡别名）。Web 客户端走 `/v1/projects`。
+可测入口：`createAgentApp()`（`index.ts`，不 listen）。HTTP 契约：`http/contract.test.ts`。

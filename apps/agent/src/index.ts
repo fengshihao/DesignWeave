@@ -1,6 +1,8 @@
 import express from "express";
 import cors from "cors";
 import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { config, workspacesRoot } from "./config.js";
 import { getDb } from "./db.js";
 import {
@@ -11,19 +13,14 @@ import {
   signInUser,
   signUpFirstUser,
 } from "./auth.js";
-import { actorFrom, requireArchitect, requireSession } from "./acl.js";
+import { requireArchitect, requireSession } from "./acl.js";
 import { isArchitect } from "./roles.js";
 import { scanClaudeKnownProjects } from "./claudeProjects.js";
 import {
   scanClaudeConfigInventory,
   summarizeClaudeReuse,
 } from "./claudeRuntime.js";
-import {
-  ensureRequirementsTable,
-  getRequirementBundle,
-  importMarkdownToRequirement,
-  setRequirementPhase,
-} from "./requirements.js";
+import { ensureRequirementsTable } from "./requirements.js";
 import {
   ensureWorkspaceTables,
   getWorkspaceRoot,
@@ -32,14 +29,10 @@ import {
   setApprovedCodeDirs,
   setWorkspaceRoot,
 } from "./workspaceSettings.js";
-import { defaultOpenPath, PRD_FILE } from "./prdPack.js";
-import type { DiskProjectPhase } from "./projectMeta.js";
 import { browseDir, mkdirUnder } from "./fsBrowse.js";
 import { ensureRunTables } from "./workbenchRuns.js";
 import { ensureChatSessionTables } from "./chatSessions.js";
-import { assertWritable, ensureLockTable } from "./projectLocks.js";
-import { defaultFileForRole } from "./docFolders.js";
-import { registerWorkbenchRoutes } from "./workbenchRoutes.js";
+import { ensureLockTable } from "./projectLocks.js";
 import { statusOf, errorBody } from "./httpError.js";
 import {
   readSystemPrompt,
@@ -52,46 +45,45 @@ import { ensureAuditTable, writeAudit } from "./data/audit.js";
 import { requestLog } from "./http/requestLog.js";
 import { registerUserRoutes } from "./http/users.js";
 import { registerProjectRoutes } from "./http/projects.js";
-import { listProjectTree, readProjectDoc, writeProjectDoc } from "./app/docs.js";
-import {
-  listProjectVersions,
-  recordProjectVersion,
-  readVersionFile,
-  restoreVersionFile,
-  revertLatestAiVersion,
-} from "./app/versions.js";
+import { registerDocRoutes } from "./http/docs.js";
+import { registerWorkbenchRoutes } from "./http/workbench.js";
 import { logLine } from "./log/logger.js";
 
-fs.mkdirSync(workspacesRoot(), { recursive: true });
-getDb();
-ensureRequirementsTable();
-ensureWorkspaceTables();
-ensureLockTable();
-ensureRunTables();
-ensureChatSessionTables();
-ensureUserColumns();
-ensureAuditTable();
+export function ensureAgentRuntime(): void {
+  fs.mkdirSync(workspacesRoot(), { recursive: true });
+  getDb();
+  ensureRequirementsTable();
+  ensureWorkspaceTables();
+  ensureLockTable();
+  ensureRunTables();
+  ensureChatSessionTables();
+  ensureUserColumns();
+  ensureAuditTable();
+}
 
-const app = express();
-app.use(
-  cors({
-    origin: [config.webOrigin, "http://localhost:3100", "http://127.0.0.1:3100"],
-    credentials: true,
-  })
-);
-app.use((req, res, next) => {
-  if (req.path.startsWith("/api/auth")) {
-    if (!req.headers.origin) {
-      req.headers.origin = config.webOrigin;
+/** 可测入口：不 listen，供契约测试挂临时 DATA_DIR。 */
+export function createAgentApp(): express.Express {
+  ensureAgentRuntime();
+  const app = express();
+  app.use(
+    cors({
+      origin: [config.webOrigin, "http://localhost:3100", "http://127.0.0.1:3100"],
+      credentials: true,
+    })
+  );
+  app.use((req, res, next) => {
+    if (req.path.startsWith("/api/auth")) {
+      if (!req.headers.origin) {
+        req.headers.origin = config.webOrigin;
+      }
+      void handleAuthRequest(req, res);
+      return;
     }
-    void handleAuthRequest(req, res);
-    return;
-  }
-  next();
-});
-app.use(express.json({ limit: "4mb" }));
-app.use(requestLog);
-app.use(requireSession);
+    next();
+  });
+  app.use(express.json({ limit: "4mb" }));
+  app.use(requestLog);
+  app.use(requireSession);
 
 app.get("/health", (_req, res) => {
   const claude = scanClaudeConfigInventory();
@@ -359,198 +351,55 @@ app.put("/v1/workspace/code-dirs", requireArchitect, (req, res) => {
 
 
 registerProjectRoutes(app);
+  registerDocRoutes(app);
 
-app.post("/v1/requirements/:id/import", (req, res) => {
-  try {
-    assertWritable(
-      req.params.id,
-      "product",
-      req.user!,
-      String(req.body?.clientId || "") || undefined
-    );
-    const markdown = String(req.body?.markdown || "");
-    const result = importMarkdownToRequirement(req.params.id, markdown);
-    res.json({
-      ...result,
-      bundle: getRequirementBundle(req.params.id),
-    });
-  } catch (err) {
-    res.status(statusOf(err)).json(errorBody(err));
-  }
-});
-
-app.patch("/v1/requirements/:id/phase", (req, res) => {
-  try {
-    const phase = String(req.body?.phase || "");
-    if (!["filling", "imported", "clarifying", "ready"].includes(phase)) {
+  app.get("/v1/fs/browse", requireArchitect, (req, res) => {
+    try {
+      const dir = typeof req.query.path === "string" ? req.query.path : undefined;
+      res.json(browseDir(dir));
+    } catch (err) {
       res.status(400).json({
-        error: "phase 必须是 filling | imported | clarifying | ready",
-        code: "invalid",
+        error: err instanceof Error ? err.message : "无法浏览目录",
       });
-      return;
     }
-    const requirement = setRequirementPhase(req.params.id, phase as DiskProjectPhase);
-    res.json({ requirement });
-  } catch (err) {
-    res.status(statusOf(err, 404)).json(errorBody(err));
-  }
-});
-
-app.get("/v1/fs/browse", requireArchitect, (req, res) => {
-  try {
-    const dir = typeof req.query.path === "string" ? req.query.path : undefined;
-    res.json(browseDir(dir));
-  } catch (err) {
-    res.status(400).json({
-      error: err instanceof Error ? err.message : "无法浏览目录",
-    });
-  }
-});
-
-app.post("/v1/fs/mkdir", requireArchitect, (req, res) => {
-  try {
-    const parent = String(req.body?.parent || "").trim();
-    const name = String(req.body?.name || "").trim();
-    if (!parent || !name) {
-      res.status(400).json({ error: "请提供当前目录和新文件夹名字" });
-      return;
-    }
-    const created = mkdirUnder(parent, name);
-    res.status(201).json({ ...created, listing: browseDir(parent) });
-  } catch (err) {
-    res.status(statusOf(err)).json({
-      error: err instanceof Error ? err.message : "没法新建这个文件夹",
-    });
-  }
-});
-
-app.get("/v1/requirements/:id/tree", (req, res) => {
-  try {
-    res.json(listProjectTree(actorFrom(req.user!), req.params.id));
-  } catch (err) {
-    res.status(statusOf(err, 404)).json(errorBody(err));
-  }
-});
-
-app.get("/v1/requirements/:id/files", (req, res) => {
-  try {
-    const tree = listProjectTree(actorFrom(req.user!), req.params.id).files;
-    const rel =
-      typeof req.query.path === "string"
-        ? req.query.path
-        : defaultOpenPath(tree, defaultFileForRole(req.user!.role));
-    const file = readProjectDoc(actorFrom(req.user!), req.params.id, rel);
-    res.setHeader("ETag", file.etag);
-    res.json(file);
-  } catch (err) {
-    res.status(statusOf(err, 404)).json(errorBody(err));
-  }
-});
-
-app.put("/v1/requirements/:id/files", (req, res) => {
-  try {
-    const rel = typeof req.query.path === "string" ? req.query.path : PRD_FILE;
-    const file = writeProjectDoc(actorFrom(req.user!), req.params.id, rel, String(req.body?.content ?? ""), {
-      clientId: String(req.body?.clientId || req.query.clientId || "") || undefined,
-      ifMatch: req.header("if-match") || undefined,
-    });
-    res.setHeader("ETag", file.etag);
-    res.json(file);
-  } catch (err) {
-    res.status(statusOf(err)).json(errorBody(err));
-  }
-});
-
-app.put("/v1/requirements/:id/prd", (req, res) => {
-  try {
-    const file = writeProjectDoc(
-      actorFrom(req.user!),
-      req.params.id,
-      PRD_FILE,
-      String(req.body?.content ?? ""),
-      { clientId: String(req.body?.clientId || "") || undefined }
-    );
-    res.json({ prd: file.content });
-  } catch (err) {
-    res.status(statusOf(err, 404)).json(errorBody(err));
-  }
-});
-
-app.get("/v1/requirements/:id/versions", (req, res) => {
-  try {
-    res.json(listProjectVersions(actorFrom(req.user!), req.params.id, req.query.folder));
-  } catch (err) {
-    res.status(statusOf(err, 404)).json(errorBody(err));
-  }
-});
-
-app.post("/v1/requirements/:id/versions", (req, res) => {
-  try {
-    const result = recordProjectVersion(actorFrom(req.user!), req.params.id, {
-      folder: req.body?.folder,
-      message: req.body?.message,
-      clientId: String(req.body?.clientId || "") || undefined,
-      markCaughtUp: Boolean(req.body?.markCaughtUp),
-    });
-    if (!result.version) {
-      res.json(result);
-      return;
-    }
-    res.status(201).json(result);
-  } catch (err) {
-    res.status(statusOf(err)).json(errorBody(err));
-  }
-});
-
-app.get("/v1/requirements/:id/versions/:sha/files", (req, res) => {
-  try {
-    const rel = typeof req.query.path === "string" ? req.query.path : PRD_FILE;
-    res.json(readVersionFile(actorFrom(req.user!), req.params.id, req.params.sha, rel));
-  } catch (err) {
-    res.status(statusOf(err, 404)).json(errorBody(err));
-  }
-});
-
-app.post("/v1/requirements/:id/versions/:sha/restore", (req, res) => {
-  try {
-    const rel = typeof req.body?.path === "string" ? req.body.path : PRD_FILE;
-    res.json(
-      restoreVersionFile(
-        actorFrom(req.user!),
-        req.params.id,
-        req.params.sha,
-        rel,
-        String(req.body?.clientId || "") || undefined
-      )
-    );
-  } catch (err) {
-    res.status(statusOf(err)).json(errorBody(err));
-  }
-});
-
-app.post("/v1/requirements/:id/versions/revert-latest-ai", (req, res) => {
-  try {
-    res.json(
-      revertLatestAiVersion(actorFrom(req.user!), req.params.id, {
-        folder: req.body?.folder,
-        clientId: String(req.body?.clientId || "") || undefined,
-      })
-    );
-  } catch (err) {
-    res.status(statusOf(err)).json(errorBody(err));
-  }
-});
-
-registerWorkbenchRoutes(app);
-
-app.listen(config.port, () => {
-  const reuse = summarizeClaudeReuse();
-  logLine("agent.start", {
-    port: config.port,
-    mockMode: !config.anthropicApiKey,
-    credentialSource: config.anthropicCredentialSource,
-    claudeReuse: reuse,
-    needsSetup: countUsers() === 0,
-    webOrigin: config.webOrigin,
   });
-});
+
+  app.post("/v1/fs/mkdir", requireArchitect, (req, res) => {
+    try {
+      const parent = String(req.body?.parent || "").trim();
+      const name = String(req.body?.name || "").trim();
+      if (!parent || !name) {
+        res.status(400).json({ error: "请提供当前目录和新文件夹名字" });
+        return;
+      }
+      const created = mkdirUnder(parent, name);
+      res.status(201).json({ ...created, listing: browseDir(parent) });
+    } catch (err) {
+      res.status(statusOf(err)).json({
+        error: err instanceof Error ? err.message : "没法新建这个文件夹",
+      });
+    }
+  });
+
+  registerWorkbenchRoutes(app);
+  return app;
+}
+
+const isDirectRun =
+  Boolean(process.argv[1]) &&
+  path.resolve(process.argv[1]!) === fileURLToPath(import.meta.url);
+
+if (isDirectRun) {
+  const app = createAgentApp();
+  app.listen(config.port, () => {
+    const reuse = summarizeClaudeReuse();
+    logLine("agent.start", {
+      port: config.port,
+      mockMode: !config.anthropicApiKey,
+      credentialSource: config.anthropicCredentialSource,
+      claudeReuse: reuse,
+      needsSetup: countUsers() === 0,
+      webOrigin: config.webOrigin,
+    });
+  });
+}
