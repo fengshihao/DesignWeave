@@ -62,9 +62,16 @@ function appendImported(existing: string, chunks: HeadingChunk[]): string {
   return `${existing.trim()}\n\n> 以下从导入原文拆入，未编造事实。\n\n${blocks.join("\n\n")}\n`;
 }
 
+function ensureSection(prd: string, section: PrdSection): string {
+  const marker = `## ${section}`;
+  if (prd.includes(marker)) return prd;
+  return `${prd.trimEnd()}\n\n${marker}\n\n（待补充）\n`;
+}
+
 function mergeChunksIntoPrd(prd: string, grouped: Map<PrdSection, HeadingChunk[]>): string {
   let next = prd;
   for (const [section, chunks] of grouped) {
+    next = ensureSection(next, section);
     const marker = `## ${section}`;
     const start = next.indexOf(marker);
     if (start === -1) continue;

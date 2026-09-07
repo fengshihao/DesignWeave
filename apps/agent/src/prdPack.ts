@@ -23,20 +23,27 @@ export const PRD_PACK_FILES = [
 
 export type PrdPackFile = (typeof PRD_PACK_FILES)[number];
 
+/** 模板默认三章；规格 / 验收由「PRD验收」skill 或导入原文按需展开。 */
+export const PRD_CORE_SECTIONS = ["背景与目标", "用户故事", "交互与体验"] as const;
+
 export const PRD_SECTIONS = [
-  "背景与目标",
-  "用户故事",
-  "交互与体验",
+  ...PRD_CORE_SECTIONS,
   "规格与约束",
   "验收",
 ] as const;
 
 export type PrdSection = (typeof PRD_SECTIONS)[number];
 
+const BUNDLED_SKILLS = ["prd-验收"] as const;
+
 export function prdPackTemplateDir(): string {
   const fromEnv = process.env.PRD_PACK_TEMPLATE_DIR;
   if (fromEnv) return path.resolve(fromEnv);
   return path.join(config.repoRoot, "packages/templates/prd-pack");
+}
+
+export function skillsTemplateDir(): string {
+  return path.join(config.repoRoot, "packages/templates/skills");
 }
 
 export function assertPrdPackTemplate(): string {
@@ -50,6 +57,19 @@ export function assertPrdPackTemplate(): string {
 
 export function applyTitleToPrd(markdown: string, title: string): string {
   return markdown.replace(/^# .+$/m, `# ${title}`);
+}
+
+function copyBundledSkills(dest: string): void {
+  const skillsRoot = skillsTemplateDir();
+  for (const name of BUNDLED_SKILLS) {
+    const from = path.join(skillsRoot, name, "SKILL.md");
+    if (!fs.existsSync(from)) {
+      throw new Error(`找不到内置 skill：${name}（${from}）`);
+    }
+    const toDir = path.join(dest, ".claude", "skills", name);
+    fs.mkdirSync(toDir, { recursive: true });
+    fs.copyFileSync(from, path.join(toDir, "SKILL.md"));
+  }
 }
 
 export function copyPrdPack(
@@ -82,6 +102,7 @@ export function copyPrdPack(
     fs.mkdirSync(path.dirname(to), { recursive: true });
     fs.writeFileSync(to, text, "utf8");
   }
+  copyBundledSkills(dest);
   writeMetaFile(dest, {
     id: input.id,
     title: input.title,

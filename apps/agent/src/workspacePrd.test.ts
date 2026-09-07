@@ -91,6 +91,13 @@ test("标准文档包落地三文件夹：产品 PRD、研发方案、测试文�
     assert.match(prd, /^# 负一屏天气卡片/m);
     assert.match(prd, /## 用户故事/);
     assert.match(prd, /作为：/);
+    assert.doesNotMatch(prd, /## 规格与约束/);
+    assert.doesNotMatch(prd, /## 验收\b/);
+    assert.match(prd, /PRD验收/);
+    assert.ok(
+      fs.existsSync(path.join(dir, ".claude/skills/prd-验收/SKILL.md")),
+      "bundled prd-验收 skill"
+    );
     assert.equal(fs.existsSync(path.join(dir, "PRD.md")), false);
     assert.equal(fs.existsSync(path.join(dir, "README.md")), false);
     assert.equal(fs.existsSync(path.join(dir, "gaps.md")), false);
@@ -138,6 +145,25 @@ test("导入按章节合并进 PRD.md，对不上的进 gaps，原文进 import/
     assert.match(fs.readFileSync(path.join(dir, "meta.md"), "utf8"), /source: import/);
     assert.match(prd, /## 交互与体验/);
     assert.match(prd, /（待补充/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("导入含规格段落时按需开章", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "dw-import-spec-"));
+  try {
+    normalizeImportedPrd({
+      dest: dir,
+      title: "权限开关",
+      owner: "阿朱",
+      id: "imp002",
+      original: `# 权限\n\n## 权限与合规\n\n需要定位权限，可拒绝。\n`,
+      createdAt: "2026-08-22T00:00:00.000Z",
+    });
+    const prd = fs.readFileSync(path.join(dir, PRD_FILE), "utf8");
+    assert.match(prd, /## 规格与约束/);
+    assert.match(prd, /需要定位权限/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
