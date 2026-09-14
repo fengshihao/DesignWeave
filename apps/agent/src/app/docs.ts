@@ -4,7 +4,7 @@ import { AppError } from "./errors.js";
 import { writeAudit } from "../data/audit.js";
 import { getRequirement } from "../requirements.js";
 import { assertWritable } from "../projectLocks.js";
-import { canWritePath, folderOfPath } from "../docFolders.js";
+import { canWritePath, folderOfPath, owningFolderOf } from "../docFolders.js";
 import { listDocTree, listFolderStatus, readDocFile, writeDocFile } from "../files.js";
 import { askerLabel, questionTargetLabel, recordInboxQuestion } from "../questions.js";
 import { isDocFolder, questionPath } from "../docFolders.js";
@@ -48,7 +48,7 @@ export function writeProjectDoc(
   opts: { clientId?: string; ifMatch?: string } = {}
 ): DocFile {
   requireProject(projectId);
-  const folder = folderOfPath(relPath);
+  const folder = owningFolderOf(relPath);
   if (!folder || !canWritePath(actor.role, relPath)) {
     throw new AppError("forbidden", "你不能改这篇。");
   }

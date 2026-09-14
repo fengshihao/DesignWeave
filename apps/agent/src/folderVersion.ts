@@ -14,7 +14,7 @@ import {
   QUESTION_FILE,
   TODO_FILE,
   followPath,
-  pathUnderFolder,
+  pathOwnedByFolder,
   type DocFolder,
 } from "./docFolders.js";
 import {
@@ -44,7 +44,7 @@ function isInboxOrFollow(rel: string): boolean {
 }
 
 function contentFiles(files: string[], folder: DocFolder): string[] {
-  return files.filter((f) => pathUnderFolder(f, folder) && !isInboxOrFollow(f));
+  return files.filter((f) => pathOwnedByFolder(f, folder) && !isInboxOrFollow(f));
 }
 
 function touchedLabel(files: string[], headings: string[]): string {
@@ -77,7 +77,7 @@ export function recordFolderVersion(input: {
   if (!isDirtyFolder(vaultPath, folder) && !DOWNSTREAM[folder].some((d) => isDirtyFolder(vaultPath, d))) {
     const still = changedFiles(vaultPath).some(
       (f) =>
-        pathUnderFolder(f, folder) ||
+        pathOwnedByFolder(f, folder) ||
         DOWNSTREAM[folder].some((d) => f === followPath(d))
     );
     if (!still) return null;
@@ -105,7 +105,7 @@ export function recordFolderVersion(input: {
 
   const toCommit = new Set<string>();
   for (const f of changedFiles(vaultPath)) {
-    if (pathUnderFolder(f, folder)) toCommit.add(f);
+    if (pathOwnedByFolder(f, folder)) toCommit.add(f);
     if (DOWNSTREAM[folder].some((d) => f === followPath(d))) toCommit.add(f);
   }
   if (!toCommit.size) return null;
