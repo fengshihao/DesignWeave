@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.26
+
 - 修复 Mac 下 `Cmd+P` 被当成打印：VS Code / Cursor 中改为交给 Quick Open；浏览器里按平台区分 ⌘ / Ctrl
 
 ## 0.1.25
