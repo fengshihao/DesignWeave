@@ -118,11 +118,35 @@ function bootVscodeBridge() {
     }
   });
 
+  function isApplePlatform() {
+    const platform = navigator.platform || "";
+    if (/Mac|iPhone|iPad|iPod/i.test(platform)) return true;
+    try {
+      const nav = navigator as Navigator & { userAgentData?: { platform?: string } };
+      if (nav.userAgentData?.platform === "macOS") return true;
+    } catch {
+      /* ignore */
+    }
+    return /Mac OS X|Macintosh/i.test(navigator.userAgent || "");
+  }
+
+  function isPrimaryModKey(e: KeyboardEvent, key: string) {
+    if (e.key.toLowerCase() !== key || e.shiftKey || e.altKey) return false;
+    if (isApplePlatform()) return e.metaKey && !e.ctrlKey;
+    return e.ctrlKey && !e.metaKey;
+  }
+
   document.addEventListener("keydown", (e) => {
-    const key = e.key.toLowerCase();
-    if ((e.metaKey || e.ctrlKey) && key === "s") {
+    if (isPrimaryModKey(e, "s")) {
       e.preventDefault();
       vscode.postMessage({ type: "save" });
+      return;
+    }
+    // Mac ⌘P / Win Ctrl+P → 交回 VS Code Quick Open，不要弹出打印
+    if (isPrimaryModKey(e, "p")) {
+      e.preventDefault();
+      e.stopPropagation();
+      vscode.postMessage({ type: "quickOpen" });
     }
   });
 

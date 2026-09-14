@@ -64,6 +64,7 @@ test("parseHostToFrameMessage / parseFrameToHostMessage 安全解析", () => {
   assert.equal(parseFrameToHostMessage({ type: "theme", theme: "hack" })?.theme, "hack");
   assert.equal(parseFrameToHostMessage({ type: "theme", theme: "bad" }), null);
   assert.equal(parseFrameToHostMessage({ type: "copyText", value: "abc" })?.type, "copyText");
+  assert.equal(parseFrameToHostMessage({ type: "quickOpen" })?.type, "quickOpen");
   const selection = parseFrameToHostMessage({
     type: "selection",
     headingPath: ["用户故事"],

@@ -199,6 +199,9 @@ assert(editorSource.includes("function exportPdf"), "exports PDF via print dialo
 assert(editorSource.includes("function exportPng"), "exports preview as png");
 assert(editorSource.includes("M9 7.5 4.5 12 9 16.5"), "source view uses code-bracket icon");
 assert(editorSource.includes("function isUnsafePrintHost"), "skips window.print in Cursor/Electron");
+assert(editorSource.includes("function isApplePlatform"), "print shortcut is Mac-aware");
+assert(editorSource.includes("function isPrimaryModKey"), "uses primary modifier per platform");
+assert(editorSource.includes("isUnsafePrintHost()) return"), "does not steal Cmd/Ctrl+P in VS Code");
 assert(editorSource.includes("function downloadPrintableHtml"), "falls back to printable HTML download");
 assert(readFileSync(join(viewer, "molan-i18n.js"), "utf8").includes("exportPdfUseBrowser"), "i18n explains cursor print fallback");
 assert(editorSource.includes("create("), "has create()");
@@ -224,6 +227,8 @@ const bridge = readFileSync(join(root, "media/vscode-bridge.js"), "utf8");
 assert(bridge.includes("await api.setPreview(true)"), "defaults to preview on init");
 assert(bridge.includes("value !== baseline"), "ignores Vditor setValue round-trip");
 assert(bridge.includes("openRelative"), "webview opens relative markdown links");
+assert(bridge.includes("quickOpen"), "webview forwards Cmd/Ctrl+P to Quick Open");
+assert(bridge.includes("isPrimaryModKey"), "bridge uses platform primary modifier");
 assert(bridge.includes("copyText"), "webview asks the extension host to write clipboard as fallback");
 assert(!bridge.includes("pickImage"), "webview does not ask host to pick a local image");
 

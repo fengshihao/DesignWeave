@@ -84,6 +84,22 @@
     return false;
   }
 
+  /** Mac/iOS 用 ⌘，Windows/Linux 用 Ctrl（与 VS Code / 系统快捷键一致） */
+  function isApplePlatform() {
+    const platform = navigator.platform || "";
+    if (/Mac|iPhone|iPad|iPod/i.test(platform)) return true;
+    try {
+      if (navigator.userAgentData?.platform === "macOS") return true;
+    } catch (_) { /* ignore */ }
+    return /Mac OS X|Macintosh/i.test(navigator.userAgent || "");
+  }
+
+  function isPrimaryModKey(e, key) {
+    if (e.key.toLowerCase() !== key || e.shiftKey || e.altKey) return false;
+    if (isApplePlatform()) return e.metaKey && !e.ctrlKey;
+    return e.ctrlKey && !e.metaKey;
+  }
+
   function safeFileName(name) {
     return String(name || "document").replace(/[\\/:*?"<>|]+/g, "_").trim() || "document";
   }
@@ -594,15 +610,10 @@
       document.getElementById("pdfBtn")?.focus();
       return;
     }
-    if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "p") return;
-    const unsafe = isUnsafePrintHost();
-    if (!unsafe && e.defaultPrevented) return;
-    if (unsafe) {
-      e.preventDefault();
-      e.stopPropagation();
-      void exportPdf();
-      return;
-    }
+    // VS Code/Cursor：⌘/Ctrl+P 是 Quick Open，绝不能当成打印
+    if (isUnsafePrintHost()) return;
+    if (!isPrimaryModKey(e, "p")) return;
+    if (e.defaultPrevented) return;
     if (!document.getElementById("editorWrap")?.classList.contains("visible")) return;
     e.preventDefault();
     void exportPdf();

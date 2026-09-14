@@ -117,6 +117,9 @@ test("molan-editor.js 导出 MolanEditor.create", () => {
   assert.match(src, /function exportPng\(/);
   assert.match(src, /function rasterizePreviewPng\(/);
   assert.match(src, /function isUnsafePrintHost\(/);
+  assert.match(src, /function isApplePlatform\(/);
+  assert.match(src, /function isPrimaryModKey\(/);
+  assert.match(src, /VS Code\/Cursor：⌘\/Ctrl\+P 是 Quick Open/);
   assert.match(src, /function downloadPrintableHtml\(/);
   assert.match(src, /molan-print-doc/);
   assert.match(src, /function isolatePreviewForPrint\(/);

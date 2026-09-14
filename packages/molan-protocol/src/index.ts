@@ -92,6 +92,8 @@ export const FrameToHostMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("openRelative"), value: z.string() }),
   z.object({ type: z.literal("openExternal"), value: z.string() }),
   z.object({ type: z.literal("copyText"), value: z.string() }),
+  /** webview 把 Cmd/Ctrl+P 交回工作区 Quick Open，避免抢系统/IDE 快捷键 */
+  z.object({ type: z.literal("quickOpen") }),
   z.object({
     type: z.literal("selection"),
     headingPath: z.array(z.string()),

@@ -133,6 +133,10 @@ export class MolanEditorProvider implements vscode.CustomEditorProvider<MolanDoc
         await vscode.commands.executeCommand("workbench.action.files.save");
         return;
       }
+      if (msg.type === "quickOpen") {
+        await vscode.commands.executeCommand("workbench.action.quickOpen");
+        return;
+      }
       if (msg.type === "openRelative") {
         await this.openRelativeMarkdown(document.uri, msg.value);
         return;
