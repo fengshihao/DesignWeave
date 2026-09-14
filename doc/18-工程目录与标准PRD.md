@@ -90,7 +90,7 @@
   - [ ] （可观察、可判定的一条）
 ```
 
-模板放 `packages/templates/prd-pack/product/PRD.md`，不要写在代码字符串里。每节给填写说明 + `（待补充）`。验收 skill 放 `packages/templates/skills/prd-验收/`，新建工程时拷进工程的 `.claude/skills/prd-验收/`。
+模板放 `packages/templates/prd-pack/product/PRD.md`，不要写在代码字符串里。每节给填写说明 + `（待补充）`。验收 skill 放 `packages/templates/skills/prd-验收/`，新建工程时拷进工程的 `.claude/skills/prd-验收/`。**架构师可改本工程这份 skill**（侧栏「技能」）；产品经理 / 测试只读。出厂模板仍在仓库里，只影响之后新建的工程。
 
 ### 3.1 `gaps.md`：PRD 的待补齐工作单
 

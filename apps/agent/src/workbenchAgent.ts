@@ -25,7 +25,7 @@ import { buildWorkbenchUserPrompt, demoWriteRelPath, type WorkbenchFocus } from 
 import {
   FOLDER_LABELS,
   FOLDER_MAIN_FILE,
-  pathUnderFolder,
+  pathOwnedByFolder,
   type DocFolder,
 } from "./docFolders.js";
 import { recordFolderVersion } from "./folderVersion.js";
@@ -232,7 +232,7 @@ function userPrompt(
 
 function revertOutsideFolder(root: string, folder: DocFolder): void {
   for (const rel of changedFiles(root)) {
-    if (pathUnderFolder(rel, folder)) continue;
+    if (pathOwnedByFolder(rel, folder)) continue;
     try {
       restoreFile(root, "HEAD", rel);
     } catch {

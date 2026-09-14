@@ -16,6 +16,7 @@ test("PM can write product folder docs", () => {
 test("architect can write eng folder docs", () => {
   assert.equal(canWriteFile("architect", "eng/调研.md"), true);
   assert.equal(canWriteFile("architect", "eng/方案.md"), true);
+  assert.equal(canWriteFile("architect", ".claude/skills/prd-验收/SKILL.md"), true);
   assert.equal(canWriteFile("architect", "product/PRD.md"), false);
   assert.equal(canWriteFile("architect", "qa/测试.md"), false);
 });

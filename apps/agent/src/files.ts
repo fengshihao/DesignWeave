@@ -55,6 +55,13 @@ export function listDocTree(projectId: string): Array<{
     walkFolder(absFolder, folder);
   }
 
+  // 工程技能：全员可读；架构师可在侧栏打开改
+  const skillsRoot = path.join(root, ".claude", "skills");
+  if (fs.existsSync(skillsRoot)) {
+    out.push({ path: ".claude/skills", name: "技能", isDir: true });
+    walkFolder(skillsRoot, ".claude/skills");
+  }
+
   function walkFolder(dir: string, prefix: string) {
     if (!fs.existsSync(dir)) return;
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -72,6 +79,7 @@ export function listDocTree(projectId: string): Array<{
 
   return out.sort((a, b) => {
     const rank = (p: string) => {
+      if (p === ".claude/skills" || p.startsWith(".claude/skills/")) return DOC_FOLDERS.length;
       const top = p.split("/")[0];
       const i = DOC_FOLDERS.indexOf(top as (typeof DOC_FOLDERS)[number]);
       return i === -1 ? 99 : i;

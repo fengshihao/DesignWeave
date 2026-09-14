@@ -13,6 +13,9 @@ export function canWriteFile(role: AppRole, relPath: string): boolean {
 export function editBlockedLabel(role: AppRole, relPath: string): string {
   const p = relPath.replace(/\\/g, "/");
   if (p === "gaps.md" || p === "product/gaps.md") return "缺口清单由 AI 维护，请通过托付提问。";
+  if (p.startsWith(".claude/skills/") && role !== "architect") {
+    return "工程技能由架构师维护，你只能阅读。";
+  }
   const folder = folderOfPath(p);
   if (p.endsWith("调研.md") && role === "designer") return "调研由架构师侧维护，你只能阅读。";
   if (p.endsWith("PRD.md") && role === "architect") return "PRD 由产品经理维护，你只能阅读。";

@@ -4,7 +4,12 @@ import { AppError } from "./errors.js";
 import { writeAudit } from "../data/audit.js";
 import { getRequirement } from "../requirements.js";
 import { assertWritable } from "../projectLocks.js";
-import { folderOfPath, parseDocFolder, writableFolderOf } from "../docFolders.js";
+import {
+  owningFolderOf,
+  parseDocFolder,
+  pathOwnedByFolder,
+  writableFolderOf,
+} from "../docFolders.js";
 import {
   changedFiles,
   isDirty,
@@ -38,9 +43,7 @@ export function listProjectVersions(actor: Actor, projectId: string, folderRaw?:
   return {
     versions: listVersions(meta.vaultPath),
     uncommitted: isDirtyFolder(meta.vaultPath, folder),
-    changedFiles: changedFiles(meta.vaultPath).filter(
-      (f) => f === folder || f.startsWith(`${folder}/`)
-    ),
+    changedFiles: changedFiles(meta.vaultPath).filter((f) => pathOwnedByFolder(f, folder)),
   };
 }
 
@@ -59,9 +62,7 @@ export function recordProjectVersion(
   authorize(actor, "version.record", { folder });
   assertWritable(projectId, folder, asUser(actor), input.clientId);
   const custom = String(input.message || "").trim();
-  const files = changedFiles(meta.vaultPath).filter(
-    (f) => f === folder || f.startsWith(`${folder}/`)
-  );
+  const files = changedFiles(meta.vaultPath).filter((f) => pathOwnedByFolder(f, folder));
   const named =
     files.find((f) => /(^|\/)PRD\.md$/i.test(f)) ||
     files.find((f) => f.endsWith("方案.md") || f.endsWith("测试.md")) ||
@@ -115,7 +116,7 @@ export function restoreVersionFile(
   clientId?: string
 ) {
   const meta = requireProject(projectId);
-  const folder = folderOfPath(relPath);
+  const folder = owningFolderOf(relPath);
   if (!folder) throw new AppError("forbidden", "你不能改这篇。");
   authorize(actor, "version.restore", { folder });
   assertWritable(projectId, folder, asUser(actor), clientId);
