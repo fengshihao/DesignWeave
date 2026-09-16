@@ -32,7 +32,13 @@
     const inlineReader = document.documentElement.style.getPropertyValue("--reader-font").trim();
     const font = (inlineReader || cssVar("--font-ui", '"DM Sans", sans-serif')).replace(/"/g, "");
     const themeName = document.documentElement.getAttribute("data-theme") || "night";
-    const dark = themeName === "night" || themeName === "hack";
+    const scheme = (document.documentElement.style.getPropertyValue("color-scheme")
+      || getComputedStyle(document.documentElement).colorScheme
+      || "").toLowerCase();
+    let dark = scheme.includes("dark");
+    if (!scheme) {
+      dark = themeName === "night" || themeName === "hack" || themeName === "slate";
+    }
     const c = diagramPaperColors();
     return {
       startOnLoad: false,

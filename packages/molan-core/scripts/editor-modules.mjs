@@ -18,6 +18,7 @@ export const EDITOR_MODULES = [
   "mermaid-bind.js",
   "find.js",
   "type.js",
+  "theme-tweak.js",
   "theme.js",
   "image.js",
   "mermaid-editor.js",

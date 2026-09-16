@@ -56,6 +56,15 @@ export function renderInlineShell(options: InlineShellOptions = {}): string {
                 <button type="button" role="radio" data-theme="rose" title="胭脂 · 柔粉纸面" aria-label="胭脂" aria-checked="false">
                   <svg viewBox="0 0 32 32" aria-hidden="true"><circle class="theme-ring" cx="16" cy="16" r="14.25"/><circle class="theme-fill" cx="16" cy="16" r="10"/></svg>
                 </button>
+                <button type="button" role="radio" data-theme="slate" title="青石 · 冷灰夜读" aria-label="青石" aria-checked="false">
+                  <svg viewBox="0 0 32 32" aria-hidden="true"><circle class="theme-ring" cx="16" cy="16" r="14.25"/><circle class="theme-fill" cx="16" cy="16" r="10"/></svg>
+                </button>
+                <button type="button" role="radio" data-theme="mist" title="薄雾 · 冷白纸面" aria-label="薄雾" aria-checked="false">
+                  <svg viewBox="0 0 32 32" aria-hidden="true"><circle class="theme-ring" cx="16" cy="16" r="14.25"/><circle class="theme-fill" cx="16" cy="16" r="10"/></svg>
+                </button>
+                <button type="button" role="radio" data-theme="cinnabar" title="朱砂 · 赭石纸面" aria-label="朱砂" aria-checked="false">
+                  <svg viewBox="0 0 32 32" aria-hidden="true"><circle class="theme-ring" cx="16" cy="16" r="14.25"/><circle class="theme-fill" cx="16" cy="16" r="10"/></svg>
+                </button>
               </div>
             </div>
           </div>

@@ -410,14 +410,8 @@
     const prevTheme = document.documentElement.getAttribute("data-theme") || readStoredTheme();
     let restoreEdit = false;
     const cleanup = async () => {
-      const current = document.documentElement.getAttribute("data-theme");
-      if (current !== prevTheme) {
-        document.documentElement.setAttribute("data-theme", prevTheme);
-        loadThemeFonts(prevTheme);
-        paintThemeSwitch(prevTheme);
-        applyMermaidTheme();
-        try { await refreshMermaidDiagrams(mermaidRoot()); } catch (_) { /* ignore */ }
-      }
+      applyTheme(prevTheme, false);
+      try { await refreshMermaidDiagrams(mermaidRoot()); } catch (_) { /* ignore */ }
       if (restoreEdit && lastEditorApi?.setPreview) {
         try { await lastEditorApi.setPreview(false); } catch (_) { /* ignore */ }
       }
@@ -432,9 +426,12 @@
       }
       toast(t("exportPngPreparing"));
       if (prevTheme !== "xuan") {
+        clearThemeTweakStyles();
         document.documentElement.setAttribute("data-theme", "xuan");
         loadThemeFonts("xuan");
         applyMermaidTheme();
+      } else {
+        clearThemeTweakStyles();
       }
       await waitForMermaidReady();
       await waitFonts();
@@ -483,14 +480,8 @@
       document.documentElement.classList.remove("is-printing");
       document.body.classList.remove("is-printing");
       document.title = prevTitle;
-      const current = document.documentElement.getAttribute("data-theme");
-      if (current !== prevTheme) {
-        document.documentElement.setAttribute("data-theme", prevTheme);
-        loadThemeFonts(prevTheme);
-        paintThemeSwitch(prevTheme);
-        applyMermaidTheme();
-        try { await refreshMermaidDiagrams(mermaidRoot()); } catch (_) { /* ignore */ }
-      }
+      applyTheme(prevTheme, false);
+      try { await refreshMermaidDiagrams(mermaidRoot()); } catch (_) { /* ignore */ }
       if (restoreEdit && lastEditorApi?.setPreview) {
         try { await lastEditorApi.setPreview(false); } catch (_) { /* ignore */ }
       }
@@ -507,6 +498,7 @@
 
       const needPaper = hasMermaidToRestyle() && prevTheme !== "xuan";
       if (needPaper) toast(t("exportPdfPreparing"));
+      clearThemeTweakStyles();
       if (prevTheme !== "xuan") {
         document.documentElement.setAttribute("data-theme", "xuan");
         loadThemeFonts("xuan");

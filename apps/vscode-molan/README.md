@@ -12,7 +12,7 @@ Abre para leer. Pulsa para editar. Guarda en el archivo original.
 
 类 Typora 的所见即所得。打开 `.md` 就是预览，点「编辑」再改，`Cmd/Ctrl+S` 写回原文件；没改过就关掉，不会问是否保存。
 
-- **纸面**：宣纸、墨夜（默认）、终端、胭脂
+- **纸面**：宣纸、墨夜（默认）、终端、胭脂、青石、薄雾、朱砂；可在设置里微调亮度 / 对比 / 强调色
 - **排版**：预览可调字号、行距、段距、字距，记在本机
 - **内容**：表格、数学公式、任务列表、代码块；预览时悬停行首「+」可插入标题、列表、代码、表格等
 - **流程图**：Mermaid，可放大拖动、滚轮缩放，也可复制源码或图片
@@ -23,7 +23,7 @@ Abre para leer. Pulsa para editar. Guarda en el archivo original.
 
 Typora-style WYSIWYG. A `.md` file opens in preview; click **Edit** to change it; `Cmd/Ctrl+S` writes back to the file. Close without edits and it will not ask to save.
 
-- **Papers**: Xuan, Ink night (default), Terminal, Rouge
+- **Papers**: Xuan, Ink night (default), Terminal, Rouge, Slate, Mist, Cinnabar; brightness / contrast / accent fine-tuning in settings
 - **Type**: size, line height, paragraph spacing, and letter spacing in preview; remembered on this machine
 - **Content**: tables, math, task lists, code blocks; hover the leading **+** in preview to insert headings, lists, code, tables
 - **Diagrams**: Mermaid, zoom and pan, copy source or image

@@ -147,7 +147,19 @@
       themeHackTitle: "终端 · 程序员",
       themeRose: "胭脂",
       themeRoseTitle: "胭脂 · 柔粉纸面",
+      themeSlate: "青石",
+      themeSlateTitle: "青石 · 冷灰夜读",
+      themeMist: "薄雾",
+      themeMistTitle: "薄雾 · 冷白纸面",
+      themeCinnabar: "朱砂",
+      themeCinnabarTitle: "朱砂 · 赭石纸面",
       themeSwitched: "已切换为「{name}」",
+      themeTweak: "色调",
+      themeBrightness: "亮度",
+      themeContrast: "对比",
+      themeAccentShift: "强调色",
+      themeTweakReset: "恢复色调",
+      themeTweakResetDone: "已恢复当前纸面色调",
       prefsAria: "界面配置",
       placeholder: "开始编辑 Markdown…",
       insertBlock: "插入块",
@@ -247,7 +259,13 @@
     const inlineReader = document.documentElement.style.getPropertyValue("--reader-font").trim();
     const font = (inlineReader || cssVar("--font-ui", '"DM Sans", sans-serif')).replace(/"/g, "");
     const themeName = document.documentElement.getAttribute("data-theme") || "night";
-    const dark = themeName === "night" || themeName === "hack";
+    const scheme = (document.documentElement.style.getPropertyValue("color-scheme")
+      || getComputedStyle(document.documentElement).colorScheme
+      || "").toLowerCase();
+    let dark = scheme.includes("dark");
+    if (!scheme) {
+      dark = themeName === "night" || themeName === "hack" || themeName === "slate";
+    }
     const c = diagramPaperColors();
     return {
       startOnLoad: false,
@@ -4610,26 +4628,287 @@
     });
   }
 
-  /* --- theme: 纸面主题、顶栏偏好、轻量预览 DOM --- */
-  const THEMES = ["xuan", "night", "hack", "rose"];
+  /* --- theme-tweak: 纸面色调派生（亮度 / 对比 / 强调色） --- */
+  const THEME_TWEAK_DEFAULTS = { brightness: 0, contrast: 0, accentShift: 0 };
+  const THEME_TWEAK_RANGES = {
+    brightness: { min: -40, max: 40, step: 1 },
+    contrast: { min: -30, max: 30, step: 1 },
+    accentShift: { min: -60, max: 60, step: 1 },
+  };
+  const THEME_TWEAK_VARS = [
+    "--paper", "--paper-deep", "--paper-lift", "--page-wash", "--page-wash-end",
+    "--ink", "--ink-soft", "--ink-muted", "--strong",
+    "--accent", "--accent-soft", "--accent-deep", "--accent-glow",
+    "--link", "--inline-code", "--on-accent",
+    "--table-bg", "--diagram-card", "--blockquote-tint", "--row-hover",
+    "--hairline", "--hairline-strong",
+    "--sidebar-active-bg", "--sidebar-active-border",
+  ];
+
+  function clampThemeTweak(key, value) {
+    const range = THEME_TWEAK_RANGES[key];
+    const n = Number(value);
+    if (!range || !Number.isFinite(n)) return THEME_TWEAK_DEFAULTS[key];
+    const snapped = range.step ? Math.round(n / range.step) * range.step : n;
+    return Math.min(range.max, Math.max(range.min, snapped));
+  }
+
+  function normalizeThemeTweak(raw) {
+    if (!raw || typeof raw !== "object") return { ...THEME_TWEAK_DEFAULTS };
+    return {
+      brightness: clampThemeTweak("brightness", raw.brightness ?? 0),
+      contrast: clampThemeTweak("contrast", raw.contrast ?? 0),
+      accentShift: clampThemeTweak("accentShift", raw.accentShift ?? 0),
+    };
+  }
+
+  function isDefaultThemeTweak(tweak) {
+    return tweak.brightness === 0 && tweak.contrast === 0 && tweak.accentShift === 0;
+  }
+
+  function parseCssColor(input) {
+    const s = String(input || "").trim();
+    if (!s) return null;
+    const hex = s.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+    if (hex) {
+      let h = hex[1];
+      if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+      return {
+        r: parseInt(h.slice(0, 2), 16),
+        g: parseInt(h.slice(2, 4), 16),
+        b: parseInt(h.slice(4, 6), 16),
+      };
+    }
+    const rgb = s.match(/^rgba?\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)/i);
+    if (rgb) {
+      return { r: Number(rgb[1]), g: Number(rgb[2]), b: Number(rgb[3]) };
+    }
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 1;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx) return null;
+      ctx.fillStyle = "#000";
+      ctx.fillStyle = s;
+      ctx.fillRect(0, 0, 1, 1);
+      const data = ctx.getImageData(0, 0, 1, 1).data;
+      return { r: data[0], g: data[1], b: data[2] };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function rgbToHsl(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const l = (max + min) / 2;
+    if (max === min) return { h: 0, s: 0, l };
+    const d = max - min;
+    const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    let h = 0;
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+    else if (max === g) h = ((b - r) / d + 2) / 6;
+    else h = ((r - g) / d + 4) / 6;
+    return { h: h * 360, s, l };
+  }
+
+  function hue2rgb(p, q, t) {
+    let x = t;
+    if (x < 0) x += 1;
+    if (x > 1) x -= 1;
+    if (x < 1 / 6) return p + (q - p) * 6 * x;
+    if (x < 1 / 2) return q;
+    if (x < 2 / 3) return p + (q - p) * (2 / 3 - x) * 6;
+    return p;
+  }
+
+  function hslToRgb(h, s, l) {
+    const hh = ((h % 360) + 360) % 360;
+    if (s === 0) {
+      const v = Math.round(l * 255);
+      return { r: v, g: v, b: v };
+    }
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    const hk = hh / 360;
+    return {
+      r: Math.round(hue2rgb(p, q, hk + 1 / 3) * 255),
+      g: Math.round(hue2rgb(p, q, hk) * 255),
+      b: Math.round(hue2rgb(p, q, hk - 1 / 3) * 255),
+    };
+  }
+
+  function clamp01(n) {
+    return Math.min(1, Math.max(0, n));
+  }
+
+  function formatRgb(c) {
+    return `rgb(${Math.round(c.r)}, ${Math.round(c.g)}, ${Math.round(c.b)})`;
+  }
+
+  function formatRgba(c, a) {
+    return `rgba(${Math.round(c.r)}, ${Math.round(c.g)}, ${Math.round(c.b)}, ${a})`;
+  }
+
+  function mixRgb(a, b, t) {
+    const k = clamp01(t);
+    return {
+      r: a.r + (b.r - a.r) * k,
+      g: a.g + (b.g - a.g) * k,
+      b: a.b + (b.b - a.b) * k,
+    };
+  }
+
+  function adjustLightness(rgb, delta) {
+    const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+    return hslToRgb(hsl.h, hsl.s, clamp01(hsl.l + delta));
+  }
+
+  function shiftHue(rgb, deg) {
+    const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+    return hslToRgb(hsl.h + deg, hsl.s, hsl.l);
+  }
+
+  function relativeLuminance(rgb) {
+    const lin = [rgb.r, rgb.g, rgb.b].map((v) => {
+      const c = v / 255;
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
+  }
+
+  function clearThemeTweakStyles() {
+    const root = document.documentElement.style;
+    for (const key of THEME_TWEAK_VARS) root.removeProperty(key);
+    root.removeProperty("color-scheme");
+  }
+
+  function readBaseThemeColor(name, fallback) {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return parseCssColor(v) || parseCssColor(fallback) || { r: 128, g: 128, b: 128 };
+  }
+
+  function buildThemeTweakVars(tweak) {
+    const paper0 = readBaseThemeColor("--paper", "#161410");
+    const ink0 = readBaseThemeColor("--ink", "#e8e2d6");
+    const accent0 = readBaseThemeColor("--accent", "#e0a054");
+
+    const bright = tweak.brightness / 100 * 0.28;
+    const contrast = tweak.contrast / 100;
+
+    let paper = adjustLightness(paper0, bright);
+    let ink = adjustLightness(ink0, -bright * 0.35);
+
+    const paperL = rgbToHsl(paper.r, paper.g, paper.b).l;
+    const inkHsl0 = rgbToHsl(ink.r, ink.g, ink.b);
+    const darkPaper = paperL < 0.45;
+    const spread = Math.abs(inkHsl0.l - paperL);
+    const targetSpread = clamp01(spread + contrast * 0.35);
+    const inkDir = inkHsl0.l >= paperL ? 1 : -1;
+    ink = hslToRgb(
+      inkHsl0.h,
+      inkHsl0.s,
+      clamp01(paperL + inkDir * Math.max(0.18, targetSpread)),
+    );
+
+    const inkHsl = rgbToHsl(ink.r, ink.g, ink.b);
+    if (Math.abs(inkHsl.l - paperL) < 0.22) {
+      ink = hslToRgb(
+        inkHsl.h,
+        inkHsl.s,
+        clamp01(paperL + (darkPaper ? 0.42 : -0.42)),
+      );
+    }
+
+    const accent = shiftHue(accent0, tweak.accentShift);
+    const accentSoft = adjustLightness(accent, darkPaper ? 0.12 : 0.1);
+    const accentDeep = adjustLightness(accent, darkPaper ? -0.1 : -0.12);
+    const paperLift = adjustLightness(paper, darkPaper ? 0.04 : 0.035);
+    const paperDeep = adjustLightness(paper, darkPaper ? 0.05 : -0.04);
+    const pageWash = adjustLightness(paper, darkPaper ? -0.03 : -0.025);
+    const pageWashEnd = adjustLightness(paper, darkPaper ? -0.05 : -0.04);
+    const inkSoft = mixRgb(ink, paper, 0.32);
+    const inkMuted = mixRgb(ink, paper, 0.55);
+    const strong = adjustLightness(ink, darkPaper ? 0.06 : -0.05);
+    const tableBg = mixRgb(paper, ink, darkPaper ? 0.06 : 0.04);
+    const onAccent = relativeLuminance(accent) > 0.55 ? paper : { r: 255, g: 248, b: 241 };
+
+    return {
+      "--paper": formatRgb(paper),
+      "--paper-deep": formatRgb(paperDeep),
+      "--paper-lift": formatRgb(paperLift),
+      "--page-wash": formatRgb(pageWash),
+      "--page-wash-end": formatRgb(pageWashEnd),
+      "--ink": formatRgb(ink),
+      "--ink-soft": formatRgb(inkSoft),
+      "--ink-muted": formatRgb(inkMuted),
+      "--strong": formatRgb(strong),
+      "--accent": formatRgb(accent),
+      "--accent-soft": formatRgb(accentSoft),
+      "--accent-deep": formatRgb(accentDeep),
+      "--accent-glow": formatRgba(accent, 0.28),
+      "--link": formatRgb(darkPaper ? accentSoft : accentDeep),
+      "--inline-code": formatRgb(darkPaper ? accentSoft : accentDeep),
+      "--on-accent": formatRgb(onAccent),
+      "--table-bg": formatRgb(tableBg),
+      "--diagram-card": formatRgb(tableBg),
+      "--blockquote-tint": formatRgba(accent, 0.1),
+      "--row-hover": formatRgba(accent, 0.12),
+      "--hairline": formatRgba(ink, 0.1),
+      "--hairline-strong": formatRgba(ink, 0.16),
+      "--sidebar-active-bg": formatRgba(accent, 0.16),
+      "--sidebar-active-border": formatRgba(accentSoft, 0.35),
+      "color-scheme": darkPaper ? "dark" : "light",
+    };
+  }
+
+  function writeThemeTweakVars(vars) {
+    const root = document.documentElement.style;
+    for (const [k, v] of Object.entries(vars)) {
+      root.setProperty(k === "color-scheme" ? "color-scheme" : k, v);
+    }
+  }
+
+  /* --- theme: 纸面主题、色调微调 UI、顶栏偏好、轻量预览 DOM --- */
+  const THEMES = ["xuan", "night", "hack", "rose", "slate", "mist", "cinnabar"];
   const THEME_KEY = "molan-theme";
-  const THEME_I18N = { xuan: "themeXuan", night: "themeNight", hack: "themeHack", rose: "themeRose" };
+  const THEME_TWEAK_KEY = "molan-theme-tweak";
+  const THEME_I18N = {
+    xuan: "themeXuan",
+    night: "themeNight",
+    hack: "themeHack",
+    rose: "themeRose",
+    slate: "themeSlate",
+    mist: "themeMist",
+    cinnabar: "themeCinnabar",
+  };
   const THEME_TITLE = {
     xuan: "themeXuanTitle",
     night: "themeNightTitle",
     hack: "themeHackTitle",
     rose: "themeRoseTitle",
+    slate: "themeSlateTitle",
+    mist: "themeMistTitle",
+    cinnabar: "themeCinnabarTitle",
   };
   const THEME_FONTS = {
     night: "family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500",
     hack: "family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400",
     xuan: "family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500",
     rose: "family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500",
+    slate: "family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500",
+    mist: "family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500",
+    cinnabar: "family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500",
   };
 
   const headerPrefsState = {
     open: false,
     animToken: 0,
+  };
+  const themeTweakState = {
+    byTheme: {},
+    mermaidTimer: 0,
   };
 
   function isVscodeHost() {
@@ -4652,6 +4931,196 @@
     link.href = href;
   }
 
+  function readStoredThemeTweaks() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(THEME_TWEAK_KEY) || "null");
+      if (!raw || typeof raw !== "object") return {};
+      const out = {};
+      for (const id of THEMES) {
+        if (raw[id]) out[id] = normalizeThemeTweak(raw[id]);
+      }
+      return out;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function persistThemeTweaks() {
+    try {
+      const slim = {};
+      for (const id of THEMES) {
+        const tw = themeTweakState.byTheme[id];
+        if (tw && !isDefaultThemeTweak(tw)) slim[id] = tw;
+      }
+      localStorage.setItem(THEME_TWEAK_KEY, JSON.stringify(slim));
+    } catch (_) { /* ignore */ }
+  }
+
+  function readThemeTweak(theme) {
+    const id = THEMES.includes(theme) ? theme : "night";
+    return normalizeThemeTweak(themeTweakState.byTheme[id] || THEME_TWEAK_DEFAULTS);
+  }
+
+  function applyThemeTweaks(tweak, opts = {}) {
+    const values = normalizeThemeTweak(tweak);
+    clearThemeTweakStyles();
+    if (!isDefaultThemeTweak(values)) {
+      writeThemeTweakVars(buildThemeTweakVars(values));
+    }
+    paintThemeTweakControls();
+    if (opts.refreshMermaid) {
+      scheduleThemeTweakMermaid(opts.immediate);
+    }
+  }
+
+  function scheduleThemeTweakMermaid(immediate) {
+    if (themeTweakState.mermaidTimer) {
+      clearTimeout(themeTweakState.mermaidTimer);
+      themeTweakState.mermaidTimer = 0;
+    }
+    const run = () => {
+      themeTweakState.mermaidTimer = 0;
+      try { scheduleMermaidThemeRefresh(); } catch (_) { /* ignore */ }
+    };
+    if (immediate) run();
+    else themeTweakState.mermaidTimer = window.setTimeout(run, 280);
+  }
+
+  function setThemeTweakValue(key, value, opts = {}) {
+    const theme = readStoredTheme();
+    const next = {
+      ...readThemeTweak(theme),
+      [key]: clampThemeTweak(key, value),
+    };
+    themeTweakState.byTheme[theme] = next;
+    if (opts.persist !== false) persistThemeTweaks();
+    applyThemeTweaks(next, {
+      refreshMermaid: opts.refreshMermaid !== false,
+      immediate: !!opts.immediate,
+    });
+  }
+
+  function resetThemeTweak(opts = {}) {
+    const theme = readStoredTheme();
+    themeTweakState.byTheme[theme] = { ...THEME_TWEAK_DEFAULTS };
+    persistThemeTweaks();
+    applyThemeTweaks(THEME_TWEAK_DEFAULTS, {
+      refreshMermaid: true,
+      immediate: true,
+    });
+    if (opts.toast !== false) toast(t("themeTweakResetDone"));
+  }
+
+  function formatThemeTweakValue(value) {
+    if (value === 0) return "0";
+    return (value > 0 ? "+" : "") + String(value);
+  }
+
+  function themeTweakMarkup() {
+    const rows = [
+      ["brightness", "themeBrightness"],
+      ["contrast", "themeContrast"],
+      ["accentShift", "themeAccentShift"],
+    ].map(([key, labelKey]) => {
+      const range = THEME_TWEAK_RANGES[key];
+      return `<div class="type-row">
+        <div class="type-row-head"><span data-theme-tweak-label="${key}">${t(labelKey)}</span><span class="type-val" data-theme-tweak-val="${key}">0</span></div>
+        <input type="range" data-theme-tweak-key="${key}" min="${range.min}" max="${range.max}" step="${range.step}" value="0" />
+      </div>`;
+    }).join("");
+    return `<div class="theme-tweak" data-theme-tweak>
+      <div class="type-head" data-theme-tweak-head>${t("themeTweak")}</div>
+      ${rows}
+      <button type="button" class="type-reset" data-theme-tweak-reset>${t("themeTweakReset")}</button>
+    </div>`;
+  }
+
+  function ensureThemeTweakDom() {
+    const mounts = [];
+    const headerMenu = document.getElementById("headerPrefsMenu");
+    if (headerMenu) mounts.push(headerMenu);
+    const prefsMenu = document.getElementById("prefsMenu");
+    if (prefsMenu) {
+      let section = prefsMenu.querySelector("[data-theme-tweak-section]");
+      if (!section) {
+        section = document.createElement("div");
+        section.className = "prefs-section";
+        section.setAttribute("data-theme-tweak-section", "1");
+        const themeSection = prefsMenu.querySelector(".prefs-section");
+        if (themeSection && themeSection.nextSibling) {
+          prefsMenu.insertBefore(section, themeSection.nextSibling);
+        } else if (themeSection) {
+          themeSection.after(section);
+        } else {
+          prefsMenu.appendChild(section);
+        }
+      }
+      mounts.push(section);
+    }
+    for (const mount of mounts) {
+      if (mount.querySelector("[data-theme-tweak]")) continue;
+      mount.insertAdjacentHTML("beforeend", themeTweakMarkup());
+      const box = mount.querySelector("[data-theme-tweak]");
+      if (!box || box.dataset.bound) continue;
+      box.dataset.bound = "1";
+      box.addEventListener("input", (e) => {
+        const input = e.target.closest("[data-theme-tweak-key]");
+        if (!input) return;
+        setThemeTweakValue(input.getAttribute("data-theme-tweak-key"), input.value, {
+          refreshMermaid: false,
+          persist: false,
+        });
+      });
+      box.addEventListener("change", (e) => {
+        const input = e.target.closest("[data-theme-tweak-key]");
+        if (!input) return;
+        setThemeTweakValue(input.getAttribute("data-theme-tweak-key"), input.value, {
+          refreshMermaid: true,
+          immediate: false,
+          persist: true,
+        });
+      });
+      box.querySelector("[data-theme-tweak-reset]")?.addEventListener("click", () => {
+        resetThemeTweak();
+      });
+    }
+  }
+
+  function paintThemeTweakControls() {
+    const theme = readStoredTheme();
+    const values = readThemeTweak(theme);
+    document.querySelectorAll("[data-theme-tweak]").forEach((box) => {
+      Object.keys(THEME_TWEAK_RANGES).forEach((key) => {
+        const input = box.querySelector(`[data-theme-tweak-key="${key}"]`);
+        const label = box.querySelector(`[data-theme-tweak-val="${key}"]`);
+        const value = values[key];
+        if (input) {
+          input.value = String(value);
+          setRangeFill(input);
+        }
+        if (label) label.textContent = formatThemeTweakValue(value);
+      });
+    });
+  }
+
+  function applyThemeTweakI18n() {
+    document.querySelectorAll("[data-theme-tweak-head]").forEach((el) => {
+      el.textContent = t("themeTweak");
+    });
+    document.querySelectorAll("[data-theme-tweak-label]").forEach((el) => {
+      const key = el.getAttribute("data-theme-tweak-label");
+      const map = {
+        brightness: "themeBrightness",
+        contrast: "themeContrast",
+        accentShift: "themeAccentShift",
+      };
+      if (map[key]) el.textContent = t(map[key]);
+    });
+    document.querySelectorAll("[data-theme-tweak-reset]").forEach((el) => {
+      el.textContent = t("themeTweakReset");
+    });
+  }
+
   function readStoredTheme() {
     try {
       const id = localStorage.getItem(THEME_KEY);
@@ -4668,12 +5137,14 @@
 
   function applyTheme(theme, persist) {
     const next = THEMES.includes(theme) ? theme : "night";
+    clearThemeTweakStyles();
     document.documentElement.setAttribute("data-theme", next);
     loadThemeFonts(next);
     if (persist !== false) {
       try { localStorage.setItem(THEME_KEY, next); } catch (_) { /* ignore */ }
     }
     paintThemeSwitch(next);
+    applyThemeTweaks(readThemeTweak(next), { refreshMermaid: false });
     try {
       if (window.parent && window.parent !== window) {
         window.parent.postMessage({ type: "theme", theme: next }, window.location.origin);
@@ -4692,6 +5163,7 @@
       if (!btn) return;
       const id = btn.getAttribute("data-theme");
       applyTheme(id);
+      paintThemeTweakControls();
       toast(t("themeSwitched", { name: t(THEME_I18N[id] || id) }));
     });
   }
@@ -4715,6 +5187,7 @@
       el.title = t(THEME_TITLE[id]);
       el.setAttribute("aria-label", t(THEME_I18N[id]));
     });
+    applyThemeTweakI18n();
   }
 
   function headerPrefsIsOpen() {
@@ -4783,8 +5256,10 @@
     const btn = document.getElementById("headerPrefsBtn");
     const menu = document.getElementById("headerPrefsMenu");
     if (!wrap || !btn || !menu) return;
+    ensureThemeTweakDom();
     if (initHeaderPrefs.done) {
       applyThemeI18n();
+      paintThemeTweakControls();
       return;
     }
     initHeaderPrefs.done = true;
@@ -4804,12 +5279,19 @@
       if (e.key === "Escape") closeHeaderPrefs();
     });
     applyThemeI18n();
+    paintThemeTweakControls();
   }
 
   function initTheme() {
+    if (!initTheme.tweaksLoaded) {
+      initTheme.tweaksLoaded = true;
+      themeTweakState.byTheme = readStoredThemeTweaks();
+    }
+    ensureThemeTweakDom();
     if (initTheme.done) {
       applyThemeI18n();
       paintThemeSwitch(readStoredTheme());
+      paintThemeTweakControls();
       return;
     }
     initTheme.done = true;
@@ -4817,6 +5299,7 @@
     document.querySelectorAll(".theme-switch").forEach(bindThemeSwitch);
     applyThemeI18n();
     paintThemeSwitch(readStoredTheme());
+    paintThemeTweakControls();
   }
 
   function revealVditorIcons() {
@@ -7976,14 +8459,8 @@
     const prevTheme = document.documentElement.getAttribute("data-theme") || readStoredTheme();
     let restoreEdit = false;
     const cleanup = async () => {
-      const current = document.documentElement.getAttribute("data-theme");
-      if (current !== prevTheme) {
-        document.documentElement.setAttribute("data-theme", prevTheme);
-        loadThemeFonts(prevTheme);
-        paintThemeSwitch(prevTheme);
-        applyMermaidTheme();
-        try { await refreshMermaidDiagrams(mermaidRoot()); } catch (_) { /* ignore */ }
-      }
+      applyTheme(prevTheme, false);
+      try { await refreshMermaidDiagrams(mermaidRoot()); } catch (_) { /* ignore */ }
       if (restoreEdit && lastEditorApi?.setPreview) {
         try { await lastEditorApi.setPreview(false); } catch (_) { /* ignore */ }
       }
@@ -7998,9 +8475,12 @@
       }
       toast(t("exportPngPreparing"));
       if (prevTheme !== "xuan") {
+        clearThemeTweakStyles();
         document.documentElement.setAttribute("data-theme", "xuan");
         loadThemeFonts("xuan");
         applyMermaidTheme();
+      } else {
+        clearThemeTweakStyles();
       }
       await waitForMermaidReady();
       await waitFonts();
@@ -8049,14 +8529,8 @@
       document.documentElement.classList.remove("is-printing");
       document.body.classList.remove("is-printing");
       document.title = prevTitle;
-      const current = document.documentElement.getAttribute("data-theme");
-      if (current !== prevTheme) {
-        document.documentElement.setAttribute("data-theme", prevTheme);
-        loadThemeFonts(prevTheme);
-        paintThemeSwitch(prevTheme);
-        applyMermaidTheme();
-        try { await refreshMermaidDiagrams(mermaidRoot()); } catch (_) { /* ignore */ }
-      }
+      applyTheme(prevTheme, false);
+      try { await refreshMermaidDiagrams(mermaidRoot()); } catch (_) { /* ignore */ }
       if (restoreEdit && lastEditorApi?.setPreview) {
         try { await lastEditorApi.setPreview(false); } catch (_) { /* ignore */ }
       }
@@ -8073,6 +8547,7 @@
 
       const needPaper = hasMermaidToRestyle() && prevTheme !== "xuan";
       if (needPaper) toast(t("exportPdfPreparing"));
+      clearThemeTweakStyles();
       if (prevTheme !== "xuan") {
         document.documentElement.setAttribute("data-theme", "xuan");
         loadThemeFonts("xuan");

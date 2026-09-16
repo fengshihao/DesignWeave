@@ -143,11 +143,12 @@ test("molan-editor.js 导出 MolanEditor.create", () => {
   assert.doesNotMatch(src, /editModeBtn/);
 });
 
-test("molan.css 含四主题变量", () => {
+test("molan.css 含七主题变量", () => {
   const css = readFileSync(join(root, "src", "molan.css"), "utf8");
-  for (const theme of ["night", "hack", "rose", "xuan"]) {
+  for (const theme of ["night", "hack", "rose", "xuan", "slate", "mist", "cinnabar"]) {
     assert.match(css, new RegExp(`data-theme="${theme}"|\\[data-theme=${theme}\\]`));
   }
+  assert.match(css, /\.theme-tweak/);
   assert.match(css, /@media print/);
   assert.match(css, /break-inside:\s*auto/);
   assert.match(css, /max-height:\s*220mm/);
@@ -178,6 +179,16 @@ test("molan.css 含四主题变量", () => {
   assert.match(css, /\.molan-mermaid-editor \{[\s\S]*width:\s*min\(96vw,\s*1400px\)/);
   assert.match(css, /\.molan-mermaid-editor \{[\s\S]*height:\s*min\(90vh,\s*900px\)/);
   assert.doesNotMatch(css, /#editModeBtn/);
+});
+
+test("纸面色调微调有持久化与防抖", () => {
+  const src = editorSrc();
+  assert.match(src, /THEME_TWEAK_KEY/);
+  assert.match(src, /function applyThemeTweaks/);
+  assert.match(src, /function buildThemeTweakVars/);
+  assert.match(src, /scheduleThemeTweakMermaid/);
+  assert.match(src, /data-theme-tweak-key/);
+  assert.match(src, /slate.*mist.*cinnabar|cinnabar.*mist.*slate/);
 });
 
 test("编辑态能修好并删除空任务列表", () => {

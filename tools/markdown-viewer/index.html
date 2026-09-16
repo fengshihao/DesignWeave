@@ -11,7 +11,7 @@
       var theme = "night";
       try {
         var t = localStorage.getItem("molan-theme");
-        if (t === "night" || t === "hack" || t === "rose" || t === "xuan") theme = t;
+        if (t === "night" || t === "hack" || t === "rose" || t === "xuan" || t === "slate" || t === "mist" || t === "cinnabar") theme = t;
       } catch (e) {}
       document.documentElement.setAttribute("data-theme", theme);
       try {
@@ -83,6 +83,15 @@
                   <svg viewBox="0 0 32 32" aria-hidden="true"><circle class="theme-ring" cx="16" cy="16" r="14.25"/><circle class="theme-fill" cx="16" cy="16" r="10"/></svg>
                 </button>
                 <button type="button" role="radio" data-theme="rose" title="胭脂 · 柔粉纸面" aria-label="胭脂" data-i18n-title="themeRoseTitle" data-i18n-aria="themeRose" aria-checked="false">
+                  <svg viewBox="0 0 32 32" aria-hidden="true"><circle class="theme-ring" cx="16" cy="16" r="14.25"/><circle class="theme-fill" cx="16" cy="16" r="10"/></svg>
+                </button>
+                <button type="button" role="radio" data-theme="slate" title="青石 · 冷灰夜读" aria-label="青石" data-i18n-title="themeSlateTitle" data-i18n-aria="themeSlate" aria-checked="false">
+                  <svg viewBox="0 0 32 32" aria-hidden="true"><circle class="theme-ring" cx="16" cy="16" r="14.25"/><circle class="theme-fill" cx="16" cy="16" r="10"/></svg>
+                </button>
+                <button type="button" role="radio" data-theme="mist" title="薄雾 · 冷白纸面" aria-label="薄雾" data-i18n-title="themeMistTitle" data-i18n-aria="themeMist" aria-checked="false">
+                  <svg viewBox="0 0 32 32" aria-hidden="true"><circle class="theme-ring" cx="16" cy="16" r="14.25"/><circle class="theme-fill" cx="16" cy="16" r="10"/></svg>
+                </button>
+                <button type="button" role="radio" data-theme="cinnabar" title="朱砂 · 赭石纸面" aria-label="朱砂" data-i18n-title="themeCinnabarTitle" data-i18n-aria="themeCinnabar" aria-checked="false">
                   <svg viewBox="0 0 32 32" aria-hidden="true"><circle class="theme-ring" cx="16" cy="16" r="14.25"/><circle class="theme-fill" cx="16" cy="16" r="10"/></svg>
                 </button>
               </div>
