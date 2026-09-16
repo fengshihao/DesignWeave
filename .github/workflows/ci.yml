@@ -13,7 +13,16 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout DesignWeave
+        uses: actions/checkout@v4
+        with:
+          path: DesignWeave
+
+      - name: Checkout molan (sibling)
+        uses: actions/checkout@v4
+        with:
+          repository: fengshihao/molan
+          path: molan
 
       - uses: pnpm/action-setup@v4
         with:
@@ -23,26 +32,33 @@ jobs:
         with:
           node-version: "20"
           cache: pnpm
+          cache-dependency-path: |
+            DesignWeave/pnpm-lock.yaml
+            molan/pnpm-lock.yaml
 
-      - name: Install dependencies
+      - name: Install molan
+        working-directory: molan
+        run: pnpm install --frozen-lockfile
+
+      - name: Build molan packages
+        working-directory: molan
+        run: pnpm build
+
+      - name: Install DesignWeave
+        working-directory: DesignWeave
         run: pnpm install --frozen-lockfile
 
       - name: Build shared packages
+        working-directory: DesignWeave
         run: |
           pnpm --filter @designweave/schema build
           pnpm --filter @designweave/prompts build
-          pnpm --filter @designweave/molan-protocol build
-          pnpm --filter @designweave/molan-core build
-          pnpm --filter @designweave/molan-host build
+          pnpm --filter @designweave/web sync-molan
 
       - name: Typecheck
+        working-directory: DesignWeave
         run: pnpm typecheck
 
       - name: Unit tests
+        working-directory: DesignWeave
         run: pnpm test
-
-      - name: Install xvfb for VS Code extension E2E
-        run: sudo apt-get update && sudo apt-get install -y xvfb
-
-      - name: VS Code extension bundle check
-        run: pnpm --filter molan-markdown check

@@ -1,6 +1,6 @@
 import { customAlphabet } from "nanoid";
 import type { Response } from "express";
-import { agui, userMessageId, type AguiEventType } from "@designweave/molan-protocol";
+import { agui, userMessageId, type AguiEventType } from "@molan/protocol";
 import { getDb } from "./db.js";
 import { HttpError } from "./httpError.js";
 import { parseDocFolder, type DocFolder } from "./docFolders.js";

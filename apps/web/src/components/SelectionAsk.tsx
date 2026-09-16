@@ -1,7 +1,7 @@
 "use client";
 
 import { KeyboardEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { formatFocusPath } from "@designweave/molan-protocol";
+import { formatFocusPath } from "@molan/protocol";
 
 export type SelectionAskFocus = {
   headingPath: string[];

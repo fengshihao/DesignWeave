@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { agui, assistantMessageId, pickToolInput } from "@designweave/molan-protocol";
+import { agui, assistantMessageId, pickToolInput } from "@molan/protocol";
 import { config } from "./config.js";
 import { buildClaudeQueryOptions } from "./claudeRuntime.js";
 import { changedFiles, restoreFile } from "./gitVault.js";

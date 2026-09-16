@@ -1,13 +1,13 @@
 "use client";
 
-import type { MolanState } from "@designweave/molan-protocol";
+import type { MolanState } from "@molan/protocol";
 import {
   loadMolanRuntime,
   mountInlineHost,
   renderInlineShell,
   warmMolanPreviewAssets,
   type InlineHostHandle,
-} from "@designweave/molan-host";
+} from "@molan/host";
 import {
   forwardRef,
   useCallback,

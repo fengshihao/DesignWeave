@@ -46,7 +46,7 @@ import {
   reduceAguiEvents,
   toAguiEvent,
   type AguiEvent,
-} from "@designweave/molan-protocol";
+} from "@molan/protocol";
 import {
   forgetProject,
   lastEntrustSize,

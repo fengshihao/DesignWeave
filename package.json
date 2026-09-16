@@ -4,23 +4,17 @@
   "version": "0.1.0",
   "packageManager": "pnpm@8.6.9",
   "scripts": {
-    "predev": "pnpm --filter @designweave/schema build && pnpm --filter @designweave/prompts build && pnpm --filter @designweave/molan-protocol build && pnpm --filter @designweave/molan-core build && pnpm --filter @designweave/molan-host build && pnpm --filter @designweave/web sync-molan",
-    "test": "pnpm --filter @designweave/molan-protocol test && pnpm --filter @designweave/molan-host test && pnpm --filter @designweave/molan-core test && pnpm --filter @designweave/agent test",
-    "test:molan": "node tools/markdown-viewer/scripts/editor-e2e.mjs && node tools/markdown-viewer/scripts/buttons-e2e.mjs && node tools/markdown-viewer/scripts/table-e2e.mjs",
+    "predev": "pnpm --filter @designweave/schema build && pnpm --filter @designweave/prompts build && node scripts/ensure-molan-build.mjs && pnpm --filter @designweave/web sync-molan",
+    "test": "pnpm --filter @designweave/agent test",
     "dev": "node scripts/run-bash.mjs scripts/dev.sh",
     "dev:agent": "pnpm --filter @designweave/agent dev",
     "dev:web": "pnpm --filter @designweave/web dev",
     "stop": "node scripts/run-bash.mjs scripts/dev.sh stop",
-    "molan": "node scripts/run-bash.mjs scripts/markdown-viewer.sh",
-    "molan:stop": "node scripts/run-bash.mjs scripts/markdown-viewer.sh stop",
-    "build": "pnpm --filter @designweave/schema build && pnpm --filter @designweave/prompts build && pnpm --filter @designweave/molan-protocol build && pnpm --filter @designweave/molan-core build && pnpm --filter @designweave/molan-host build && pnpm --filter @designweave/agent build && pnpm --filter @designweave/web build",
+    "build": "pnpm --filter @designweave/schema build && pnpm --filter @designweave/prompts build && node scripts/ensure-molan-build.mjs && pnpm --filter @designweave/agent build && pnpm --filter @designweave/web build",
     "start": "pnpm -r --parallel --filter @designweave/agent --filter @designweave/web start",
     "typecheck": "pnpm -r typecheck",
-    "vscode:molan": "node scripts/run-bash.mjs scripts/vscode-molan.sh",
-    "vscode:molan:package": "node scripts/run-bash.mjs scripts/vscode-molan.sh package",
-    "vscode:molan:install": "node scripts/run-bash.mjs scripts/vscode-molan.sh install",
-    "molan:publish": "node scripts/run-bash.mjs scripts/molan-publish.sh",
-    "molan:publish:extension": "node scripts/run-bash.mjs scripts/molan-publish.sh --skip-site"
+    "molan": "node ../molan/bin/molan.mjs",
+    "molan:help": "node ../molan/bin/molan.mjs help"
   },
   "engines": {
     "node": ">=20"

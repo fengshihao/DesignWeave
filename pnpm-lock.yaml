@@ -13,15 +13,15 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.2.27
         version: 0.2.27(zod@4.0.0)
-      '@designweave/molan-protocol':
-        specifier: workspace:*
-        version: link:../../packages/molan-protocol
       '@designweave/prompts':
         specifier: workspace:*
         version: link:../../packages/prompts
       '@designweave/schema':
         specifier: workspace:*
         version: link:../../packages/schema
+      '@molan/protocol':
+        specifier: file:../../../molan/packages/molan-protocol
+        version: file:../molan/packages/molan-protocol
       better-auth:
         specifier: ^1.6.29
         version: 1.6.29(better-sqlite3@12.11.1)
@@ -63,42 +63,17 @@ importers:
         specifier: ^5.8.2
         version: 5.8.2
 
-  apps/vscode-molan:
-    dependencies:
-      '@designweave/molan-host':
-        specifier: workspace:*
-        version: link:../../packages/molan-host
-      '@designweave/molan-protocol':
-        specifier: workspace:*
-        version: link:../../packages/molan-protocol
-      vditor:
-        specifier: 3.10.9
-        version: 3.10.9
-      zod:
-        specifier: ^4.0.0
-        version: 4.0.0
-    devDependencies:
-      '@types/node':
-        specifier: ^22.13.10
-        version: 22.13.10
-      '@types/vscode':
-        specifier: ^1.74.0
-        version: 1.74.0
-      typescript:
-        specifier: ^5.8.2
-        version: 5.8.2
-
   apps/web:
     dependencies:
-      '@designweave/molan-host':
-        specifier: workspace:*
-        version: link:../../packages/molan-host
-      '@designweave/molan-protocol':
-        specifier: workspace:*
-        version: link:../../packages/molan-protocol
       '@designweave/schema':
         specifier: workspace:*
         version: link:../../packages/schema
+      '@molan/host':
+        specifier: file:../../../molan/packages/molan-host
+        version: file:../molan/packages/molan-host
+      '@molan/protocol':
+        specifier: file:../../../molan/packages/molan-protocol
+        version: file:../molan/packages/molan-protocol
       better-auth:
         specifier: ^1.6.29
         version: 1.6.29(next@15.2.2)(react-dom@19.0.0)(react@19.0.0)
@@ -124,54 +99,6 @@ importers:
       '@types/react-dom':
         specifier: ^19.0.4
         version: 19.0.4(@types/react@19.0.10)
-      typescript:
-        specifier: ^5.8.2
-        version: 5.8.2
-
-  packages/molan-core:
-    dependencies:
-      '@designweave/molan-protocol':
-        specifier: workspace:*
-        version: link:../molan-protocol
-      vditor:
-        specifier: 3.10.9
-        version: 3.10.9
-    devDependencies:
-      tsx:
-        specifier: ^4.19.3
-        version: 4.19.3
-      typescript:
-        specifier: ^5.8.2
-        version: 5.8.2
-
-  packages/molan-host:
-    dependencies:
-      '@designweave/molan-protocol':
-        specifier: workspace:*
-        version: link:../molan-protocol
-      zod:
-        specifier: ^4.0.0
-        version: 4.0.0
-    devDependencies:
-      esbuild:
-        specifier: ^0.25.0
-        version: 0.25.12
-      tsx:
-        specifier: ^4.19.3
-        version: 4.19.3
-      typescript:
-        specifier: ^5.8.2
-        version: 5.8.2
-
-  packages/molan-protocol:
-    dependencies:
-      zod:
-        specifier: ^4.0.0
-        version: 4.0.0
-    devDependencies:
-      tsx:
-        specifier: ^4.19.3
-        version: 4.19.3
       typescript:
         specifier: ^5.8.2
         version: 5.8.2
@@ -955,10 +882,6 @@ packages:
     dependencies:
       '@types/http-errors': 2.0.5
       '@types/node': 22.13.10
-    dev: true
-
-  /@types/vscode@1.74.0:
-    resolution: {integrity: sha512-LyeCIU3jb9d38w0MXFwta9r0Jx23ugujkAxdwLTNCyspdZTKUc43t7ppPbCiPoQ/Ivd/pnDFZrb4hWd45wrsgA==}
     dev: true
 
   /accepts@1.3.8:
@@ -2231,4 +2154,19 @@ packages:
 
   /zod@4.4.3:
     resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
+    dev: false
+
+  file:../molan/packages/molan-host:
+    resolution: {directory: ../molan/packages/molan-host, type: directory}
+    name: '@molan/host'
+    dependencies:
+      '@molan/protocol': file:../molan/packages/molan-protocol
+      zod: 4.4.3
+    dev: false
+
+  file:../molan/packages/molan-protocol:
+    resolution: {directory: ../molan/packages/molan-protocol, type: directory}
+    name: '@molan/protocol'
+    dependencies:
+      zod: 4.4.3
     dev: false

@@ -2,16 +2,16 @@ import { cpSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { renderHostHtml } from "@designweave/molan-host";
+import { renderHostHtml } from "@molan/host";
 import { ensureMolanPackagesBuilt } from "../../../scripts/ensure-molan-build.mjs";
+import { molanPackageDist } from "../../../scripts/resolve-molan-root.mjs";
 
 ensureMolanPackagesBuilt();
 
 const require = createRequire(import.meta.url);
 const webRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
-const repoRoot = join(webRoot, "..", "..");
-const coreDist = join(repoRoot, "packages", "molan-core", "dist");
-const hostDist = join(repoRoot, "packages", "molan-host", "dist");
+const coreDist = molanPackageDist("molan-core");
+const hostDist = molanPackageDist("molan-host");
 const dest = join(webRoot, "public", "molan");
 
 mkdirSync(dest, { recursive: true });
@@ -87,4 +87,4 @@ const hostHtml = renderHostHtml({
 
 writeFileSync(join(dest, "host.html"), hostHtml);
 
-console.log("synced molan-core + molan-host → public/molan/（host.html 为 legacy 直链，工作台 inline 不依赖）");
+console.log("synced @molan/core + @molan/host → public/molan/（真源：并列 ../molan）");

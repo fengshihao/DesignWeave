@@ -4,16 +4,16 @@
   "private": true,
   "scripts": {
     "sync-molan": "node ./scripts/sync-molan.mjs",
-    "predev": "pnpm --filter @designweave/molan-protocol build && pnpm --filter @designweave/molan-core build && pnpm --filter @designweave/molan-host build && node ./scripts/sync-molan.mjs",
+    "predev": "node ../../scripts/ensure-molan-build.mjs && node ./scripts/sync-molan.mjs",
     "dev": "next dev -p 3100",
-    "prebuild": "pnpm --filter @designweave/molan-protocol build && pnpm --filter @designweave/molan-core build && pnpm --filter @designweave/molan-host build && node ./scripts/sync-molan.mjs",
+    "prebuild": "node ../../scripts/ensure-molan-build.mjs && node ./scripts/sync-molan.mjs",
     "build": "next build",
     "start": "next start -p 3100",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@designweave/molan-host": "workspace:*",
-    "@designweave/molan-protocol": "workspace:*",
+    "@molan/host": "file:../../../molan/packages/molan-host",
+    "@molan/protocol": "file:../../../molan/packages/molan-protocol",
     "@designweave/schema": "workspace:*",
     "better-auth": "^1.6.29",
     "next": "^15.2.2",

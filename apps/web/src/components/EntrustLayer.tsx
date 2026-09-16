@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { formatFocusChip, type ChatBlock, type ChatTurn } from "@designweave/molan-protocol";
+import { formatFocusChip, type ChatBlock, type ChatTurn } from "@molan/protocol";
 import type { WorkbenchRun, ChatSession } from "@/lib/api";
 import type { EntrustSize } from "@/lib/remember";
 
