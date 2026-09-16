@@ -464,6 +464,15 @@ export const api = {
       body: JSON.stringify({ clientId, folder }),
     }),
 
+  /** 只读查锁，不抢占。打开预览用这个；真正要改再 claimLock。 */
+  getLock: (id: string, folder?: DocFolder, clientId?: string) => {
+    const q = new URLSearchParams();
+    if (folder) q.set("folder", folder);
+    if (clientId) q.set("clientId", clientId);
+    const suffix = q.toString() ? `?${q}` : "";
+    return request<{ lock: ProjectLockInfo }>(`/v1/projects/${id}/lock${suffix}`);
+  },
+
   heartbeatLock: (id: string, clientId: string, editing: boolean, folder?: DocFolder) =>
     request<{ lock: ProjectLockInfo }>(`/v1/projects/${id}/lock/heartbeat`, {
       method: "POST",

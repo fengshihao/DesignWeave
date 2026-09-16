@@ -5,6 +5,7 @@ import {
   loadMolanRuntime,
   mountInlineHost,
   renderInlineShell,
+  warmMolanPreviewAssets,
   type InlineHostHandle,
 } from "@designweave/molan-host";
 import {
@@ -35,6 +36,8 @@ export const MolanFrame = forwardRef<
     onSave: (value: string) => void;
     onDirtyChange: (dirty: boolean) => void;
     onEditingChange: (editing: boolean) => void;
+    /** 只读时点编辑：返回 true 则抢锁成功并进入编辑 */
+    onRequestEdit?: () => boolean | Promise<boolean>;
     onBlockedEdit?: () => void;
     onOpenRelative?: (path: string) => void;
     onSelection?: (focus: {
@@ -103,6 +106,14 @@ export const MolanFrame = forwardRef<
         await loadMolanRuntime();
         if (cancelled || !hostRef.current) return;
 
+        const idle =
+          typeof window.requestIdleCallback === "function"
+            ? window.requestIdleCallback
+            : (cb: () => void) => window.setTimeout(cb, 200);
+        idle(() => {
+          if (!cancelled) warmMolanPreviewAssets();
+        });
+
         const handle = mountInlineHost(hostRef.current, {
           onSave: () => {
             void handleRef.current?.getState().then((state) => {
@@ -111,6 +122,7 @@ export const MolanFrame = forwardRef<
           },
           onChange: (dirty) => propsRef.current.onDirtyChange(dirty),
           onPreviewChange: (isPreview) => propsRef.current.onEditingChange(!isPreview),
+          onRequestEdit: () => propsRef.current.onRequestEdit?.() ?? false,
           onWantEdit: () => propsRef.current.onBlockedEdit?.(),
           onSelection: (focus) => propsRef.current.onSelection?.(focus),
           onReady: () => {
@@ -143,7 +155,15 @@ export const MolanFrame = forwardRef<
 
   useEffect(() => {
     void sendInit();
-  }, [props.fileName, props.etag, props.readOnly, sendInit]);
+  }, [props.fileName, props.etag, sendInit]);
+
+  useEffect(() => {
+    if (!readyRef.current || !handleRef.current) return;
+    void handleRef.current.applyHostMessage({
+      type: "setReadOnly",
+      readOnly: props.readOnly,
+    });
+  }, [props.readOnly]);
 
   useEffect(() => {
     hostRef.current?.classList.toggle("is-readonly", props.readOnly);

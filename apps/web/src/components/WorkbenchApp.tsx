@@ -635,6 +635,28 @@ function ProjectPaper(props: {
     return tree.files;
   }, [id]);
 
+  const applyLockState = useCallback((next: ProjectLockInfo, folder: DocFolder) => {
+    setLock(next);
+    if (next && !next.youHold) {
+      setPreviewReason(`${next.holderName}正在改${FOLDER_LABELS[folder]}，你现在是预览。`);
+    } else {
+      setPreviewReason("");
+    }
+  }, []);
+
+  const claimEditLock = useCallback(async () => {
+    if (!cid) return { ok: false as const, reason: "缺少本机标识" };
+    const claimed = await api.claimLock(id, cid, heldFolder);
+    applyLockState(claimed.lock, heldFolder);
+    if (!claimed.youHold) {
+      return {
+        ok: false as const,
+        reason: claimed.previewReason || "现在不能编辑。",
+      };
+    }
+    return { ok: true as const };
+  }, [applyLockState, cid, heldFolder, id]);
+
   const openFile = useCallback(
     async (path: string, force = false) => {
       if (!force && dirty && !readOnly) {
@@ -646,11 +668,6 @@ function ProjectPaper(props: {
       }
       const file = await api.readFile(id, path);
       const nextFolder = owningFolderOf(file.path) || heldFolder;
-      if (cid) {
-        const claimed = await api.claimLock(id, cid, nextFolder);
-        setLock(claimed.lock);
-        setPreviewReason(claimed.previewReason || "");
-      }
       setCurrentPath(file.path);
       setContent(file.content);
       setEtag(file.etag);
@@ -659,12 +676,19 @@ function ProjectPaper(props: {
       setPreviewFocus(null);
       molanRef.current?.clearSelection();
       rememberFile(id, file.path);
+      // 打开只读查锁，不抢；进编辑 / 托付改稿再 claim
+      if (cid) {
+        void api
+          .getLock(id, heldFolder, cid)
+          .then((res) => applyLockState(res.lock, heldFolder))
+          .catch(() => undefined);
+      }
       void api.listVersions(id, nextFolder).then((ver) => {
         setVersions(ver.versions);
         setUncommitted(ver.uncommitted);
       });
     },
-    [cid, dirty, heldFolder, id, readOnly]
+    [applyLockState, cid, dirty, heldFolder, id, readOnly]
   );
 
   const bootstrap = useCallback(async () => {
@@ -674,9 +698,6 @@ function ProjectPaper(props: {
     setMeta(data.requirement);
     setUncommitted(Boolean(data.uncommitted));
     if (data.activeRun) setActiveRun(data.activeRun);
-    const claimed = await api.claimLock(id, cid, heldFolder);
-    setLock(claimed.lock);
-    setPreviewReason(claimed.previewReason || "");
     rememberProject(id);
     const tree = await api.listFiles(id);
     setFiles(tree.files);
@@ -690,15 +711,14 @@ function ProjectPaper(props: {
           ? preferred
           : tree.files.find((f) => !f.isDir)?.path || preferred;
     const startFolder = owningFolderOf(startPath) || heldFolder;
-    if (startFolder !== heldFolder) {
-      const viewClaim = await api.claimLock(id, cid, startFolder);
-      setLock(viewClaim.lock);
-      setPreviewReason(viewClaim.previewReason || "");
-    }
-    const ver = await api.listVersions(id, startFolder);
+    const [ver, file, lockStatus] = await Promise.all([
+      api.listVersions(id, startFolder),
+      api.readFile(id, startPath),
+      api.getLock(id, heldFolder, cid),
+    ]);
+    applyLockState(lockStatus.lock, heldFolder);
     setVersions(ver.versions);
     setUncommitted(ver.uncommitted);
-    const file = await api.readFile(id, startPath);
     setCurrentPath(file.path);
     setContent(file.content);
     setEtag(file.etag);
@@ -716,12 +736,12 @@ function ProjectPaper(props: {
     const savedSize = lastEntrustSize(id);
     const savedWidth = lastEntrustWidth(id);
     if (savedWidth) setEntrustWidth(savedWidth);
-    if (!claimed.lock?.youHold && startFolder === heldFolder) {
+    if (!lockStatus.lock?.youHold && startFolder === heldFolder) {
       setEntrustSize(savedSize || "half");
     } else if (savedSize) {
       setEntrustSize(savedSize);
     }
-  }, [cid, heldFolder, id, props.user.role]);
+  }, [applyLockState, cid, heldFolder, id, props.user.role]);
 
   useEffect(() => {
     setCid(clientId());
@@ -970,12 +990,25 @@ function ProjectPaper(props: {
     if (!text || busy || aiRunning) return;
     setGate(null);
     setError("");
-    const asking = !youHold;
+    // 无权写当前文档 → 提问；有权写 → 共创（必要时先抢锁，不依赖「打开就占坑」）
+    const asking = !canEditCurrent;
     if (asking && !previewFocus?.quote) {
       setGate(ackGate("先圈一段，再提问。"));
       return;
     }
     if (!asking) {
+      if (!youHold) {
+        try {
+          const claimed = await claimEditLock();
+          if (!claimed.ok) {
+            setGate(ackGate(claimed.reason));
+            return;
+          }
+        } catch (e) {
+          setGate(ackGate(e instanceof Error ? e.message : "没能取得编辑权"));
+          return;
+        }
+      }
       const state = await molanRef.current?.getState();
       if (state && (!state.isPreview || state.dirty || editing)) {
         setGate(saveGate("先保存一版并退出编辑，再发给 AI。"));
@@ -1172,19 +1205,30 @@ function ProjectPaper(props: {
                 onDirtyChange={setDirty}
                 onEditingChange={(next) => {
                   setEditing(next);
-                  if (canEditCurrent) {
+                  if (canEditCurrent && youHold) {
                     void api
                       .heartbeatLock(id, cid, next, heldFolder)
                       .then((r) => setLock(r.lock))
                       .catch(() => undefined);
                   }
                 }}
+                onRequestEdit={async () => {
+                  if (history || aiRunning || replaySession) return false;
+                  if (!canEditCurrent) return false;
+                  if (youHold) return true;
+                  try {
+                    const claimed = await claimEditLock();
+                    return claimed.ok;
+                  } catch {
+                    return false;
+                  }
+                }}
                 onBlockedEdit={() => {
-                  if (!youHold && !history && !aiRunning) {
+                  if (!canEditCurrent && !history && !aiRunning) {
                     setToast("圈一段就能提问。");
                     return;
                   }
-                  setToast(editBlockedReason || "现在不能编辑。");
+                  setToast(editBlockedReason || previewReason || "现在不能编辑。");
                 }}
                 onSelection={(focus) => {
                   setPreviewFocus(focus.quote ? focus : null);
@@ -1204,11 +1248,11 @@ function ProjectPaper(props: {
                 onExpandSection={() => {
                   molanRef.current?.expandToSection();
                 }}
-                onAskAuthor={youHold ? undefined : () => void addQuestionToAuthor()}
+                onAskAuthor={canEditCurrent ? undefined : () => void addQuestionToAuthor()}
                 authorActionLabel="向作者提一个问题"
                 disabled={!canSendEntrust}
                 canSend={Boolean(message.trim()) && canSendEntrust}
-                placeholder={youHold ? "对这块说一句，回车发给 AI…" : "写一句问题…"}
+                placeholder={canEditCurrent ? "对这块说一句，回车发给 AI…" : "写一句问题…"}
                 hint={replaySession ? "这是已结束的历史对话。" : undefined}
               />
             ) : null}

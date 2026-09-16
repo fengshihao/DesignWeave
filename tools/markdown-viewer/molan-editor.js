@@ -2659,6 +2659,57 @@
     if (actions) actions.insertBefore(outlineWrap, actions.firstChild);
   }
 
+  function ensureOutlinePanel() {
+    let panel = vditorOutlineEl();
+    if (panel) return panel;
+    const wrap = document.getElementById("editorWrap") || document.querySelector(".editor-wrap");
+    if (!wrap) return null;
+    panel = document.createElement("div");
+    panel.className = "vditor-outline";
+    panel.style.display = "none";
+    panel.innerHTML = '<div class="vditor-outline__title">大纲</div><ul></ul>';
+    wrap.insertBefore(panel, wrap.firstChild);
+    return panel;
+  }
+
+  function escapeOutlineText(text) {
+    return String(text || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  /** 预览态用 lite DOM 抽标题，避免 hydrate 拉满血 IR 编辑器 */
+  function renderLiteOutline() {
+    const panel = ensureOutlinePanel();
+    if (!panel) return panel;
+    const preview =
+      document.getElementById("molanPreviewBody") ||
+      document.querySelector(".molan-preview");
+    const heads = preview
+      ? [...preview.querySelectorAll("h1, h2, h3, h4, h5, h6")]
+      : [];
+    let ul = panel.querySelector(":scope > ul");
+    if (!ul) {
+      ul = document.createElement("ul");
+      panel.appendChild(ul);
+    }
+    if (!panel.querySelector(".vditor-outline__title")) {
+      const title = document.createElement("div");
+      title.className = "vditor-outline__title";
+      title.textContent = "大纲";
+      panel.insertBefore(title, ul);
+    }
+    ul.innerHTML = heads
+      .map((h, i) => {
+        const level = Number(h.tagName.slice(1)) || 1;
+        return `<li data-level="${level}"><span data-target-id="lite-${i}">${escapeOutlineText(h.textContent)}</span></li>`;
+      })
+      .join("");
+    return panel;
+  }
+
   let outlineRefreshTimer = 0;
 
   function scheduleOutlineRefresh() {
@@ -2671,7 +2722,11 @@
 
   async function refreshOutline() {
     if (!outlineIsOpen()) return;
-    if (outlineCtx?.getPreviewing?.()) await outlineCtx.hydrateVditor?.();
+    if (outlineCtx?.getPreviewing?.()) {
+      renderLiteOutline();
+      relocateVditorOutline();
+      return;
+    }
     const inner = innerVditor(outlineCtx?.getVditor?.());
     relocateVditorOutline();
     try { inner?.outline?.render?.(inner); } catch (_) { /* ignore */ }
@@ -2697,7 +2752,10 @@
 
   function setVditorOutline(show) {
     const inner = innerVditor(outlineCtx?.getVditor?.());
-    const panel = inner?.outline?.element || vditorOutlineEl();
+    let panel = inner?.outline?.element || vditorOutlineEl();
+    if (!panel && show && outlineCtx?.getPreviewing?.()) {
+      panel = renderLiteOutline();
+    }
     if (!panel) return;
     relocateVditorOutline();
     const wrap = document.getElementById("editorWrap") || document.querySelector(".editor-wrap");
@@ -2705,8 +2763,10 @@
     if (show) {
       panel.style.display = "block";
       wrap?.classList.add("is-outline-open");
-      try { inner?.outline?.render?.(inner); } catch (_) { /* ignore */ }
-      inner?.toolbar?.elements?.outline?.firstElementChild?.classList.add("vditor-menu--current");
+      if (!outlineCtx?.getPreviewing?.()) {
+        try { inner?.outline?.render?.(inner); } catch (_) { /* ignore */ }
+        inner?.toolbar?.elements?.outline?.firstElementChild?.classList.add("vditor-menu--current");
+      }
     } else {
       panel.style.display = "none";
       wrap?.classList.remove("is-outline-open");
@@ -2744,7 +2804,11 @@
   }
 
   async function openOutline() {
-    await outlineCtx?.hydrateVditor?.();
+    if (outlineCtx?.getPreviewing?.()) {
+      renderLiteOutline();
+    } else {
+      await outlineCtx?.hydrateVditor?.();
+    }
     relocateVditorOutline();
     outlineAnimToken += 1;
     const wrap = document.getElementById("editorWrap") || document.querySelector(".editor-wrap");
@@ -7919,7 +7983,11 @@
           }
           previewing = true;
           blockInsert.hide();
-          renderLitePreview(markdown, spot);
+          if (!opts.skipRender) {
+            renderLitePreview(markdown, spot);
+          } else {
+            syncLiteClass();
+          }
           if (sourceOpen) fillSourceText();
           notifyPreview();
           return true;

@@ -19,6 +19,8 @@ export type InlineHostCallbacks = {
   onChange: (dirty: boolean) => void;
   onPreviewChange: (isPreview: boolean) => void;
   onWantEdit: () => void;
+  /** 只读时点编辑：宿主可先抢锁，返回 true 则放行进入编辑 */
+  onRequestEdit?: () => boolean | Promise<boolean>;
   onReady?: () => void;
   onSelection?: (focus: {
     headingPath: string[];
@@ -143,8 +145,12 @@ export function mountInlineHost(root: HTMLElement, callbacks: InlineHostCallback
   const onMode = async () => {
     if (!bridge.editorApi) return;
     if (bridge.readOnly) {
-      callbacks.onWantEdit();
-      return;
+      const allowed = await callbacks.onRequestEdit?.();
+      if (!allowed) {
+        callbacks.onWantEdit();
+        return;
+      }
+      await bridge.applyReadOnly(false);
     }
     const nextPreview = !bridge.editorApi.isPreview();
     await bridge.editorApi.setPreview(nextPreview);

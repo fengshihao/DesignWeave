@@ -120,10 +120,6 @@ export function createBridgeCore(options: BridgeCoreOptions) {
     }, 180);
   }
 
-  function wait(ms: number) {
-    return new Promise<void>((resolve) => setTimeout(resolve, ms));
-  }
-
   async function applyHostContent(msg: Extract<HostToFrameMessage, { type: "init" | "setContent" }>) {
     const api = await ensureEditor();
     editorApi = api;
@@ -131,11 +127,15 @@ export function createBridgeCore(options: BridgeCoreOptions) {
     applyingRemote = true;
     const incoming = msg.value ?? "";
     if (readOnlyFeatures) readOnly = Boolean(msg.readOnly);
-    await api.setPreview(true);
-    await api.setValue(incoming, true);
+    // 已在预览则只 setValue 一次；从编辑退出时跳过「先渲旧文」再渲新文
     if (!api.isPreview()) {
-      await wait(480);
+      const setPreview = api.setPreview as (
+        on: boolean,
+        opts?: { skipRender?: boolean }
+      ) => boolean | Promise<boolean>;
+      await setPreview(true, { skipRender: true });
     }
+    await api.setValue(incoming, true);
     baseline = api.getValue();
     applyingRemote = false;
     setChrome({

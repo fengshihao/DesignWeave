@@ -487,7 +487,11 @@
           }
           previewing = true;
           blockInsert.hide();
-          renderLitePreview(markdown, spot);
+          if (!opts.skipRender) {
+            renderLitePreview(markdown, spot);
+          } else {
+            syncLiteClass();
+          }
           if (sourceOpen) fillSourceText();
           notifyPreview();
           return true;
