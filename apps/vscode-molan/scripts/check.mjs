@@ -224,7 +224,7 @@ assert(editorSource.includes("function bindPreviewCodeCopy"), "code fence copy u
 assert(editorSource.includes("mermaidCopySource(shell, getVditor)"), "mermaid edit recovers source the same way as copy-code");
 
 const bridge = readFileSync(join(root, "media/vscode-bridge.js"), "utf8");
-assert(bridge.includes("await api.setPreview(true)"), "defaults to preview on init");
+assert(bridge.includes("await setPreview(true, { skipRender: true })"), "defaults to preview on init");
 assert(bridge.includes("value !== baseline"), "ignores Vditor setValue round-trip");
 assert(bridge.includes("openRelative"), "webview opens relative markdown links");
 assert(bridge.includes("quickOpen"), "webview forwards Cmd/Ctrl+P to Quick Open");
