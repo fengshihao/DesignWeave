@@ -73,7 +73,11 @@ function Branch(props: {
   return (
     <ul className="tree-node">
       {props.nodes.map((node) => {
-        const isTopFolder = node.path === "product" || node.path === "eng" || node.path === "qa";
+        const isTopFolder =
+          node.path === "product" ||
+          node.path === "eng" ||
+          node.path === "qa" ||
+          node.path === ".claude/skills";
         const collapsed = folded[node.path] ?? (node.path === "import" || node.path.endsWith("/import"));
         if (node.isDir) {
           return (

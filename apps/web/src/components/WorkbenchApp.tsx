@@ -24,8 +24,8 @@ import {
   canCreateProject,
   defaultFileForRole,
   FOLDER_LABELS,
-  folderOfPath,
   followHintFor,
+  owningFolderOf,
   writableFolderOf,
 } from "@/lib/docFolders";
 import { canWriteFile, editBlockedLabel } from "@/lib/fileOwnership";
@@ -78,6 +78,30 @@ function clientId(): string {
 
 function isReady(r: Pick<RequirementMeta, "phase" | "clarity">): boolean {
   return r.clarity === "ready" || r.phase === "ready";
+}
+
+/** 关卡：ack 只确认；save 可「保存一版」再继续。 */
+type Gate = { kind: "ack" | "save"; message: string };
+
+function ackGate(message: string): Gate {
+  return { kind: "ack", message };
+}
+
+function saveGate(message: string): Gate {
+  return { kind: "save", message };
+}
+
+/** 服务端错误：只有「先保存/记版」类才给保存按钮，其余只提示。 */
+function gateFromError(message: string): Gate {
+  if (
+    message.includes("先保存一版") ||
+    message.includes("记入版本") ||
+    message.includes("退出编辑") ||
+    message.includes("先保存当前")
+  ) {
+    return saveGate(message);
+  }
+  return ackGate(message);
 }
 
 function runsToAguiEvents(runs: WorkbenchRunWithEvents[]): AguiEvent[] {
@@ -548,7 +572,7 @@ function ProjectPaper(props: {
   );
   const [compare, setCompare] = useState<{ a: string; b: string; title: string } | null>(null);
   const [importText, setImportText] = useState("");
-  const [gate, setGate] = useState("");
+  const [gate, setGate] = useState<Gate | null>(null);
   const [showVersions, setShowVersions] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [entrustSize, setEntrustSize] = useState<EntrustSize>("collapsed");
@@ -569,7 +593,7 @@ function ProjectPaper(props: {
   editingRef.current = editing;
 
   const youHold = Boolean(lock?.youHold);
-  const viewFolder = folderOfPath(currentPath) || heldFolder;
+  const viewFolder = owningFolderOf(currentPath) || heldFolder;
   const pendingMine = Boolean(folders.find((f) => f.id === heldFolder)?.pendingFollow);
   const showFollowHint = pendingMine && viewFolder === heldFolder;
   const pendingFollow = folders.filter((f) => f.pendingFollow).map((f) => f.id);
@@ -578,16 +602,19 @@ function ProjectPaper(props: {
   );
   const canEditCurrent = canWriteFile(props.user.role, currentPath);
   const turns = reduceAguiEvents(events);
-  const readOnly = !canEditCurrent || aiRunning || Boolean(history) || replaySession;
+  // 锁预览也只读：否则墨览能进编辑，保存才被服务端打回「你现在是预览」
+  const readOnly = !canEditCurrent || !youHold || aiRunning || Boolean(history) || replaySession;
   const editBlockedReason = history
     ? "这是旧版，返回纸面后再改。"
     : replaySession
       ? "正在查看历史对话，切回当前对话后再改。"
       : !canEditCurrent
         ? editBlockedLabel(props.user.role, currentPath)
-        : aiRunning
-          ? "AI 进行中，暂时不能改。"
-          : "";
+        : !youHold
+          ? previewReason || "你现在是预览，不能改文档。"
+          : aiRunning
+            ? "AI 进行中，暂时不能改。"
+            : "";
   const canSendEntrust = !replaySession && !aiRunning && !busy;
 
   function changeEntrustSize(next: EntrustSize) {
@@ -613,12 +640,12 @@ function ProjectPaper(props: {
       if (!force && dirty && !readOnly) {
         const state = await molanRef.current?.getState();
         if (state?.dirty) {
-          setGate("先保存当前这篇，再打开另一篇。");
+          setGate(saveGate("先保存当前这篇，再打开另一篇。"));
           return;
         }
       }
       const file = await api.readFile(id, path);
-      const nextFolder = folderOfPath(file.path) || heldFolder;
+      const nextFolder = owningFolderOf(file.path) || heldFolder;
       if (cid) {
         const claimed = await api.claimLock(id, cid, nextFolder);
         setLock(claimed.lock);
@@ -662,7 +689,7 @@ function ProjectPaper(props: {
         : tree.files.some((f) => f.path === preferred && !f.isDir)
           ? preferred
           : tree.files.find((f) => !f.isDir)?.path || preferred;
-    const startFolder = folderOfPath(startPath) || heldFolder;
+    const startFolder = owningFolderOf(startPath) || heldFolder;
     if (startFolder !== heldFolder) {
       const viewClaim = await api.claimLock(id, cid, startFolder);
       setLock(viewClaim.lock);
@@ -922,7 +949,7 @@ function ProjectPaper(props: {
   async function saveAndRecord() {
     setBusy(true);
     setError("");
-    setGate("");
+    setGate(null);
     try {
       const state = await molanRef.current?.getState();
       if (state?.dirty) await saveCurrent(state.value);
@@ -941,21 +968,21 @@ function ProjectPaper(props: {
   async function onSend() {
     const text = message.trim();
     if (!text || busy || aiRunning) return;
-    setGate("");
+    setGate(null);
     setError("");
     const asking = !youHold;
     if (asking && !previewFocus?.quote) {
-      setGate("先圈一段，再提问。");
+      setGate(ackGate("先圈一段，再提问。"));
       return;
     }
     if (!asking) {
       const state = await molanRef.current?.getState();
       if (state && (!state.isPreview || state.dirty || editing)) {
-        setGate("先保存一版并退出编辑，再发给 AI。");
+        setGate(saveGate("先保存一版并退出编辑，再发给 AI。"));
         return;
       }
       if (uncommitted) {
-        setGate("先记入版本再发给 AI。");
+        setGate(saveGate("先记入版本再发给 AI。"));
         return;
       }
     }
@@ -976,6 +1003,8 @@ function ProjectPaper(props: {
         },
       });
       setMessage("");
+      setPreviewFocus(null);
+      molanRef.current?.clearSelection();
       setActiveRun(started.run);
       if (started.sessionId) {
         setChatSession((prev) =>
@@ -998,7 +1027,7 @@ function ProjectPaper(props: {
       followSeq.current = maxSeq(started.events);
       if (entrustSize === "collapsed") changeEntrustSize("half");
     } catch (err) {
-      setGate(err instanceof Error ? err.message : "没发出去");
+      setGate(gateFromError(err instanceof Error ? err.message : "没发出去"));
     } finally {
       setBusy(false);
     }
@@ -1008,7 +1037,7 @@ function ProjectPaper(props: {
     const text = message.trim();
     if (!text || busy || aiRunning) return;
     if (!previewFocus?.quote) {
-      setGate("先圈一段，再提问。");
+      setGate(ackGate("先圈一段，再提问。"));
       return;
     }
     setBusy(true);
@@ -1158,30 +1187,31 @@ function ProjectPaper(props: {
                   setToast(editBlockedReason || "现在不能编辑。");
                 }}
                 onSelection={(focus) => {
-                  console.debug("[dw-focus]", focus);
                   setPreviewFocus(focus.quote ? focus : null);
                 }}
               />
             </div>
-            <SelectionAsk
-              focus={previewFocus}
-              message={message}
-              onMessageChange={setMessage}
-              onSend={() => void onSend()}
-              onClear={() => {
-                setPreviewFocus(null);
-                molanRef.current?.clearSelection();
-              }}
-              onExpandSection={() => {
-                molanRef.current?.expandToSection();
-              }}
-              onAskAuthor={youHold ? undefined : () => void addQuestionToAuthor()}
-              authorActionLabel="向作者提一个问题"
-              disabled={!canSendEntrust}
-              canSend={Boolean(message.trim()) && canSendEntrust}
-              placeholder={youHold ? "对这块说一句，回车发给 AI…" : "写一句问题…"}
-              hint={replaySession ? "这是已结束的历史对话。" : undefined}
-            />
+            {!gate ? (
+              <SelectionAsk
+                focus={previewFocus}
+                message={message}
+                onMessageChange={setMessage}
+                onSend={() => void onSend()}
+                onClear={() => {
+                  setPreviewFocus(null);
+                  molanRef.current?.clearSelection();
+                }}
+                onExpandSection={() => {
+                  molanRef.current?.expandToSection();
+                }}
+                onAskAuthor={youHold ? undefined : () => void addQuestionToAuthor()}
+                authorActionLabel="向作者提一个问题"
+                disabled={!canSendEntrust}
+                canSend={Boolean(message.trim()) && canSendEntrust}
+                placeholder={youHold ? "对这块说一句，回车发给 AI…" : "写一句问题…"}
+                hint={replaySession ? "这是已结束的历史对话。" : undefined}
+              />
+            ) : null}
             <EntrustLayer
               size={entrustSize}
               width={entrustWidth}
@@ -1294,12 +1324,12 @@ function ProjectPaper(props: {
       />
 
       {gate ? (
-        <div className="gate-mask" onClick={() => setGate("")}>
+        <div className="gate-mask" onClick={() => setGate(null)}>
           <div className="gate-panel" onClick={(e) => e.stopPropagation()}>
-            <p>{gate}</p>
+            <p>{gate.message}</p>
             <div className="gate-actions">
-              {gate.includes("清晰度") || gate.includes("代码目录") || gate.includes("先圈一段") ? (
-                <button className="btn ghost" type="button" onClick={() => setGate("")}>
+              {gate.kind === "ack" ? (
+                <button className="btn ghost" type="button" onClick={() => setGate(null)}>
                   知道了
                 </button>
               ) : (
@@ -1312,13 +1342,14 @@ function ProjectPaper(props: {
                   >
                     保存一版
                   </button>
-                  <button className="btn ghost" type="button" onClick={() => setGate("")}>
+                  <button className="btn ghost" type="button" onClick={() => setGate(null)}>
                     先不发
                   </button>
                 </>
               )}
             </div>
-            {gate.includes("保存一版") || gate.includes("记入版本") ? (
+            {gate.kind === "save" &&
+            (gate.message.includes("发给 AI") || gate.message.includes("记入版本")) ? (
               <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>
                 「保存一版」只记入并退出编辑，不会把输入框里那句话发出去。
               </p>

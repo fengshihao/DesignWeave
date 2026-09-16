@@ -25,11 +25,14 @@ test("三角色各写一个文件夹，测试不能建工程", () => {
   assert.equal(canWritePath("designer", "eng/方案.md"), false);
   assert.equal(canWritePath("architect", "product/PRD.md"), false);
   assert.equal(canWritePath("tester", "qa/跟上.md"), true);
+  assert.equal(canWritePath("architect", ".claude/skills/prd-验收/SKILL.md"), true);
+  assert.equal(canWritePath("designer", ".claude/skills/prd-验收/SKILL.md"), false);
   assert.equal(canCreateProject("architect"), true);
   assert.equal(canCreateProject("designer"), true);
   assert.equal(canCreateProject("tester"), false);
   assert.equal(folderOfPath("eng/方案.md"), "eng");
   assert.equal(folderOfPath("meta.md"), null);
+  assert.equal(folderOfPath(".claude/skills/prd-验收/SKILL.md"), null);
 });
 
 test("跟上.md 追加未处理条，标成已跟上后挪到已处理", () => {

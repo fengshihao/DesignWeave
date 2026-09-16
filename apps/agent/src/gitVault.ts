@@ -127,9 +127,14 @@ export function isDirty(dir: string): boolean {
 }
 
 export function isDirtyFolder(dir: string, folder: string): boolean {
-  return changedFiles(dir).some(
-    (f) => f === folder || f.startsWith(`${folder}/`)
-  );
+  return changedFiles(dir).some((f) => {
+    if (f === folder || f.startsWith(`${folder}/`)) return true;
+    // 工程技能归架构师记版（eng）
+    if (folder === "eng" && (f === ".claude/skills" || f.startsWith(".claude/skills/"))) {
+      return true;
+    }
+    return false;
+  });
 }
 
 export function shortHead(dir: string): string {

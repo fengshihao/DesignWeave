@@ -26,9 +26,23 @@ export function defaultFileForRole(role: AppRole): string {
   return FOLDER_MAIN_FILE[writableFolderOf(role)];
 }
 
+export function normalizeRelPath(relPath: string): string {
+  return relPath.replace(/\\/g, "/").replace(/^\/+/, "");
+}
+
+export function isProjectSkillPath(relPath: string): boolean {
+  const safe = normalizeRelPath(relPath);
+  return safe === ".claude/skills" || safe.startsWith(".claude/skills/");
+}
+
 export function folderOfPath(relPath: string): DocFolder | null {
-  const top = relPath.replace(/\\/g, "/").replace(/^\/+/, "").split("/")[0] || "";
+  const top = normalizeRelPath(relPath).split("/")[0] || "";
   return isDocFolder(top) ? top : null;
+}
+
+export function owningFolderOf(relPath: string): DocFolder | null {
+  if (isProjectSkillPath(relPath)) return "eng";
+  return folderOfPath(relPath);
 }
 
 export function canCreateProject(role: AppRole): boolean {
@@ -36,7 +50,7 @@ export function canCreateProject(role: AppRole): boolean {
 }
 
 export function canWritePath(role: AppRole, relPath: string): boolean {
-  const folder = folderOfPath(relPath);
+  const folder = owningFolderOf(relPath);
   if (!folder) return false;
   return writableFolderOf(role) === folder;
 }

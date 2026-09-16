@@ -1910,7 +1910,8 @@ body.is-col-resizing iframe {
   inset: 0;
   display: grid;
   place-items: center;
-  z-index: 22;
+  /* 高于选区弹层(.selection-ask: 24)与 picker(30)，低于 toast(40) */
+  z-index: 35;
 }
 
 .gate-panel {

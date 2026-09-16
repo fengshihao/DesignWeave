@@ -48,10 +48,26 @@ export function defaultFileForRole(role: AppRole): string {
   return FOLDER_MAIN_FILE[writableFolderOf(role)];
 }
 
+export function normalizeRelPath(relPath: string): string {
+  return relPath.replace(/\\/g, "/").replace(/^\/+/, "");
+}
+
+/** 工程内 Claude project skill（新建时从模板拷入）。 */
+export function isProjectSkillPath(relPath: string): boolean {
+  const safe = normalizeRelPath(relPath);
+  return safe === ".claude/skills" || safe.startsWith(".claude/skills/");
+}
+
 export function folderOfPath(relPath: string): DocFolder | null {
-  const safe = relPath.replace(/\\/g, "/").replace(/^\/+/, "");
+  const safe = normalizeRelPath(relPath);
   const top = safe.split("/")[0] || "";
   return isDocFolder(top) ? top : null;
+}
+
+/** 写权 / 记版归属：侧栏三文件夹，另加技能归架构师（eng）。 */
+export function owningFolderOf(relPath: string): DocFolder | null {
+  if (isProjectSkillPath(relPath)) return "eng";
+  return folderOfPath(relPath);
 }
 
 export function followPath(folder: DocFolder): string {
@@ -67,8 +83,13 @@ export function questionPath(folder: DocFolder): string {
 }
 
 export function pathUnderFolder(relPath: string, folder: DocFolder): boolean {
-  const safe = relPath.replace(/\\/g, "/").replace(/^\/+/, "");
+  const safe = normalizeRelPath(relPath);
   return safe === folder || safe.startsWith(`${folder}/`);
+}
+
+export function pathOwnedByFolder(relPath: string, folder: DocFolder): boolean {
+  if (pathUnderFolder(relPath, folder)) return true;
+  return folder === "eng" && isProjectSkillPath(relPath);
 }
 
 export function canWriteFolder(role: AppRole, folder: DocFolder): boolean {
@@ -76,7 +97,7 @@ export function canWriteFolder(role: AppRole, folder: DocFolder): boolean {
 }
 
 export function canWritePath(role: AppRole, relPath: string): boolean {
-  const folder = folderOfPath(relPath);
+  const folder = owningFolderOf(relPath);
   return folder ? canWriteFolder(role, folder) : false;
 }
 
